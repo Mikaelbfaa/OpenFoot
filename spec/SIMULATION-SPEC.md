@@ -340,14 +340,18 @@ Sorteio `rand(1000)` no momento do gol:
 - Assistência só é sorteada para gols de bola rolando.
 - **Peculiaridade:** quando o tipo é pênalti e há time humano na partida, o gol **não** é somado ao placar - ele vira o pênalti interativo, que decide. Em IAxIA conta normalmente.
 
-## 3.8 Disciplina, lesões e substituições
+## 3.8 Disciplina, lesões e substituições CONFIRMADO
 
 Roda **uma vez por minuto, antes do tick de jogo**.
 
 **Time-vítima:** `rand(100) > 55` -> **mandante** (44%), senão **visitante** (56%). É o único
-mecanismo parecido com "viés de arbitragem" do jogo.
+mecanismo parecido com "viés de arbitragem" do jogo. CONFIRMADO
 
-**Fase** `p`: minuto < 15 -> 0; < 30 -> 1; senão 2. Eventos disparam com `rand(N) == 1` (prob. `1/N`):
+**Fase** `p`: minuto < 15 -> 0; < 30 -> 1; senão 2, com o **minuto contado dentro do próprio tempo,
+a partir de 0** - a contagem reinicia no início do 2º tempo, exatamente como o desgaste de energia
+da 3.9. As seis células de cada tabela abaixo são portanto alcançáveis. CONFIRMADO
+
+Eventos disparam com `rand(N) == 1` (prob. `1/N`):
 
 | Evento | 1º tempo (p=0,1,2) | 2º tempo (p=0,1,2) |
 |---|---|---|
@@ -355,15 +359,25 @@ mecanismo parecido com "viés de arbitragem" do jogo.
 | **Vermelho direto** | 1200, 900, 800 | 800, 700, 550 |
 | **Lesão** | 1500, 1000, 800 | 800, 600, 600 |
 
-Depois: `limiarAmarelo += {Leve: 30, Pesada: 10, Muito pesada: 0}` conforme a marcação da vítima.
+Depois: `limiarAmarelo += {Leve: 30, Pesada: 10, Muito pesada: 0}` conforme a marcação da vítima
+(qualquer valor de marcação fora de 0-2 cai no 30). CONFIRMADO
 Modificadores (os últimos sobrescrevem): se já houve > 5 amarelos -> limiar x2; se já houve >= 2
 vermelhos -> limiar do amarelo passa a `2 x limiarVermelho`; se já houve >= 1 lesão -> passa a
 `5 x limiarLesão`. **Na prática, depois da primeira lesão da partida a taxa de cartões despenca.**
+CONFIRMADO
 
-Resolução, o primeiro que casar: amarelo -> vermelho -> lesão -> (se 2º tempo e minuto >= 5) janela de substituição da IA.
+**Os três contadores que essas sobrescritas leem são da partida inteira, não de cada lado**: contam
+amarelos, expulsões por vermelho direto e lesões dos dois times somados. Eles são incrementados
+**mesmo quando o grupo de risco sorteado não tem ninguém** e nenhum evento chega a acontecer.
+Uma expulsão por segundo amarelo soma **1 ao contador de amarelos e nada ao de vermelhos** - só o
+vermelho direto alimenta o contador que a sobrescrita `>= 2 vermelhos` lê. CONFIRMADO
 
-**Grupos de risco** (sorteia-se um grupo, depois um jogador aleatório dentro da faixa de slots):
-g0 = 10-13, g1 = 14-17, g2 = 3-8, g3 = 2-3, g4 = 8-9, g5 = 19-24, g6 = goleiro.
+Resolução, o primeiro que casar: amarelo -> vermelho -> lesão -> (se 2º tempo e minuto >= 5) janela de substituição da IA. CONFIRMADO
+
+**Grupos de risco** (sorteia-se um grupo, depois um jogador aleatório **entre os que ocupam** as
+células da faixa - a faixa é filtrada pelos jogadores em campo e o sorteio é uniforme sobre eles;
+se nenhuma célula da faixa está ocupada, nada acontece naquele minuto):
+g0 = 10-13, g1 = 14-17, g2 = 3-8, g3 = 2-3, g4 = 8-9, g5 = 19-24, g6 = goleiro (slot 1). CONFIRMADO
 
 | Evento | Distribuição |
 |---|---|
@@ -371,12 +385,25 @@ g0 = 10-13, g1 = 14-17, g2 = 3-8, g3 = 2-3, g4 = 8-9, g5 = 19-24, g6 = goleiro.
 | Vermelho `rand(200)` | ==0 -> goleiro (0,5%); <80 -> g0 (39,5%); <110 -> g1 (15%); <160 -> g2 (25%); <170 -> g3 (5%); <190 -> g4 (10%); senão g5 (5%) |
 | Lesão `rand(500)` | ==0 -> goleiro (0,2%); <150 -> g0 (29,8%); <250 -> g1 (20%); <320 -> g2 (14%); <360 -> g3 (8%); <420 -> g4 (12%); senão g5 (16%) |
 
-Segundo amarelo -> expulsão (evento distinto).
+As três distribuições acima são CONFIRMADO.
 
-**Consequências.** Expulso: sai de campo; se o slot <= 13 e o time é da IA com substituições
-disponíveis, a IA **sacrifica um atacante** (tira alguém de 18-25, senão 14-17) e põe o reserva mais
-adequado ao slot vago. Lesionado: sai e é substituído (com regra que impede preencher a vaga do
-goleiro com não-goleiro).
+Segundo amarelo -> expulsão (evento distinto). CONFIRMADO
+
+**Consequências.** Expulso: sai de campo (dos dois lados, humano ou não); se o slot <= 13 e o time é
+da IA com substituições disponíveis, a IA **sacrifica um atacante** e põe o reserva mais adequado ao
+slot vago. O sacrificado é alguém de 18-25; se não houver, alguém de 14-17; e, **só quando o expulso
+é o goleiro**, se ainda não houver, qualquer um de 2-25.
+Lesionado: sai e é substituído. Nas duas, o reserva é escolhido pela cascata
+da 5.4 para o slot que ficou vago, e nenhuma das duas olha a metade do relógio - **valem também no
+1º tempo**, ao contrário das três janelas voluntárias abaixo. CONFIRMADO
+
+**A restrição de goleiro é o inverso do que se poderia esperar.** Na reposição de uma lesão, a troca
+só é feita se o que sai é goleiro **ou** o que entra não é goleiro; ou seja, o que a regra impede é
+um **goleiro reserva entrar no lugar de um jogador de linha**, e não o contrário. A cascata de
+posição da 5.4 é aplicada sem exceção para o gol: quando o goleiro sai e **não há goleiro no banco**,
+a cascata desce para a posição seguinte e **um zagueiro (depois lateral, meia, atacante) assume o
+gol**, com o x0,5 e o `round(GK x 0,2)` da 5.3. A célula do goleiro nunca fica vazia por falta de
+goleiro reserva. CONFIRMADO
 
 **Duração da lesão (em dias)** - **único ponto em que a energia realimenta o resultado**:
 ```
@@ -386,30 +413,56 @@ idade <=20 -> x (descarta o termo de energia)
 <=25 -> base+x+1 ; <=30 -> base+x+2 ; <=35 -> base+x+3
 <=45 -> base+x+y ; senão base+x+10+y
 gravidade rand(100): ==1 -> +70 ; <4 -> +40 ; <10 -> +20
-idade >= 35 -> perde permanentemente 5 de força (piso 1)
+idade >= 35 -> perde permanentemente 5 de força (só vira 1 se o resultado ficar NEGATIVO;
+              uma força que cai exatamente em 0 fica em 0)
 ```
+CONFIRMADO, inclusive a ordem: a perda de força é aplicada **antes** do sorteio de gravidade, e a
+gravidade é sempre sorteada. Duração 0 (possível para idade <= 20 quando `x` sai 0) **não registra
+lesão nenhuma** - o jogador sai de campo e volta a ficar disponível na rodada seguinte.
 
 **Suspensões** (pós-rodada): amarelo soma 1 ao registro; expulsão por 2º amarelo soma 1 amarelo **e**
 1 jogo de gancho; vermelho direto sorteia `rand(1000)`: <700 -> 1 jogo (70%), <900 -> 2 (20%),
 <970 -> 3 (7%), <=990 -> 5 (2%), senão 10 (1%). O jogador fica indisponível enquanto
-`amarelos >= 3 ou gancho >= 1`; cumprir zera os amarelos (se >=3) ou decrementa o gancho.
+`amarelos >= 3 ou gancho >= 1`; cumprir zera os amarelos (se >=3) ou decrementa o gancho. CONFIRMADO
 
-**Substituições da IA:** 5 por time, só no 2º tempo (+ janela do intervalo); times humanos nunca
-são substituídos automaticamente. Cada time sorteia seus minutos:
+**Substituições da IA:** 5 por time; as três janelas **voluntárias** abaixo só abrem no 2º tempo
+(+ janela do intervalo); times humanos nunca são substituídos automaticamente. O sacrifício da
+expulsão e a reposição da lesão descritos em Consequências **não** têm essa restrição. Os dois times
+sorteiam seus minutos do mesmo pool embaralhado, sem reposição entre eles: CONFIRMADO
 - **Minutos "correndo atrás"**: 2 por time (+1 com 69% de chance), sorteados sem reposição em **19-38**.
 - **Minutos de rotina**: escolhe-se um pool com `rand(100)`: >90 (9%) -> **5-15**; >50 (40%) -> **16-35**; senão (51%) -> **36-42**. Dois minutos por time desse pool, +1 de **43-47** com 79% e +1 de 43-47 com 49%.
 
-No intervalo: se perde por >=1 (mandante) / >=2 (visitante), 50% de chance de troca aleatória.
+No intervalo: se perde por >=1 (mandante) / >=2 (visitante), **49%** de chance de troca aleatória.
 Em minuto "correndo atrás": mandante troca se perde ou empata; visitante só se perde.
 Em minuto de rotina: troca por cansaço - primeiro não-goleiro com **energia < 60** (após o minuto 40
-o limiar sobe para **90** e a varredura começa num índice aleatório).
+do 2º tempo o limiar sobe para **90** e a varredura começa num índice aleatório e **não dá a volta**,
+podendo terminar sem achar ninguém). CONFIRMADO
+
+**As duas janelas de placar (intervalo e "correndo atrás") sorteiam um índice qualquer da escalação
+em campo**, não um jogador de linha: se o índice cair no goleiro, a janela é simplesmente
+desperdiçada, sem nova tentativa. O sorteio também evita tirar quem acabou de entrar - com o defeito
+descrito no item 12 da 3.15. Quem sai é sempre esse jogador sorteado; quem entra é o reserva mais
+adequado à célula que ele deixou. CONFIRMADO
+
+**A janela abre para os dois times, e não para o time-vítima do minuto.** As janelas de "correndo
+atrás" e de rotina são o quarto ramo da cadeia de resolução, e por isso só abrem num minuto cuja
+cadeia não produziu cartão nem lesão; a **janela do intervalo não passa pela cadeia** - ela roda uma
+única vez entre os dois tempos, sem sorteio de vítima e sem nenhuma condição de disciplina. Os dois
+times são avaliados no mesmo instante, o mandante primeiro (ver o item 11 da 3.15). CONFIRMADO
+
+**Onde o substituto entra na lista.** O que sai é removido da escalação em campo e o que entra é
+**acrescentado ao fim** da lista, herdando o slot da célula vaga. Isso importa para os agregados da
+3.4, que tomam os **primeiros N** da lista e não os N melhores. CONFIRMADO
 
 ## 3.9 Energia
 
 Inteiro 0-100, inicial 100.
 - **Desgaste em jogo**: a cada 7 minutos, cada jogador em campo perde por idade: <=20 -> 1, <=25 -> 2,
   <=31 -> 3, <=36 -> 4, senão 5. **O goleiro é isento no 1º tempo.** ~7 descontos por tempo -> um
-  jogador de 24 anos perde ~28 de energia por partida completa; um de 37, ~70.
+  jogador de 24 anos perde ~28 de energia por partida completa; um de 37, ~70. CONFIRMADO - o
+  desconto cai nos minutos múltiplos de 7 **contados dentro do próprio tempo a partir de 0**
+  (0, 7, 14, 21, 28, 35, 42 e, quando o acréscimo do 2º tempo é 5, também o 49): 7 descontos por
+  tempo, 8 no 2º tempo em ~1 partida a cada 5.
 - **Recuperação semanal** (pós-rodada):
   - jogou, clube **humano**: <=20 -> +13, <=25 -> +24, <=31 -> +37, <=36 -> +40, senão +30.
   - jogou, clube **da IA**: <=20 -> +20, <=25 -> +30, <=31 -> +50, <=36 -> +52, senão +42.
@@ -492,18 +545,30 @@ Teto 10; depois: < 15 min jogados -> -2,5, < 45 min -> -1,5; piso 2,0; e se jogo
 5. **Sobrescritas do limiar de cartão**: após 2 vermelhos vira `2 x limiarVermelho`; após 1 lesão vira `5 x limiarLesão` - ambos derrubam drasticamente os cartões no resto do jogo. Há ainda um ramo inalcançável (`> 10 amarelos`).
 6. **Força exibida** usa `round(energia/100 x força)` com divisão inteira -> só mostra a força real com energia exatamente 100; caso contrário **exibe 0**. (Só display; o motor não usa.)
 7. Um passe de relaxamento da escalação é inalcançável (limite do laço).
-8. Os pools de minutos de substituição são **estáticos/compartilhados**, re-embaralhados por partida -> partidas consecutivas sorteiam minutos correlacionados.
+8. Os pools de minutos de substituição são **estáticos/compartilhados**, re-embaralhados por partida -> partidas consecutivas sorteiam minutos correlacionados. CONFIRMADO: os cinco pools (19-38, 5-15, 16-35, 36-42, 43-47) são criados uma vez no processo e apenas re-embaralhados no começo de cada partida; mandante e visitante tiram do **mesmo** embaralhamento, em posições fixas, e por isso os minutos dos dois lados nunca coincidem dentro de uma partida.
 9. Um bloco grande de constantes do motor (dez arrays de 3 elementos, ~12 escalares, 2 arrays de contadores) é declarado e **nunca usado** - resquício de um modelo antigo. Não portar.
 10. Prorrogação nunca é simulada; empates em mata-mata vão direto para a fórmula abstrata de pênaltis.
+11. **A janela de substituição do visitante é engolida pela do mandante.** As duas janelas do mesmo minuto são avaliadas na mesma passagem, o mandante primeiro; se o mandante **efetivamente trocou** naquele minuto, a janela do visitante nem é examinada. Como os minutos dos dois lados saem do mesmo pool sem reposição, isso só morde quando um minuto de "correndo atrás"/rotina do visitante coincide com o do mandante ou no intervalo, onde os dois são avaliados juntos - ali o visitante perde a janela sempre que o mandante trocou. CONFIRMADO
+12. **A checagem de "não tire quem acabou de entrar" olha sempre a lista do mandante.** No sorteio aleatório das janelas de placar, o índice do time é comparado contra um valor que ele nunca assume, então a lista consultada é sempre a de substitutos que **entraram pelo mandante**. Efeito: o mandante nunca tira quem acabou de entrar (com uma única re-tentativa), e o visitante não tem proteção nenhuma - pode sacar num minuto o reserva que pôs em campo no minuto anterior. CONFIRMADO
 
 ## 3.16 Sanity check (o que uma reimplementação fiel deve produzir)
 
+> **Aviso.** As faixas desta seção **não foram derivadas das fórmulas das seções 3.1 a 3.8**. Onde
+> uma figura daqui discorda de uma constante lida na lógica, a constante é que vale, e a figura daqui
+> foi corrigida. Ver os itens 28 a 30 e 46 do `OPEN-QUESTIONS.md`.
+
 Dois times equivalentes, não-humanos, campo normal, temporada 1:
-- ~92 ticks; cada time é possuidor ~46 vezes.
+- **~94 ticks** em média (91 a 97, pela 3.1: `45 + rand(0..2)` mais `45 + rand(1..5)`); cada time é o
+  atacante nominal ~47 vezes. CONFIRMADO
 - Mandante: P(vencer duelo de posse) ~ 0,614; P(chute | posse) ~ 0,565 -> ~ **16 chutes** a ~8,8% -> **~ 1,4 gol**.
 - Visitante: 0,55 e 0,50 -> ~ **12,6 chutes** a ~11,1% -> **~ 1,4 gol**.
-- Posse exibida ~ 55/45 para o mandante.
-- ~2-3 amarelos por jogo; um vermelho a cada ~8-12 partidas; uma lesão a cada ~6-10 partidas por lado.
+- **Posse exibida ~ 53/47** para o mandante, e não 55/45: a posse exibida é a fração de tiques em que
+  cada lado venceu o duelo, e o atacante nominal alterna a cada tique, então ela é a média dos dois
+  duelos - `(0,614 + (1 - 0,55)) / 2 = 0,532`. CONFIRMADO
+- **~1,3 amarelo por jogo** (partida inteira, os dois lados somados); **uma expulsão a cada ~6
+  partidas** contando vermelho direto e segundo amarelo juntos; **uma lesão a cada ~17 partidas por
+  lado**. As figuras antigas - 2 a 3 amarelos, um vermelho a cada 8-12, uma lesão a cada 6-10 por
+  lado - não saem das tabelas da 3.8 sob nenhuma leitura; ver o item 46 do `OPEN-QUESTIONS.md`.
 
 **Alavanca dominante do modelo:** 20 pontos de força de diferença no meio-campo (~ 2,0 em unidades
 de `B()`) levam o duelo de posse de 55% para ~69% e o de chance de 50% para ~56% - cerca de **40% de

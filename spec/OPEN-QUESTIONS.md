@@ -896,6 +896,11 @@ que apagaria dois terços de uma tabela inteira sem nenhuma nota na seção 3.15
 um jeito impreciso de escrever "contado dentro do tempo" do que um comportamento deliberado do
 original.
 
+**Resolução no original (CONFIRMADO). A leitura adotada está certa.** O minuto que escolhe a fase é o
+minuto **do tempo em curso, contado a partir de 0**, e a contagem reinicia no início do 2º tempo. É o
+mesmo minuto que a 3.9 usa para o desgaste de 7 em 7, o que fecha do mesmo jeito o item 31. As seis
+células de cada uma das três tabelas são alcançáveis. A 3.8 e a 3.9 foram corrigidas para dizer isso.
+
 ### 39. Quais contadores as sobrescritas do limiar de cartão leem
 
 A seção 3.8 diz que "se já houve > 5 amarelos" o limiar do amarelo dobra, "se já houve >= 2 vermelhos"
@@ -927,6 +932,20 @@ Rejeitada por não ter apoio direto no texto das sobrescritas, que fala só em "
 "direto", ao contrário da regra de suspensões, que qualifica explicitamente onde quer dizer uma coisa e
 não a outra.
 
+**Resolução no original (CONFIRMADO). A leitura adotada está ERRADA na metade dos vermelhos.** São
+três contadores, e eles são **da partida inteira, não de cada lado**: somam os eventos dos dois times.
+A metade dos amarelos está certa - uma expulsão por segundo amarelo soma 1 ao contador de amarelos.
+A metade dos vermelhos não: essa expulsão **não soma nada ao contador de vermelhos**. Só a expulsão
+por vermelho direto alimenta o contador que a sobrescrita `>= 2 vermelhos` lê, exatamente a "leitura
+alternativa, não adotada" registrada acima.
+
+Há ainda um terceiro fato que nenhuma das duas leituras previa: os três contadores são incrementados
+**mesmo quando o grupo de risco sorteado está vazio** e nenhum cartão, expulsão ou lesão chega a
+acontecer. Ou seja, eles contam **tentativas**, não eventos. Isso importa para a sobrescrita da lesão,
+que é a mais violenta das três: ela passa a valer a partir da primeira **tentativa** de lesão, tenha
+ela produzido lesão ou não. Efeito prático: os cartões despencam um pouco mais cedo do que a contagem
+de eventos sugeriria. A 3.8 foi corrigida nos três pontos.
+
 ### 40. Como se escolhe o jogador dentro de um grupo de risco
 
 A seção 3.8 diz "sorteia-se um grupo, depois um jogador aleatório dentro da faixa de slots", sem dizer
@@ -954,6 +973,11 @@ evento (ou sortear de novo até achar uma ocupada). A primeira variante é a que
 eventos na aritmética acima; a segunda a preservaria, mas gastaria um número variável de sorteios por
 evento sem que a seção 3.8 descreva nenhum laço de repetição em lugar nenhum do seu texto. Nenhuma das
 duas tem apoio direto no texto, que fala em sortear "um jogador", não uma célula.
+
+**Resolução no original (CONFIRMADO). A leitura adotada está certa.** A faixa de slots do grupo é
+primeiro **filtrada pelos jogadores que estão em campo** e o sorteio é uniforme sobre essa lista
+filtrada; uma faixa sem ninguém devolve nada e o minuto passa sem evento. Não há laço de re-sorteio.
+A 3.8 foi corrigida para dizer isso explicitamente.
 
 ### 41. Quem entra na vaga do goleiro quando não há goleiro no banco
 
@@ -985,6 +1009,25 @@ escalação manual, onde a tela "não faz nenhuma checagem de legalidade posicio
 escalar onze atacantes; a 3.8 fala da substituição da IA, e ali o texto é uma proibição sem
 qualificação. Note que a leitura rejeitada é a mais generosa das duas: adotá-la mais tarde só melhora
 o time afetado.
+
+**Resolução no original (CONFIRMADO). A leitura adotada está ERRADA, e a frase da 3.8 que a motivou
+descreve a regra ao contrário.** Duas correções:
+
+1. A cascata de posição da 5.4 é aplicada **sem exceção nenhuma para a célula do goleiro**. Ela tenta
+   goleiro, depois zagueiro, depois lateral, meia e atacante, e devolve o primeiro do banco que
+   servir. Um banco sem goleiro entrega um **zagueiro**, que assume o gol com o x0,5 e o
+   `round(GK x 0,2)` da 5.3. A célula do goleiro só fica vazia se o banco inteiro estiver vazio. É a
+   "leitura alternativa, rejeitada" acima - a mais generosa das duas, como o próprio item previu.
+2. A "regra que impede preencher a vaga do goleiro com não-goleiro" da 3.8 **não existe nessa
+   direção**. O que existe é uma trava na reposição de lesão, e ela é o inverso: a troca só é feita
+   se quem sai é goleiro **ou** quem entra não é goleiro. Ou seja, o que a regra impede é um
+   **goleiro reserva entrar no lugar de um jogador de linha** - se a cascata devolver o goleiro
+   reserva para uma célula de linha (o que só acontece com o banco quase esgotado), a substituição é
+   cancelada e o lesionado não é reposto, deixando o time com dez. A trava vale **só na reposição de
+   lesão**: no sacrifício da expulsão e nas três janelas voluntárias não há trava nenhuma, e um
+   goleiro reserva pode acabar em campo como jogador de linha.
+
+A 3.8 foi corrigida nos dois pontos.
 
 ### 42. Os pools de minutos estáticos e compartilhados do item 8 da 3.15
 
@@ -1019,6 +1062,20 @@ de que nenhum comportamento observável do jogo depende.
 pool por carreira reembaralhado a cada partida, e corrigi-lo sob MODERN. Rejeitada pelo parágrafo
 acima: seria o primeiro caso em que reproduzir a fidelidade custa a reprodutibilidade, e a
 reprodutibilidade é condição de todo o resto, inclusive de conseguir comparar CLASSIC com o original.
+
+**Resolução no original (CONFIRMADO). O item 8 da 3.15 descreve o original com exatidão; a
+divergência deliberada continua justificada.** São cinco pools - 19-38, 5-15, 16-35, 36-42 e 43-47 -
+criados uma única vez no processo e apenas **re-embaralhados** no começo de cada partida, guardando
+entre partidas a ordem em que a anterior os deixou. A distribuição de um plano isolado é a que a 3.8
+publica, exatamente como o item previu, então o custo da divergência é só a correlação entre partidas
+vizinhas.
+
+Um detalhe que a 3.8 não dizia e que **não** é estado global, e portanto deve ser reproduzido: dentro
+de uma partida os dois times tiram do **mesmo** embaralhamento, em posições fixas e distintas - o
+mandante fica com os dois primeiros minutos do pool e o visitante com o terceiro e o quarto. Os
+minutos de rotina e de "correndo atrás" dos dois lados **nunca coincidem** dentro de uma partida. Um
+plano sorteado independentemente por time, como o motor faz hoje, deixa os dois lados colidirem, e a
+colisão tem consequência: ver o item 11 da 3.15, acrescentado agora. A 3.8 foi corrigida.
 
 ### 43. Para qual dos dois times a janela de substituição abre
 
@@ -1060,6 +1117,25 @@ literal da cadeia e tem a seu favor a economia de sortear a vítima uma vez só.
 aritmética acima: ela mata metade dos planos, cria uma assimetria mandante/visitante que a seção não
 descreve, e não consegue explicar a janela do intervalo, que existe sem vítima nenhuma.
 
+**Resolução no original (CONFIRMADO). A leitura adotada está certa, nas duas metades.** A janela não
+tem nada a ver com o time-vítima: quando a cadeia do minuto chega ao quarto ramo, os **dois** times
+são examinados, cada um contra o seu próprio plano de minutos e contra o placar. E a janela do
+intervalo **não passa pela cadeia**: ela é uma passagem única entre os dois tempos, sem sorteio de
+vítima e sem nenhuma condição de disciplina, exatamente como o item argumentou. O portão "2º tempo e
+minuto >= 5" também é confirmado, e é inócuo: o menor minuto de qualquer pool é 5.
+
+**Duas coisas que o item não previu, e que mudam o resultado.** Elas estão registradas como os itens
+11 e 12 da 3.15:
+
+1. Os dois times não são independentes dentro do minuto. Eles são examinados na mesma passagem, o
+   **mandante primeiro**, e se o mandante **efetivamente trocou** a janela do visitante nem chega a
+   ser examinada. No intervalo, onde os dois lados são sempre avaliados juntos, isso morde toda vez
+   que o mandante trocou. Nos minutos de jogo só morde quando os dois planos batem no mesmo minuto -
+   o que no original nunca acontece para rotina e "correndo atrás" (ver item 42), mas acontece num
+   motor que sorteia um plano por time.
+2. A recusa é por **substituição efetivada**, não por janela aberta: um mandante que abre a janela e
+   não acha ninguém para trocar não bloqueia o visitante.
+
 ### 44. Quem sai no intervalo e num minuto de "correndo atrás"
 
 A 3.8 descreve as três janelas em três frases seguidas: "No intervalo: se perde por >=1 (mandante) /
@@ -1086,6 +1162,19 @@ tornaria a segunda e a terceira janelas idênticas em tudo menos no gatilho. Rej
 duas janelas idênticas em tudo menos no gatilho é justamente o que faria a 3.8 não precisar
 descrevê-las separadamente, e porque a frase que qualifica a troca de aleatória vem **antes** da
 frase pelada, o que faz do "aleatória" o padrão e do "por cansaço" a exceção, e não o contrário.
+
+**Resolução no original (CONFIRMADO). A leitura adotada está certa no essencial e erra no goleiro.**
+No intervalo e no minuto de "correndo atrás" sai um jogador sorteado, e entra o reserva mais adequado
+à célula que ele deixou; no minuto de rotina sai o primeiro que a varredura de cansaço achar. Mas o
+sorteio **não exclui o goleiro do sorteio**: ele sorteia um índice qualquer da escalação em campo e,
+**se cair no goleiro, a janela é desperdiçada** - nada acontece naquele minuto e nenhuma nova
+tentativa é feita. Cerca de uma em onze janelas de placar morre assim. Excluir o goleiro do sorteio,
+como o motor faz hoje, dá ao time ~10% mais trocas por placar do que o original.
+
+O sorteio tem ainda uma segunda condição, essa a favor do time: ele evita tirar quem acabou de entrar,
+com uma única re-tentativa se o primeiro índice cair num deles. A condição está quebrada para o
+visitante - ver o item 12 da 3.15. A varredura de cansaço, essa sim, pula o goleiro
+explicitamente, e também não dá a volta quando começa num índice aleatório depois do minuto 40.
 
 ### 45. Em que posição da lista o substituto entra
 
@@ -1135,6 +1224,11 @@ conta - só as notas deles. Contra: ela descreve uma lista de escalação como e
 original não existe tal lista; existe o array de elenco, e nele o reserva não tem como aparecer antes
 de um titular. Rejeitada por isso, e não por ser pior: no exemplo acima ela é o resultado mais
 sensato dos dois, e é ela que um reimplementador que não se importe com fidelidade deveria escolher.
+
+**Resolução no original (CONFIRMADO). A leitura adotada está certa.** Quem sai é removido da
+escalação em campo e quem entra é **acrescentado ao fim** dela, herdando o slot da célula vaga. Os
+sobreviventes mantêm a ordem relativa. A 3.8 foi corrigida para registrar isso, que deixa de ser
+inferência.
 
 ### 46. As taxas de cartão, expulsão e lesão da 3.16 não vêm das tabelas da 3.8
 
@@ -1238,6 +1332,25 @@ resumo "dois de três" sugere à primeira vista.
 Isto é **observável**: contar cartões, expulsões e lesões de uma temporada IA contra IA no jogo
 original resolve.
 
+**Resolução no original (CONFIRMADO). A leitura adotada está certa e a seção 3.16 é que estava
+errada.** Há **um único time-vítima por minuto**, sorteado com `rand(100) > 55`, e a cadeia inteira -
+amarelo, vermelho, lesão, janela - roda sobre ele. Não há sorteio por lado. As três faixas da 3.16
+não descrevem esse mecanismo, e os três números medidos pela validação (~1,3 amarelo por partida, uma
+expulsão a cada ~6 partidas, uma lesão a cada ~17 por lado) são os corretos. A 3.16 foi corrigida para
+eles, com um aviso no topo dizendo que as figuras daquela seção não são derivadas das fórmulas.
+
+Dois ajustes de aritmética, os dois na mesma direção (menos cartões ainda):
+
+1. Os três contadores das sobrescritas contam **tentativas**, não eventos - eles sobem mesmo quando o
+   grupo de risco sorteado está vazio (item 39). A sobrescrita da lesão, que é a que derruba os
+   cartões, portanto dispara a partir da primeira **tentativa** de lesão, um pouco antes do que a
+   contagem de lesões sugere.
+2. Os tempos não têm 47 minutos cada. Pela 3.1 o 1º tempo tem `45 + rand(0..2)` minutos, média 46, e o
+   2º tem `45 + rand(1..5)`, média 48. A fase 2 do 1º tempo cobre ~16 minutos e a do 2º tempo ~18, e
+   não 17 e 17. A conta prevista para o amarelo sai em 1,51 por partida do mesmo jeito.
+
+Continua **observável** no original, e é o teste que fecharia os três números de uma vez.
+
 ### 47. Se o sacrifício da expulsão e a reposição da lesão valem no 1º tempo
 
 A 3.8 tem duas frases sobre limite de tempo de substituição, e elas não estão no mesmo lugar. Em
@@ -1271,3 +1384,13 @@ tempo colocada perto do número de substituições é que ela vale para todas el
 produziria, no primeiro tempo, um lado preso sem nenhum recurso do jogo diante de uma expulsão ou de
 uma lesão, uma consequência que a frase citada não anuncia e que o resto da 3.8 nunca discute - nenhuma
 outra regra da seção supõe um time jogando diminuído no primeiro tempo sem poder repor.
+
+**Resolução no original (CONFIRMADO). A leitura adotada está certa.** O sacrifício da expulsão e a
+reposição da lesão não consultam a metade do relógio: as únicas condições são o time não ser humano e
+ainda ter substituição disponível (mais o `slot <= 13` no caso do sacrifício). A restrição "só no 2º
+tempo" vale apenas para as três janelas voluntárias. A 3.8 foi corrigida para separar as duas coisas
+explicitamente.
+
+Um detalhe a mais no sacrifício, que a 3.8 não registrava: além de 18-25 e depois 14-17, há um
+terceiro passo - **se o expulso é o goleiro** e não há ninguém em 18-25 nem em 14-17, sacrifica-se
+qualquer jogador de 2-25.
