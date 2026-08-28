@@ -51,6 +51,11 @@ import kotlin.test.assertTrue
  * substituted can reach neither. Both are pinned in SubstitutionWindowTest and
  * DisciplineChainTest instead.
  *
+ * Section 3.15 item 8's shared shuffle, which moved every substitution minute
+ * in every match that draws a plan at all, is invisible here for the plainest
+ * version of the same reason: with two empty benches no plan is drawn, so
+ * there is no minute to move. It is pinned in SubstitutionPlanTest.
+ *
  * These four seeds cannot tell attempt-counting apart from event-counting in
  * DisciplineCounts, and never could: formation 4, the four four two every
  * fixture here uses, occupies cells 1, 22, 24, 11, 13, 14, 16, 2, 9, 3 and 5,

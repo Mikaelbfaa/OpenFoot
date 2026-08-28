@@ -120,9 +120,9 @@ internal data class PlayedMatch(
  * The draws of a match, in the order this function makes them:
  *
  * 1. the starting possessor and both halves' stoppage, from SETUP_STREAM
- * 2. each side's substitution plan, from SUBSTITUTION_PLAN_STREAM forked again
- *    by the side's ordinal, so that the home side's plan cannot move the away
- *    side's
+ * 2. both sides' substitution plans, from SUBSTITUTION_PLAN_STREAM itself, in
+ *    one draw for the match, because section 3.8 takes the two sides' minutes
+ *    out of the same shuffle and neither plan can be drawn without the other
  * 3. then every minute in turn, each from its own child of the match stream
  *
  * Forking never consumes, so none of these can shift another. That is what
@@ -143,24 +143,19 @@ internal fun playMatch(
         if (setupRng.randRange(0, 1) == 0) TeamSide.HOME else TeamSide.AWAY
     val clock = matchClock(setupRng)
 
-    val planRng = matchRng.fork(SUBSTITUTION_PLAN_STREAM)
+    val plans = plansFor(
+        setup = setup,
+        homeBench = homeBench,
+        awayBench = awayBench,
+        rng = matchRng.fork(SUBSTITUTION_PLAN_STREAM),
+    )
     var state = initialState(
         setup = setup,
         startingPossessor = startingPossessor,
         homeBench = homeBench,
         awayBench = awayBench,
-        homePlan = planFor(
-            side = setup.home,
-            bench = homeBench,
-            rng = planRng.fork(TeamSide.HOME.ordinal.toLong()),
-            rules = setup.rules,
-        ),
-        awayPlan = planFor(
-            side = setup.away,
-            bench = awayBench,
-            rng = planRng.fork(TeamSide.AWAY.ordinal.toLong()),
-            rules = setup.rules,
-        ),
+        homePlan = plans.home,
+        awayPlan = plans.away,
     )
     for (minute in 0 until clock.totalMinutes) {
         state = playMinute(state, minute, clock, matchRng.fork(minute.toLong()))
@@ -170,8 +165,8 @@ internal fun playMatch(
 }
 
 /**
- * One side's substitution plan, or the empty plan for a side that can never
- * act on one.
+ * The match's two plans, with the empty plan for a side that can never act on
+ * one.
  *
  * A plan is a list of minutes at which the AI means to bring a reserve on, so
  * a side that may not be substituted at all has no use for one. The condition
@@ -179,27 +174,41 @@ internal fun playMatch(
  * before it looks at the minute, called rather than restated so that the two
  * cannot drift apart. Nobody has used a substitution yet at kick off, so the
  * count this passes in is zero, which is simply true rather than a stand in
- * for anything. Skipping the draw therefore changes no result at all.
+ * for anything. Blanking a plan therefore changes no result at all.
  *
- * Nor can it move any other draw. Each side's plan is drawn from a stream of
- * its own, forked from the match by SUBSTITUTION_PLAN_STREAM and again by the
- * side's ordinal, and a fork depends only on the origin seed and the tag and
- * never on how much has been taken from a sibling. Not drawing one side's plan
- * therefore leaves the other side's plan, every minute's chain and every
- * minute's tick exactly where they were.
+ * The pair is drawn whenever either side can act on one, and blanked afterwards
+ * for a side that cannot. Since section 3.8 takes both sides' minutes out of
+ * one shuffle, skipping the draw for one side alone would move the other side's
+ * minutes, which is a coupling a side's empty bench must not have. Only a match
+ * in which neither side can substitute skips the draw, and then nothing is left
+ * to move.
+ *
+ * Nor can the skip move any other draw. The whole pair is drawn from a stream
+ * of its own, forked from the match by SUBSTITUTION_PLAN_STREAM, and a fork
+ * depends only on the origin seed and the tag and never on how much has been
+ * taken from a sibling. Not drawing the pair therefore leaves every minute's
+ * chain and every minute's tick exactly where they were.
  */
 @SpecRef("3.8")
-private fun planFor(
-    side: MatchSide,
-    bench: List<MatchPlayer>,
+private fun plansFor(
+    setup: MatchSetup,
+    homeBench: List<MatchPlayer>,
+    awayBench: List<MatchPlayer>,
     rng: Rng,
-    rules: RuleSet,
-): SubstitutionPlan =
-    if (canSubstitute(side, bench, substitutionsUsed = 0, maxPerSide = rules.substitutions.maxPerSide)) {
-        substitutionPlan(rng, rules)
-    } else {
-        SubstitutionPlan.NONE
+): MatchSubstitutionPlans {
+    val maxPerSide = setup.rules.substitutions.maxPerSide
+    val homeCan = canSubstitute(setup.home, homeBench, substitutionsUsed = 0, maxPerSide = maxPerSide)
+    val awayCan = canSubstitute(setup.away, awayBench, substitutionsUsed = 0, maxPerSide = maxPerSide)
+    if (!homeCan && !awayCan) {
+        return MatchSubstitutionPlans.NONE
     }
+
+    val drawn = matchSubstitutionPlans(rng, setup.rules)
+    return MatchSubstitutionPlans(
+        home = if (homeCan) drawn.home else SubstitutionPlan.NONE,
+        away = if (awayCan) drawn.away else SubstitutionPlan.NONE,
+    )
+}
 
 /**
  * One minute of a match.
@@ -308,11 +317,23 @@ internal const val SETUP_STREAM = 0x5E7DL
 internal const val DISCIPLINE_STREAM = 0xD15CL
 
 /**
- * The stream each side's substitution plan is drawn from, once per match.
+ * The stream both sides' substitution plans are drawn from, once per match.
  *
- * Forked off the match generator rather than off a minute's, because the plan
- * is drawn at kick off and read by every minute of the second half, and forked
- * again by the side's ordinal so that the two sides' plans are independent.
+ * Forked off the match generator rather than off a minute's, because the plans
+ * are drawn at kick off and read by every minute of the second half.
+ *
+ * Read directly, with no second fork. Until section 3.15 item 8's shared
+ * shuffle landed, this stream was forked once more by the side's ordinal, one
+ * child for the home plan and one for the away plan, so that the two sides were
+ * independent; they are not independent any more, and one draw over this stream
+ * produces both plans.
+ *
+ * The two child tags that freed up, nought and one, are reserved and have no
+ * caller. They are named here rather than left silently free so that whatever
+ * next wants a child of this stream picks a tag outside that pair: a career
+ * recorded today would replay differently against an engine that had quietly
+ * given nought and one a new meaning, and the failure would look like a bug in
+ * the match rather than like a stream that had moved.
  */
 @SpecRef("3.8")
 internal const val SUBSTITUTION_PLAN_STREAM = 0x5B1AL

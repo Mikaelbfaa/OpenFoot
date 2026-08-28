@@ -1067,11 +1067,12 @@ re-embaralhados por partida", com a consequência de que "partidas consecutivas 
 correlacionados". É um defeito nomeado do original, e todo defeito nomeado daquela lista foi até aqui
 reproduzido sob CLASSIC e, quando muito, corrigido sob MODERN.
 
-**Resolução (INFERIDO):** este motor **não reproduz o item 8 sob nenhum dos dois conjuntos de
-regras**. `substitutionPlan` sorteia um plano novo por time e por partida, de um gerador derivado da
-semente daquela partida, e nada é compartilhado entre partidas. Isto é uma **divergência deliberada
-do CLASSIC**, e não uma omissão: é o único ponto em que este projeto se recusa a copiar um defeito
-nomeado.
+**Resolução (INFERIDO):** este motor **não reproduz a metade "estáticos entre partidas" do item 8
+sob nenhum dos dois conjuntos de regras** - a outra metade, a de dentro da partida, passou a ser
+reproduzida depois, e a nota no fim deste item separa as duas. `matchSubstitutionPlans` embaralha os
+pools de novo a cada partida, de um gerador derivado da semente daquela partida, e nada é
+compartilhado entre partidas. Isto é uma **divergência deliberada do CLASSIC**, e não uma omissão: é
+o único ponto em que este projeto se recusa a copiar um defeito nomeado.
 
 O motivo é que o defeito não é um número errado, é estado global mutável. "Estático/compartilhado"
 quer dizer que os pools vivem fora da partida e guardam a ordem em que a partida anterior os deixou;
@@ -1107,6 +1108,58 @@ mandante fica com os dois primeiros minutos do pool e o visitante com o terceiro
 minutos de rotina e de "correndo atrás" dos dois lados **nunca coincidem** dentro de uma partida. Um
 plano sorteado independentemente por time, como o motor faz hoje, deixa os dois lados colidirem, e a
 colisão tem consequência: ver o item 11 da 3.15, acrescentado agora. A 3.8 foi corrigida.
+
+**Nota do reimplementador: metade do item 8 passou a ser reproduzida, e é preciso dizer qual.** O
+item tem duas metades independentes, e o motor agora fica de lados opostos das duas.
+
+1. **Dentro da partida: reproduzido.** `matchSubstitutionPlans` sorteia os **dois** planos numa
+   chamada só, de um fluxo único (`SUBSTITUTION_PLAN_STREAM`, lido direto, sem mais nenhum fork por
+   lado). Os cinco pools são embaralhados no começo da partida - só até a última posição que alguém
+   pode ler - e cada lado lê um **bloco fixo e distinto**, o mandante primeiro. Isso reproduz a
+   frase confirmada acima: num pool de rotina o mandante fica com o primeiro e o segundo minuto e o
+   visitante com o terceiro e o quarto.
+2. **Entre partidas: continua não reproduzido**, pelo motivo de sempre, que é o resto deste item: os
+   pools estáticos são estado global mutável e fariam o resultado de uma partida depender de quais
+   partidas rodaram antes dela. Nada é guardado entre partidas.
+
+**A garantia "os minutos dos dois lados nunca coincidem" vale por pool, e não entre pools.** A frase
+do item 8 é absoluta, mas o mecanismo que ela descreve não é: um embaralhamento só, lido em posições
+distintas, mata a coincidência **dentro** daquele pool e não sabe nada dos outros quatro. Na prática:
+
+- **"Correndo atrás" contra "correndo atrás"**: impossível. Mesmo pool (19-38), posições distintas.
+- **Rotina contra rotina**: impossível também, por dois motivos diferentes. Se os dois lados
+  sortearam o mesmo pool, são posições distintas do mesmo embaralhamento; se sortearam pools
+  diferentes, as faixas 5-15, 16-35 e 36-42 não se sobrepõem. Os minutos extras de 43-47 são um
+  quinto pool, com blocos fixos também, e a faixa não encosta em nenhum pool de rotina.
+- **Rotina de um lado contra "correndo atrás" do outro**: **continua possível**, e é a única
+  coincidência que sobra. Vêm de embaralhamentos diferentes, e as faixas se sobrepõem: 19-38 contra
+  16-35 (em 19-35) e contra 36-42 (em 36-38).
+
+Essa sobrevivente não é um resíduo tolerado, é uma exigência: é o único gatilho que resta para o
+item 11 da 3.15, cuja nota está no item 43 aqui e cuja aritmética mostra que o intervalo e duas
+janelas de "correndo atrás" no mesmo minuto são vazios. As duas propriedades estão fixadas em
+`SubstitutionPlanTest`, uma afirmando a não coincidência por pool e a outra afirmando que a
+coincidência entre pools continua acontecendo.
+
+**Detalhes que a spec não decide, resolvidos por inferência (INFERIDO).**
+
+- **Tamanho do bloco de cada lado**: o máximo que aquele lado pode tirar daquele pool - três em
+  19-38 (dois fixos mais o da moeda de 69%), dois em cada pool de rotina e dois em 43-47. O bloco do
+  visitante começa sempre no fim do bloco do mandante, então uma moeda que recusa deixa a posição
+  **sem leitor nenhum** em vez de passá-la ao outro lado. É o que "posições fixas" quer dizer: o
+  bloco do visitante não anda quando o mandante recusa um minuto.
+- **Os três pools de rotina são embaralhados sempre**, mesmo o que nenhum dos dois lados sorteou,
+  porque o original re-embaralha os cinco no começo da partida e só depois olha o que cada lado
+  quer. Consequência verificável: o par de planos gasta **32 sorteios** sem colisão nenhuma, e esse
+  número não depende de nenhuma moeda.
+- **Cada moeda de 43-47 tem a sua posição**: a segunda moeda compra a segunda posição do bloco mesmo
+  quando a primeira recusou a primeira. A leitura alternativa - um ponteiro que só anda quando um
+  minuto é comprado - só difere quando a primeira moeda recusa e a segunda aceita, cerca de 10% dos
+  planos, e foi rejeitada por não ser "posição fixa".
+- **O par é sorteado quando qualquer um dos dois lados pode substituir**, e o plano do lado que não
+  pode é zerado depois. Pular o sorteio de um lado só moveria os minutos do outro, que é justamente
+  o acoplamento que um banco vazio não pode ter. Só a partida em que nenhum dos dois pode
+  substituir não sorteia nada - e aí não sobra nada para mover.
 
 ### 43. Para qual dos dois times a janela de substituição abre
 

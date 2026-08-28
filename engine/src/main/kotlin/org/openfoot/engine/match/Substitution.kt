@@ -1,10 +1,12 @@
 package org.openfoot.engine.match
 
+import org.openfoot.model.Band
 import org.openfoot.model.Half
 import org.openfoot.model.Rng
 import org.openfoot.model.RuleSet
 import org.openfoot.model.Slot
 import org.openfoot.model.SpecRef
+import org.openfoot.model.SubstitutionRules
 import org.openfoot.model.TeamSide
 import org.openfoot.model.bound
 import org.openfoot.model.chooseCandidate
@@ -227,57 +229,163 @@ data class SubstitutionPlan(
 }
 
 /**
- * Draws one side's whole substitution plan.
+ * The two plans of one match, drawn together.
  *
- * The draw order is fixed and is the order section 3.8 lists the pools in.
- * Written out draw by draw, because the next thing to read this is the per
- * minute roll and the order is what keeps a recorded match replayable:
+ * They are one value rather than two because section 3.8 draws them together:
+ * the minutes of both sides come out of the same shuffle of the same pool, so
+ * neither plan can be produced without producing the other.
+ */
+@SpecRef("3.8")
+data class MatchSubstitutionPlans(
+    @property:SpecRef("3.8") val home: SubstitutionPlan,
+    @property:SpecRef("3.8") val away: SubstitutionPlan,
+) {
+    companion object {
+
+        /**
+         * The pair of a match in which neither side can substitute at all.
+         *
+         * Nothing is drawn to build it, which is what lets a match of two
+         * empty benches leave the plan stream untouched.
+         */
+        @SpecRef("3.8")
+        val NONE = MatchSubstitutionPlans(home = SubstitutionPlan.NONE, away = SubstitutionPlan.NONE)
+    }
+}
+
+/**
+ * Draws both sides' whole substitution plans, once per match.
  *
- * 1. the first chasing minute, rand over the nineteen to thirty eight window
- * 2. the second chasing minute, from the same window, redrawn on a collision
- * 3. the third chasing minute's coin, rand(100), which allows one below 69
- * 4. the third chasing minute, only when step 3 allowed it, redrawn as above
- * 5. the routine pool selector, rand(100) against the three band table
- * 6. the first routine minute, rand over the chosen pool
- * 7. the second routine minute, from the same pool, redrawn on a collision
- * 8. the first late coin, rand(100), which allows a minute below 79
- * 9. that late minute, only when step 8 allowed it, from 43 to 47
- * 10. the second late coin, rand(100), which allows a minute below 49
- * 11. that late minute, only when step 10 allowed it, redrawn on a collision
- * 12. the interval coin, rand(100), which swaps below 50
+ * Section 3.8 says the two sides draw their minutes from the same shuffled
+ * pool, without replacement between them, and section 3.15 item 8 says how:
+ * the five pools are shuffled at the start of the match and each side reads
+ * fixed, distinct positions of the shuffle it needs, the home side first. The
+ * consequence the two texts state is that the two sides' minutes never
+ * coincide, and it holds per pool rather than across pools; the note on
+ * OPEN-QUESTIONS item 42 sets out which pairs of pools overlap and therefore
+ * still can share a minute.
+ *
+ * The draw order is fixed and is written out draw by draw, because the next
+ * thing to read this is the per minute roll and the order is what keeps a
+ * recorded match replayable:
+ *
+ * 1. six chasing minutes over the nineteen to thirty eight window, without
+ *    replacement, the home side's three and then the away side's three
+ * 2. four minutes from each routine pool in the order the band table declares
+ *    them, without replacement inside each pool, the home side's two and then
+ *    the away side's two
+ * 3. four minutes from forty three to forty seven the same way
+ * 4. the home side's third chasing minute's coin, rand(100), which takes the
+ *    third position of its slice below 69
+ * 5. the home side's routine pool selector, rand(100) against the band table
+ * 6. the home side's first late coin, rand(100), which takes the first
+ *    position of its late slice below 79
+ * 7. the home side's second late coin, rand(100), which takes the second
+ *    position below 49
+ * 8. the home side's interval coin, rand(100), which swaps below 50
+ * 9. the same five coins for the away side, in the same order
+ *
+ * Every pool is drawn whether or not a coin later reads it, which is what
+ * makes the positions fixed: a side's minutes depend on its own coins and on
+ * nothing the other side drew. It is also what the original does, since it
+ * reshuffles all five pools at the start of every match and only then looks at
+ * what each side wants.
  *
  * Drawing without replacement is a list and a redraw rather than a set. A hash
  * container's iteration order would decide which minute a side ends up with,
  * and the redraw is what keeps the number of draws a collision costs visible
  * in the stream instead of hidden inside a shuffle.
  *
- * A plan is drawn fresh per side and per match, from that match's own stream.
- * Section 3.15 item 8 says the original's pools are static and shared, so
- * consecutive matches draw correlated minutes; that is the one named defect of
- * the original neither rule set here reproduces, because it is global mutable
- * state rather than a wrong number and copying it would make a match's result
- * depend on which matches ran before it. See OPEN-QUESTIONS item 42.
+ * The pair is drawn fresh per match, from that match's own stream. Section
+ * 3.15 item 8 also says the original's pools are static and shared between
+ * matches, so consecutive matches draw correlated minutes; that half of the
+ * item is the one named defect of the original neither rule set here
+ * reproduces, because it is global mutable state rather than a wrong number
+ * and copying it would make a match's result depend on which matches ran
+ * before it. See OPEN-QUESTIONS item 42.
  */
 @SpecRef("3.8")
-internal fun substitutionPlan(rng: Rng, rules: RuleSet): SubstitutionPlan {
+internal fun matchSubstitutionPlans(rng: Rng, rules: RuleSet): MatchSubstitutionPlans {
     val subs = rules.substitutions
 
-    val chasing = mutableListOf<Int>()
-    repeat(subs.chasingCount) {
-        chasing += drawFresh(rng, subs.chasingWindow, chasing)
+    val chasing = sharedPool(rng, subs.chasingWindow, subs.chasingCount + EXTRA_CHASING_MINUTES)
+    val routine = subs.routinePools.map { band ->
+        Band(band.draws, sharedPool(rng, band.value, subs.routineCount))
     }
+    val late = sharedPool(rng, subs.lateWindow, subs.lateChancePercents.size)
+
+    return MatchSubstitutionPlans(
+        home = sidePlan(rng, subs, TeamSide.HOME, chasing, routine, late),
+        away = sidePlan(rng, subs, TeamSide.AWAY, chasing, routine, late),
+    )
+}
+
+/**
+ * One pool shuffled far enough for both sides to read their slice out of it.
+ *
+ * Only the positions the two sides can reach are drawn. Sampling that many
+ * distinct minutes by redrawing on a collision is the first positions of a
+ * uniform shuffle of the whole pool, so this is the shuffle section 3.15 item
+ * 8 describes, cut off where nobody would have read it.
+ *
+ * Exactly so only while drawFresh does not reach its cap. When it does, which
+ * it can in the forty three to forty seven window about three times in a
+ * million matches, the fallback takes the first free minute in scan order
+ * instead and that one position is no longer uniform. The fallback is
+ * therefore part of this distribution rather than unreachable scaffolding, and
+ * drawFresh's own docstring carries the arithmetic.
+ */
+@SpecRef("3.8")
+private fun sharedPool(rng: Rng, window: IntRange, perSide: Int): List<Int> {
+    val drawn = mutableListOf<Int>()
+    repeat(perSide * TeamSide.entries.size) {
+        drawn += drawFresh(rng, window, drawn)
+    }
+    return drawn
+}
+
+/**
+ * The positions of a shuffled pool that belong to one side.
+ *
+ * Each side gets a block as long as the most it could ever take from that
+ * pool, the home side first, which is what makes the positions fixed: the
+ * away side's block does not move when a home coin refuses the minute it was
+ * offered. Item 42 records the original reading it the same way, the home
+ * side taking the first two minutes of a pool and the visitor the third and
+ * the fourth.
+ */
+@SpecRef("3.8")
+private fun List<Int>.sliceFor(team: TeamSide, perSide: Int): List<Int> =
+    subList(team.ordinal * perSide, (team.ordinal + 1) * perSide)
+
+/**
+ * One side's plan, read off pools that are already shuffled.
+ *
+ * Only the coins are drawn here, and they only decide how much of the side's
+ * own slice it keeps. A coin that refuses leaves its position unread by
+ * anybody rather than handing it to the other side.
+ */
+@SpecRef("3.8")
+private fun sidePlan(
+    rng: Rng,
+    subs: SubstitutionRules,
+    team: TeamSide,
+    chasingPool: List<Int>,
+    routinePools: List<Band<List<Int>>>,
+    latePool: List<Int>,
+): SubstitutionPlan {
+    val chasingSlice = chasingPool.sliceFor(team, subs.chasingCount + EXTRA_CHASING_MINUTES)
+    val chasing = chasingSlice.take(subs.chasingCount).toMutableList()
     if (rng.rand(PERCENT_DRAW_BOUND) < subs.extraChasingPercent) {
-        chasing += drawFresh(rng, subs.chasingWindow, chasing)
+        chasing += chasingSlice[subs.chasingCount]
     }
 
-    val pool = subs.routinePools.pick(rng.rand(subs.routinePools.bound()))
-    val routine = mutableListOf<Int>()
-    repeat(subs.routineCount) {
-        routine += drawFresh(rng, pool, routine)
-    }
-    for (percent in subs.lateChancePercents) {
+    val pool = routinePools.pick(rng.rand(routinePools.bound()))
+    val routine = pool.sliceFor(team, subs.routineCount).toMutableList()
+    val lateSlice = latePool.sliceFor(team, subs.lateChancePercents.size)
+    for ((position, percent) in subs.lateChancePercents.withIndex()) {
         if (rng.rand(PERCENT_DRAW_BOUND) < percent) {
-            routine += drawFresh(rng, subs.lateWindow, routine)
+            routine += lateSlice[position]
         }
     }
 
@@ -307,16 +415,20 @@ internal fun substitutionPlan(rng: Rng, rules: RuleSet): SubstitutionPlan {
  * to the cap, and the tightest window is the one where that is largest.
  *
  * The tightest of the windows section 3.8 draws from is lateWindow, 43 to 47,
- * whose width is five and from which at most one minute is ever already taken.
- * At a cap of twenty five that is one fifth to the twenty fifth, about three
- * times ten to the minus eighteen. The narrowest routine pool, 36 to 42, gives
- * one seventh to the forty ninth, and the chasing window of 19 to 38 gives at
- * most two twentieths to the four hundredth. So the fallback is unreachable in
- * practice at every draw site and exists only as the totality guarantee.
+ * whose width is five and from which three minutes are already taken when the
+ * fourth and last position of its shuffle is drawn, one late minute for each
+ * side. At a cap of twenty five that is three fifths to the twenty fifth,
+ * about three in a million matches. The narrowest routine pool, 36 to 42,
+ * takes four of seven and gives three sevenths to the forty ninth, about one
+ * in ten to the eighteen; the chasing window of 19 to 38 takes six of twenty
+ * and gives at most a quarter to the four hundredth. So the fallback is out of
+ * reach at every draw site but the last position of the late window, where it
+ * is rare enough to bias nothing measurable and still leaves the draw
+ * deterministic.
  *
- * A cap of the width alone would not do. It leaves the late window at one
- * fifth to the fifth, about three in ten thousand plans, which is a real if
- * small bias towards the earlier minutes of that window.
+ * A cap of the width alone would not do. It leaves the late window at three
+ * fifths to the fifth, about one plan in thirteen, which would be a real bias
+ * towards the earlier minutes of that window rather than a totality guarantee.
  */
 @SpecRef("3.8")
 private fun drawFresh(rng: Rng, window: IntRange, taken: List<Int>): Int {
@@ -663,3 +775,14 @@ private const val INTERVAL_MINUTE = 0
 /** The bound of every per cent draw section 3.8's substitution block makes. */
 @SpecRef("3.8")
 private const val PERCENT_DRAW_BOUND = 100
+
+/**
+ * How many chasing minutes beyond the fixed count a coin can ever buy a side.
+ *
+ * Section 3.8 writes the chasing pool as two minutes a side plus one more on a
+ * coin, so this is the difference between what a side always takes and the
+ * longest slice it could read. The pool is shuffled to fit the longest slice,
+ * whether the coin then reads its last position or not.
+ */
+@SpecRef("3.8")
+private const val EXTRA_CHASING_MINUTES = 1

@@ -380,15 +380,15 @@ class MatchSimulationTest {
     /**
      * Finding 1 of the review of section 3.8's wiring, as an executable case.
      *
-     * simulateMatch draws a substitution plan for every side that has a bench,
-     * and section 3.8 draws that plan's minutes without replacement by
-     * redrawing until it lands on a free one. FixedRng's nextInt never changes,
-     * so an unbounded redraw against it never ends: before drawFresh was
-     * capped, adding a bench to any case in this file hung the whole build with
-     * no failing assertion to point at. It is capped at the width of the
-     * window squared now and falls back on the first free minute, so this
-     * finishes, and the double counts its own draws so that a future unbounded
-     * loop fails here rather than hanging.
+     * simulateMatch draws the match's pair of substitution plans as soon as
+     * either side has a bench, and section 3.8 draws their minutes without
+     * replacement by redrawing until it lands on a free one. FixedRng's nextInt
+     * never changes, so an unbounded redraw against it never ends: before
+     * drawFresh was capped, adding a bench to any case in this file hung the
+     * whole build with no failing assertion to point at. It is capped at the
+     * width of the window squared now and falls back on the first free minute,
+     * so this finishes, and the double counts its own draws so that a future
+     * unbounded loop fails here rather than hanging.
      *
      * The assertion that a substitution actually happened is what makes this a
      * test of the bench path rather than only of termination: with every draw
@@ -495,18 +495,21 @@ private class FixedRng(private val value: Double) : Rng {
  * minute for a side's substitution window.
  *
  * A bench costs far more than that against a double like this, and the reason
- * is worth stating because it is what sets the limit. Section 3.8's plan draws
- * its minutes without replacement, and against a generator whose value never
- * changes every one of those draws collides, so each of them burns its
- * window's whole cap, which is the width squared. Over the two chasing
- * minutes, the second routine minute and the second late minute that is about
- * nine hundred draws a side. A benched match through such a double therefore
- * spends somewhere between two and three thousand draws in total, measured
+ * is worth stating because it is what sets the limit. Section 3.8 draws its
+ * minutes without replacement, and against a generator whose value never
+ * changes every draw after the first of a pool collides, so each of them burns
+ * that pool's whole cap, which is the width squared. One match shuffles five
+ * pools far enough for both sides to read them, twenty two minutes in all: six
+ * of nineteen to thirty eight, four of each of the three routine pools and
+ * four of forty three to forty seven. That is about three thousand eight
+ * hundred draws for the pair of plans, once for the match rather than once a
+ * side. A benched match through such a double therefore spends between four
+ * thousand one hundred and four thousand two hundred draws in total, measured
  * rather than estimated, by bracketing this constant.
  *
- * Ten thousand leaves roughly four times that headroom and is still instantly
- * below anything unbounded. Raise it if a window in some rule set is ever
- * widened enough to matter, and measure again rather than guessing.
+ * Ten thousand leaves roughly twice that headroom and is still instantly below
+ * anything unbounded. Raise it if a window in some rule set is ever widened
+ * enough to matter, and measure again rather than guessing.
  */
 private const val DEGENERATE_DRAW_LIMIT = 10_000
 
