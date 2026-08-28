@@ -117,6 +117,15 @@ internal fun MatchState.leavePitch(team: TeamSide, player: MatchPlayer): MatchSt
  *
  * His energy is left exactly as it was. Section 3.9 drains only the players on
  * the pitch, so a substitute comes on with whatever he has been sitting on.
+ *
+ * His identity is appended to the side's arrivals, whatever brought him on.
+ * This is the one place anybody ever reaches the pitch from the bench, so it
+ * is the one place that list can be kept, and section 3.8's two score windows
+ * read it to avoid taking off a man who has only just arrived. Section 3.8
+ * does not say that only a voluntary change counts as an arrival, and once a
+ * man is standing in a cell there is nothing left to tell the two apart, so
+ * the sacrifice after a dismissal and the replacement of an injured man count
+ * the same as a window's own change.
  */
 @SpecRef("3.8")
 internal fun MatchState.substitute(
@@ -139,6 +148,7 @@ internal fun MatchState.substitute(
         sideState.copy(
             bench = sideState.bench.filter { it.id != on.id },
             substitutionsUsed = sideState.substitutionsUsed + 1,
+            arrivals = sideState.arrivals + Arrival(team, arriving.id),
         ),
     )
 }
@@ -409,10 +419,12 @@ internal fun tirednessTarget(
  * with the tiredness scan. Both of the first two therefore draw an index over
  * the whole eleven, not over the ten outfielders, and this function does not
  * filter the keeper's cell out of that index: it draws exactly one player and
- * hands him back whoever he is. What a draw landing on the keeper means is not
- * this function's business. The caller reads the slot it gets back and, when
- * it names the keeper, wastes the window: no substitution and no second draw.
- * See OPEN-QUESTIONS item 44.
+ * hands him back whoever he is. Neither what a draw landing on the keeper
+ * means nor what a draw landing on a man who has just come on means is this
+ * function's business. scoreWindowTarget below is the one that may call it
+ * twice, and runSubstitutionWindow is the one that reads the slot it ends up
+ * with and wastes the window when it names the keeper. See OPEN-QUESTIONS
+ * items 44 and 48.
  */
 @SpecRef("3.8")
 internal fun randomLineupPlayer(side: MatchSide, rng: Rng): MatchPlayer? {
@@ -421,6 +433,52 @@ internal fun randomLineupPlayer(side: MatchSide, rng: Rng): MatchPlayer? {
         return null
     }
     return lineup[rng.rand(lineup.size)]
+}
+
+/**
+ * Who a score window takes off, before anything is asked about the keeper.
+ *
+ * Section 3.8 says the draw avoids taking off a man who has just come on, with
+ * a single retry. That is a retry and not a loop: if the first draw names an
+ * arrival the index is drawn once more, and the second index stands whatever
+ * it names, including a second arrival. A side that has brought on four men
+ * can therefore still take one of them off, which is the shape section 3.8
+ * gives the rule rather than an omission here.
+ *
+ * arrivals is passed in rather than read off the side, because section 3.15
+ * item 12 says the original does not read the side's own list: it compares the
+ * side's index against a value the index never holds, so the list consulted is
+ * always the home side's, whichever side the window belongs to. The caller
+ * resolves that through RuleSet.arrivalsSideFor and hands the answer down, so
+ * the defect stays a rule set's value and never becomes a branch here. Under
+ * classic the away side is therefore checked against a list of home arrivals,
+ * which no away player can ever be a member of, so its check never fires and
+ * it can take off, a minute later, the substitute it has just brought on.
+ *
+ * The check is by identity, and the identity carries the side. A man who came
+ * on is a different MatchPlayer object standing in the cell he inherited, so
+ * comparing objects would find nobody and the whole rule would silently do
+ * nothing; and a PlayerId on its own is a squad index, which the two squads
+ * hand out from the same range, so comparing bare numbers across sides would
+ * match by accident and give the away side a protection section 3.15 item 12
+ * says it has none of. See Arrival.
+ *
+ * This runs before the keeper check rather than after it, which section 3.8
+ * states both of but does not order. See OPEN-QUESTIONS item 48 for the
+ * argument and for the reading not taken.
+ */
+@SpecRef("3.8")
+internal fun scoreWindowTarget(
+    side: MatchSide,
+    team: TeamSide,
+    arrivals: List<Arrival>,
+    rng: Rng,
+): MatchPlayer? {
+    val drawn = randomLineupPlayer(side, rng) ?: return null
+    if (Arrival(team, drawn.id) !in arrivals) {
+        return drawn
+    }
+    return randomLineupPlayer(side, rng)
 }
 
 /**
@@ -449,12 +507,36 @@ internal fun randomLineupPlayer(side: MatchSide, rng: Rng): MatchPlayer? {
  * its five, or for a side with an empty bench, and none of those cases makes a
  * draw. A window that opens but finds the score wrong makes no draw either.
  *
- * The interval and the chasing windows draw their man from randomLineupPlayer,
+ * The interval and the chasing windows draw their man from scoreWindowTarget,
  * which runs over the whole eleven and does not filter the keeper's cell out.
- * When that draw names him the window is wasted here: nothing changes, nothing
- * is logged, and no second draw is made to replace the wasted one. Roughly one
- * in eleven of these windows dies this way, which is section 3.8's own cost and
- * not a bug in the draw. See OPEN-QUESTIONS item 44.
+ * When the index it comes back with names him the window is wasted here:
+ * nothing changes, nothing is logged, and no draw is made to replace the
+ * wasted one. Roughly one in eleven of these windows dies this way, which is
+ * section 3.8's own cost and not a bug in the draw. See OPEN-QUESTIONS item
+ * 44.
+ *
+ * Two guards therefore sit on the same drawn index, and section 3.8 states
+ * both without ordering them: the just came on retry, which is one redraw and
+ * lives inside scoreWindowTarget, and the keeper's wasted window, which is no
+ * redraw at all and lives here. They are applied in that order, so the keeper
+ * test is made exactly once, against whichever index the draw finally settled
+ * on. Reversing them costs a second keeper test: he would have to be judged
+ * before the retry and again after it, since a retry that delivered him must
+ * still waste the window rather than take him off. That reading is not
+ * incoherent and makes no extra draw, so section 3.8's "no second attempt",
+ * which is about a draw rather than a test, does not rule it out; it is merely
+ * less parsimonious, applying one rule at two points where the text states it
+ * once, and the two orders differ in exactly one case, an index that is both
+ * the keeper and a man who came on. The split between the two functions is
+ * what keeps the order visible: the draw and its one retry are one thing, and
+ * what the window does with the man it ends up with is another. See
+ * OPEN-QUESTIONS item 48.
+ *
+ * Which side's list of arrivals the retry consults is a rule set's value, read
+ * through RuleSet.arrivalsSideFor. Section 3.15 item 12 says the original
+ * always reads the home side's, so under classic the home side is never asked
+ * to take off a man it has just brought on and the away side has no protection
+ * at all.
  *
  * The null branch on chooseReplacement below cannot be reached from here and
  * is kept as a guard rather than removed. The cascade of section 5.4 carries
@@ -516,7 +598,8 @@ internal fun MatchState.runSubstitutionWindow(
     val off = if (reason == SubstitutionReason.TIREDNESS) {
         tirednessTarget(this, team, intoHalf, rng) ?: return this
     } else {
-        val drawn = randomLineupPlayer(side, rng) ?: return this
+        val arrivals = of(rules.arrivalsSideFor(team)).arrivals
+        val drawn = scoreWindowTarget(side, team, arrivals, rng) ?: return this
         if (drawn.slot.value == rules.keeperSlot) {
             return this
         }

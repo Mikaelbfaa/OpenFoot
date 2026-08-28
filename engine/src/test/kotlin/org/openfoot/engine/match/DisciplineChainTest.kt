@@ -5,6 +5,7 @@ import org.openfoot.model.PlayerId
 import org.openfoot.model.PlayerStyle
 import org.openfoot.model.Position
 import org.openfoot.model.Rng
+import org.openfoot.model.RuleSet
 import org.openfoot.model.RuleSets
 import org.openfoot.model.Slot
 import org.openfoot.model.SplitMix64Rng
@@ -429,22 +430,35 @@ class DisciplineChainTest {
     }
 
     /**
-     * A minute in which nothing fired opens a window for both sides, not only
-     * for the side this minute's victim draw landed on.
+     * A minute in which nothing fired opens a window for the side this
+     * minute's victim draw did not land on, as well as for the one it did.
      *
-     * Four draws on the chain, all of them misses:
+     * Two quiet minutes rather than one, on two routine pools that do not
+     * share a minute. Section 3.15 item 11 makes a minute both sides want a
+     * change in swallow the away side's window whenever the home side actually
+     * changed somebody, so one shared minute can no longer show both sides
+     * substituting; it shows that defect instead, which is pinned on its own
+     * further down. Two distinct minutes are also the shape a real pair of
+     * plans has, since section 3.8 draws the two sides' minutes from one pool
+     * without replacement.
+     *
+     * Each minute makes the same four chain draws, all of them misses:
      *
      * 1. 0 for the victim side, which is at or below the home threshold of 55,
-     *    so the away side is this minute's victim
+     *    so the away side is this minute's victim, in both minutes
      * 2. 0 against the yellow threshold of 75, a miss
      * 3. 0 against the red threshold of 800, a miss
      * 4. 0 against the injury threshold of 800, a miss
      *
-     * Both sides have the tenth minute of the second half among their routine
-     * minutes and both have a tired man in it. A routine minute at or before
-     * the fortieth of the half scans from the front and draws nothing at all,
-     * so each side's own substitution stream is scripted empty and would fail
-     * if the window drew from it.
+     * Both minutes sit in the first phase of the second half, whose bounds are
+     * fifteen and thirty, so both read that same row of the three tables.
+     *
+     * The home side has the tenth minute of the second half among its routine
+     * minutes and the away side the eleventh, and each has a tired man in it.
+     * A routine minute at or before the fortieth of the half scans from the
+     * front and draws nothing at all, so each side's own substitution stream
+     * is scripted empty in both minutes and would fail if a window drew from
+     * it.
      *
      * The home side's tired man is its cell 11 and the away side's is its cell
      * 24, and neither is the first outfielder in its lineup, so a window that
@@ -452,38 +466,53 @@ class DisciplineChainTest {
      * caught here as well.
      */
     @Test
-    fun `a quiet minute opens both sides' windows`() {
-        val chain = ScriptedInts(0, 0, 0, 0)
-        val homeWindow = ScriptedInts()
-        val awayWindow = ScriptedInts()
+    fun `each side's own quiet minute opens its own window`() {
         val before = state(
             awayBench = awayBench(),
             homePlan = SubstitutionPlan(chasing = emptyList(), routine = listOf(10), halfTimeSwap = false),
-            awayPlan = SubstitutionPlan(chasing = emptyList(), routine = listOf(10), halfTimeSwap = false),
+            awayPlan = SubstitutionPlan(chasing = emptyList(), routine = listOf(11), halfTimeSwap = false),
             homeEnergyByCell = mapOf(11 to 50),
             awayEnergyByCell = mapOf(24 to 50),
         )
 
-        val after = before.disciplineMinute(
+        val homeChain = ScriptedInts(0, 0, 0, 0)
+        val homeWindow = ScriptedInts()
+        val awayIdle = ScriptedInts()
+        val afterHomeMinute = before.disciplineMinute(
             SECOND_HALF_MINUTE,
             CLOCK,
-            withWindows(chain, homeWindow, awayWindow),
+            withWindows(homeChain, homeWindow, awayIdle),
         )
 
-        assertEquals(4, chain.draws, "a quiet minute makes the three rolls and the victim draw")
+        assertEquals(4, homeChain.draws, "a quiet minute makes the three rolls and the victim draw")
         assertEquals(0, homeWindow.draws, "an early routine minute scans from the front")
+        assertEquals(1, afterHomeMinute.home.substitutionsUsed, "the home minute is the home side's")
+        assertEquals(0, afterHomeMinute.away.substitutionsUsed, "the away side has no change due here")
+
+        val awayChain = ScriptedInts(0, 0, 0, 0)
+        val homeIdle = ScriptedInts()
+        val awayWindow = ScriptedInts()
+        val after = afterHomeMinute.disciplineMinute(
+            SECOND_HALF_MINUTE + 1,
+            CLOCK,
+            withWindows(awayChain, homeIdle, awayWindow),
+        )
+
+        assertEquals(4, awayChain.draws, "the second quiet minute makes the same four draws")
         assertEquals(0, awayWindow.draws, "an early routine minute scans from the front")
         assertEquals(DisciplineCounts(), after.counts, "no counter moves in a quiet minute")
 
         val swaps = after.log.filterIsInstance<MatchEvent.Substitution>()
-        assertEquals(2, swaps.size, "both sides substituted: ${after.log}")
+        assertEquals(2, swaps.size, "each side substituted in its own minute: ${after.log}")
 
         val home = swaps.single { it.side == TeamSide.HOME }
+        assertEquals(SECOND_HALF_MINUTE, home.minute, "the home side changed in its own minute")
         assertEquals(SubstitutionReason.TIREDNESS, home.reason, "the home reason")
         assertEquals(11, home.off.slot.value, "the tired home player comes off")
         assertEquals(MIDFIELD_RESERVE, home.on.id, "the home reserve who suits cell 11")
 
         val away = swaps.single { it.side == TeamSide.AWAY }
+        assertEquals(SECOND_HALF_MINUTE + 1, away.minute, "the away side changed in its own minute")
         assertEquals(SubstitutionReason.TIREDNESS, away.reason, "the away reason")
         assertEquals(24, away.off.slot.value, "the tired away player comes off")
         assertEquals(AWAY_ATTACK_RESERVE, away.on.id, "the away reserve who suits cell 24")
@@ -726,6 +755,160 @@ class DisciplineChainTest {
     }
 
     /**
+     * Section 3.15 item 11: the away side's window is swallowed by the home
+     * side's.
+     *
+     * The two windows of one pass are run together, the home side first, and a
+     * pass in which the home side actually changed somebody never examines the
+     * away side's window at all. The away side here is a goal down on a
+     * chasing minute of its own and has three men on the bench, so its window
+     * would fire if it were ever looked at; its stream is scripted empty, and
+     * a chasing window draws over the whole eleven the moment it opens, so a
+     * pass that examined it would fail here rather than pass quietly.
+     *
+     * The minute is the twenty fifth of the second half and it is a routine
+     * minute for the home side and a chasing minute for the away side. That
+     * pairing is deliberate and is the one section 3.15 item 11 leaves
+     * reachable. The interval, which item 11 also names, cannot show this at
+     * all: section 3.8 asks the home side for a deficit of one at the interval
+     * and the away side for a deficit of two, and one side's deficit is the
+     * other side's surplus, so the two conditions can never hold in the same
+     * match. The same arithmetic rules out two chasing windows in one minute,
+     * whose deficits are nought and one. A routine minute asks nothing of the
+     * score, so it is the only window that can share a minute with a live one
+     * on the other side. Section 3.8 also draws the two sides' minutes from
+     * one pool without replacement, which leaves a shared minute reachable
+     * only across two different pools; the chasing window of nineteen to
+     * thirty eight and the routine pool of sixteen to thirty five are two such
+     * pools and they overlap at the twenty fifth minute, which is why this
+     * pairs those two rather than two routine minutes out of one pool.
+     *
+     * The chain draws four times and misses three times: 0 for the victim
+     * side, which is the away side, then 0 against the yellow threshold of 70,
+     * 0 against the red threshold of 700 and 0 against the injury threshold of
+     * 600. The twenty fifth minute of the half is in the middle phase, whose
+     * bounds are fifteen and thirty.
+     *
+     * The home side's routine minute is an early one, so its tiredness scan
+     * starts at the front and draws nothing; its tired man is cell 24, and the
+     * reserve who suits that cell is the last of the three on the bench and
+     * the weakest of them, so neither the front of the bench nor the best of
+     * it would have produced him.
+     */
+    @Test
+    fun `a home change swallows the away window in a shared minute`() {
+        val chain = ScriptedInts(0, 0, 0, 0)
+        val homeWindow = ScriptedInts()
+        val awayWindow = ScriptedInts()
+        val before = state(
+            awayBench = awayBench(),
+            homePlan = SubstitutionPlan(chasing = emptyList(), routine = listOf(25), halfTimeSwap = false),
+            awayPlan = SubstitutionPlan(chasing = listOf(25), routine = emptyList(), halfTimeSwap = false),
+            homeEnergyByCell = mapOf(24 to 50),
+            homeGoals = 1,
+            awayGoals = 0,
+        )
+
+        val after = before.disciplineMinute(
+            SHARED_MINUTE,
+            CLOCK,
+            withWindows(chain, homeWindow, awayWindow),
+        )
+
+        assertEquals(4, chain.draws, "a quiet minute makes the three rolls and the victim draw")
+        assertEquals(0, homeWindow.draws, "an early routine minute scans from the front")
+        assertEquals(0, awayWindow.draws, "the away window was never examined, so it never drew")
+
+        val swap = after.log.filterIsInstance<MatchEvent.Substitution>().single()
+        assertEquals(TeamSide.HOME, swap.side, "only the home side changed anybody")
+        assertEquals(SubstitutionReason.TIREDNESS, swap.reason, "the home reason")
+        assertEquals(24, swap.off.slot.value, "the tired home player comes off")
+        assertEquals(ATTACK_RESERVE, swap.on.id, "the reserve who suits cell 24")
+        assertEquals(1, after.home.substitutionsUsed, "home substitutions used")
+        assertEquals(0, after.away.substitutionsUsed, "the away side lost its window")
+    }
+
+    /**
+     * A home window that opened and changed nobody leaves the away window to
+     * be examined, so what closes it is the home side's change and not the
+     * home side's window.
+     *
+     * The same minute and the same two plans as the test above, with nobody
+     * tired on the home side: its routine minute opens, its tiredness scan
+     * finds nobody under sixty and it changes nobody. The away side's chasing
+     * window then draws 2, the third of the whole eleven in lineup order and
+     * so its cell 24, and the reserve that cell suits is the last and weakest
+     * of its three.
+     */
+    @Test
+    fun `a home window that changed nobody leaves the away window open`() {
+        val chain = ScriptedInts(0, 0, 0, 0)
+        val homeWindow = ScriptedInts()
+        val awayWindow = ScriptedInts(2)
+        val before = state(
+            awayBench = awayBench(),
+            homePlan = SubstitutionPlan(chasing = emptyList(), routine = listOf(25), halfTimeSwap = false),
+            awayPlan = SubstitutionPlan(chasing = listOf(25), routine = emptyList(), halfTimeSwap = false),
+            homeGoals = 1,
+            awayGoals = 0,
+        )
+
+        val after = before.disciplineMinute(
+            SHARED_MINUTE,
+            CLOCK,
+            withWindows(chain, homeWindow, awayWindow),
+        )
+
+        assertEquals(0, homeWindow.draws, "an early routine minute scans from the front")
+        assertEquals(1, awayWindow.draws, "the away window opened and drew its man")
+
+        val swap = after.log.filterIsInstance<MatchEvent.Substitution>().single()
+        assertEquals(TeamSide.AWAY, swap.side, "only the away side changed anybody")
+        assertEquals(SubstitutionReason.CHASING, swap.reason, "the away reason")
+        assertEquals(24, swap.off.slot.value, "the drawn away player comes off")
+        assertEquals(AWAY_ATTACK_RESERVE, swap.on.id, "the away reserve who suits cell 24")
+        assertEquals(0, after.home.substitutionsUsed, "the home side changed nobody")
+        assertEquals(1, after.away.substitutionsUsed, "away substitutions used")
+    }
+
+    /**
+     * The modern rules let both windows of one pass run, so the state that was
+     * swallowed above produces two changes instead of one. The away window
+     * draws 2, its cell 24, exactly as it does when the home side changes
+     * nobody.
+     */
+    @Test
+    fun `the modern rules let both sides change in one minute`() {
+        val chain = ScriptedInts(0, 0, 0, 0)
+        val homeWindow = ScriptedInts()
+        val awayWindow = ScriptedInts(2)
+        val before = state(
+            awayBench = awayBench(),
+            homePlan = SubstitutionPlan(chasing = emptyList(), routine = listOf(25), halfTimeSwap = false),
+            awayPlan = SubstitutionPlan(chasing = listOf(25), routine = emptyList(), halfTimeSwap = false),
+            homeEnergyByCell = mapOf(24 to 50),
+            homeGoals = 1,
+            awayGoals = 0,
+            rules = RuleSets.MODERN,
+        )
+
+        val after = before.disciplineMinute(
+            SHARED_MINUTE,
+            CLOCK,
+            withWindows(chain, homeWindow, awayWindow),
+        )
+
+        assertEquals(1, awayWindow.draws, "the away window opened and drew its man")
+
+        val swaps = after.log.filterIsInstance<MatchEvent.Substitution>()
+        assertEquals(2, swaps.size, "both sides changed somebody: ${after.log}")
+        assertEquals(24, swaps.single { it.side == TeamSide.HOME }.off.slot.value, "the tired home man")
+        assertEquals(24, swaps.single { it.side == TeamSide.AWAY }.off.slot.value, "the drawn away man")
+        assertEquals(1, after.home.substitutionsUsed, "home substitutions used")
+        assertEquals(1, after.away.substitutionsUsed, "away substitutions used")
+    }
+
+    /**
      * The counters at the final whistle are never behind what the log says,
      * and agree with it exactly at every one of these sixty seeds, though
      * DisciplineCounts's own docstring explains why that need not always hold:
@@ -801,6 +984,14 @@ class DisciplineChainTest {
         /** The nought'th minute of the second half, which stands for the break. */
         const val INTERVAL = 47
 
+        /**
+         * The twenty fifth minute of the second half, and its middle phase.
+         * The kind of minute both sides can want a change in: it lies inside
+         * the chasing window of nineteen to thirty eight and inside the
+         * routine pool of sixteen to thirty five at once.
+         */
+        const val SHARED_MINUTE = 72
+
         val MIDFIELD_RESERVE = PlayerId(30)
         val DEFENCE_RESERVE = PlayerId(31)
         val ATTACK_RESERVE = PlayerId(32)
@@ -839,7 +1030,10 @@ class DisciplineChainTest {
                 style = style,
             )
 
-        fun setup(homeCells: List<Int> = Lineups.FORMATION_4_4_2) = MatchSetup(
+        fun setup(
+            homeCells: List<Int> = Lineups.FORMATION_4_4_2,
+            rules: RuleSet = RuleSets.CLASSIC,
+        ) = MatchSetup(
             home = Lineups.sideOfSlots(
                 homeCells,
                 strength = 50,
@@ -851,7 +1045,7 @@ class DisciplineChainTest {
                 context = Lineups.context(isHome = false),
             ),
             season = 1,
-            rules = RuleSets.CLASSIC,
+            rules = rules,
         )
 
         /**
@@ -872,9 +1066,10 @@ class DisciplineChainTest {
             homeCells: List<Int> = Lineups.FORMATION_4_4_2,
             homeGoals: Int = 0,
             awayGoals: Int = 0,
+            rules: RuleSet = RuleSets.CLASSIC,
         ): MatchState {
             val base = initialState(
-                setup = setup(homeCells),
+                setup = setup(homeCells, rules),
                 startingPossessor = TeamSide.HOME,
                 homeBench = homeBench,
                 awayBench = awayBench,

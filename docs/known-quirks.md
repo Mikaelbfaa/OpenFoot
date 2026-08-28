@@ -57,6 +57,32 @@ dela, para os dois times ao mesmo tempo.
 Spec: seção 3.8, defeito 5 da seção 3.15. Em `MODERN` as duas sobrescritas são desligadas colocando
 o gatilho de cada uma fora de alcance.
 
+### A janela de substituição do visitante é engolida pela do mandante
+
+As duas janelas de um mesmo minuto são avaliadas juntas, o mandante primeiro, e se o mandante
+**efetivamente trocou** alguém a janela do visitante nem chega a ser examinada. Na prática o
+visitante troca menos que o mandante ao longo de uma temporada, sem que nenhuma regra diga isso.
+
+Só morde quando um minuto vale para os dois lados ao mesmo tempo. O intervalo, que o item 11 cita,
+não serve: a 3.8 pede ao mandante um placar de 1 gol atrás e ao visitante 2, e o déficit de um lado
+é a sobra do outro, então as duas condições nunca valem na mesma partida. A mesma conta elimina duas
+janelas de "correndo atrás" no mesmo minuto. O que sobra é um minuto de **rotina** de um lado
+coincidindo com um de **"correndo atrás"** do outro: esses dois vêm de pools diferentes - 19-38
+contra 16-35 e 36-42 - e por isso continuam podendo cair no mesmo minuto mesmo quando os dois lados
+tiram seus minutos de um embaralhamento só. A aritmética está no item 43 do
+`spec/OPEN-QUESTIONS.md`.
+
+Spec: seção 3.8, defeito 11 da seção 3.15. Em `MODERN` as duas janelas de um mesmo minuto rodam.
+
+### O visitante saca quem acabou de entrar
+
+O sorteio das janelas de placar evita tirar quem entrou há pouco, com uma única re-tentativa, mas a
+checagem consulta **sempre a lista de quem entrou pelo mandante**, seja qual for o time da janela.
+Efeito: o mandante nunca tira quem acabou de entrar e o visitante não tem proteção nenhuma - pode
+sacar num minuto o reserva que pôs em campo no minuto anterior.
+
+Spec: seção 3.8, defeito 12 da seção 3.15. Em `MODERN` cada lado consulta a própria lista.
+
 ### A IA nunca é punida por defesa quebrada
 
 As regras anti-exploit acima só valem quando há clube humano na partida.
@@ -154,6 +180,21 @@ Spec: seção 3.4. **Mantido em `CLASSIC` e em `MODERN`.**
 
 O que é defeito de verdade e continua corrigido em `MODERN` é o slot 18, logo acima: ali o jogador
 não entra em nenhuma conta. Isso não é trade-off, é um jogador que não existe.
+
+### A janela de placar sorteada no goleiro é desperdiçada
+
+As janelas de intervalo e de "correndo atrás" sorteiam um índice qualquer da escalação em campo, e
+não um jogador de linha. Se o índice cai no goleiro, a janela morre ali: ninguém sai, ninguém entra
+e nenhum sorteio novo é feito. Cerca de uma em onze dessas janelas se perde assim.
+
+Não vira delta do `MODERN`, por três motivos. A seção 3.15 não lista isso entre os defeitos, e a 3.8
+escreve como sendo a regra. Corrigir mexeria numa **probabilidade** e não numa regra, que é
+exatamente o tipo de mudança que os divisores fixos acima já recusam. E a correção nem é
+determinada: uma janela que não pode ser desperdiçada teria de re-sortear ou de sortear entre dez em
+vez de onze, e nada na spec diz qual - o `MODERN` estaria inventando uma regra, não removendo um
+erro.
+
+Spec: seção 3.8, item 44 do `spec/OPEN-QUESTIONS.md`. **Mantido em `CLASSIC` e em `MODERN`.**
 
 ## Como propor uma correção
 

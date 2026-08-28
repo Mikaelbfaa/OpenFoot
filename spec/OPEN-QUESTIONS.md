@@ -1167,6 +1167,28 @@ minuto >= 5" também é confirmado, e é inócuo: o menor minuto de qualquer poo
 2. A recusa é por **substituição efetivada**, não por janela aberta: um mandante que abre a janela e
    não acha ninguém para trocar não bloqueia o visitante.
 
+**Nota do reimplementador (achado ao pinar o item 11): a cláusula "ou no intervalo" do item 11 da
+3.15 é INALCANÇÁVEL, e o ponto 1 acima está errado nessa metade.** No intervalo os dois lados são
+mesmo avaliados juntos, mas eles **nunca podem querer trocar ao mesmo tempo**, então não há janela de
+visitante para o mandante engolir ali. A aritmética é da própria 3.8: no intervalo o mandante troca
+se perde por >= 1 e o visitante se perde por >= 2, e o déficit de um lado é a sobra do outro. Seja
+`d = golsVisitante - golsMandante` o déficit do mandante; o do visitante é `-d`. As duas condições
+seriam `d >= 1` e `-d >= 2`, isto é `d >= 1` e `d <= -2` ao mesmo tempo, o que é impossível para
+qualquer placar. Não é o caso de ser raro: é vazio.
+
+A mesma conta elimina duas janelas de "correndo atrás" no mesmo minuto, cujos limiares são `d >= 0`
+(mandante) e `-d >= 1` (visitante), ou seja `d >= 0` e `d <= -1`. **O minuto de rotina é a única
+janela que não pergunta nada ao placar**, então o item 11 só morde quando pelo menos um dos dois
+lados está num minuto de rotina, e o outro num minuto de rotina ou de "correndo atrás".
+
+Isso importa para quem for reproduzir o item 8 da 3.15 (ver item 42). Se os dois lados passarem a
+tirar seus minutos de um embaralhamento só, em posições fixas, as coincidências **dentro do mesmo
+pool** morrem, e com elas o caso rotina-contra-rotina; sobra o caso **rotina de um lado contra
+"correndo atrás" do outro**, porque esses vêm de pools diferentes (a janela de "correndo atrás" é
+19-38 e os pools de rotina são 5-15, 16-35 e 36-42, com sobreposição em 19-35 e em 36-38). Fixado
+assim em `DisciplineChainTest`, teste "a home change swallows the away window in a shared minute",
+justamente para o teste não morrer quando os pools passarem a ser sorteados juntos.
+
 ### 44. Quem sai no intervalo e num minuto de "correndo atrás"
 
 A 3.8 descreve as três janelas em três frases seguidas: "No intervalo: se perde por >=1 (mandante) /
@@ -1425,3 +1447,95 @@ explicitamente.
 Um detalhe a mais no sacrifício, que a 3.8 não registrava: além de 18-25 e depois 14-17, há um
 terceiro passo - **se o expulso é o goleiro** e não há ninguém em 18-25 nem em 14-17, sacrifica-se
 qualquer jogador de 2-25.
+
+### 48. Em que ordem se aplicam as duas travas do sorteio das janelas de placar
+
+A 3.8 põe **duas** condições sobre o mesmo índice sorteado pelas janelas de intervalo e de "correndo
+atrás", e não diz qual delas roda primeiro. A do goleiro: "se o índice cair no goleiro, a janela é
+simplesmente desperdiçada, **sem nova tentativa**". A de quem acabou de entrar: "o sorteio também
+evita tirar quem acabou de entrar", com **uma única re-tentativa** (ver o item 44, e o item 12 da
+3.15 para o defeito que deixa o visitante sem essa proteção).
+
+As duas ordens não dão o mesmo resultado. Pelo **goleiro primeiro**, uma janela morre no goleiro
+mesmo quando a re-tentativa teria achado outro jogador. Pela **re-tentativa primeiro**, um índice
+descartado por ser de quem acabou de entrar pode cair no goleiro no segundo sorteio e desperdiçar a
+janela ali.
+
+O caso que separa as duas é alcançável e não é exótico: o goleiro em campo pode ser exatamente quem
+acabou de entrar, um goleiro reserva que repôs o titular lesionado - a reposição de lesão da 3.8
+permite isso sem restrição, porque a trava do item 41 só recusa o caminho inverso. Nesse estado o
+índice do goleiro é ao mesmo tempo "goleiro" e "acabou de entrar", e as duas ordens divergem no
+mesmo minuto.
+
+**Resolução (INFERIDO):** a **re-tentativa primeiro**, e a trava do goleiro aplicada uma única vez,
+sobre o índice com que o sorteio ficou. Três razões.
+
+1. As duas frases da 3.8 falam de coisas diferentes. "O **sorteio** também evita tirar quem acabou
+   de entrar" descreve o próprio sorteio, isto é como o índice é produzido; "se o **índice** cair no
+   goleiro, a janela é desperdiçada" descreve o julgamento do índice já produzido. Uma trava que dá
+   forma ao sorteio roda antes de uma trava que julga o resultado dele.
+2. A ordem adotada é a mais **parcimoniosa**, e isto é uma questão de parcimônia e não de
+   coerência. Com o goleiro primeiro, a trava dele teria de ser aplicada **duas vezes**, antes e
+   depois da re-tentativa: aplicada só ao primeiro índice, a re-tentativa poderia entregar o goleiro
+   e a janela **tiraria o goleiro**, o que a 3.8 exclui. Testar duas vezes não é incoerente e não
+   gasta sorteio nenhum, então o "sem nova tentativa" da 3.8, que fala de **sorteio** e não de
+   teste, não descarta essa leitura - ela apenas aplica em dois pontos uma regra que o texto
+   enuncia uma vez. Com a re-tentativa primeiro há exatamente um teste de goleiro, sobre o índice
+   final, e nenhum sorteio novo é feito por causa dele.
+3. É a ordem que mantém a separação de responsabilidades que o próprio motor já tinha: o sorteio e
+   sua única re-tentativa ficam em `scoreWindowTarget`, e o que a janela faz com o homem que ela
+   acabou recebendo fica em `runSubstitutionWindow`. Testado em `SubstitutionWindowTest`, testes
+   "a keeper who came on is redrawn rather than wasting the window" e "a redraw that lands on the
+   keeper wastes the window".
+
+**Leitura alternativa, rejeitada.** O goleiro primeiro: se o primeiro índice é o do goleiro a janela
+morre ali, e só um índice sobrevivente é comparado contra a lista de quem acabou de entrar. A favor
+dela: é a ordem em que a 3.8 escreve as duas frases, e ela deixa a taxa de janelas desperdiçadas em
+exatamente uma em onze, que é a figura que o item 44 registra; a ordem adotada sobe essa taxa um
+pouco, para uma em onze mais a chance de a re-tentativa cair no goleiro, isto é `1/11 + (k/11)(1/11)`
+com `k` substitutos já em campo, o que dá cerca de 9,9% em vez de 9,1% com um substituto em campo -
+uma diferença coberta pelo "cerca de" do item 44. Rejeitada por **parcimônia**, e não por ser
+incoerente: ela se sustenta, mas ao custo de duplicar o teste do goleiro, que o texto enuncia uma vez
+só, e as duas ordens divergem em exatamente um caso - um índice que é ao mesmo tempo o do goleiro e
+o de alguém que acabou de entrar. Nenhuma das duas leituras tem apoio textual direto na ordem; a
+adotada tem o argumento 1 a favor e um teste a menos.
+
+### 49. O que conta como "quem acabou de entrar" nas janelas de placar
+
+A 3.8 diz que o sorteio das janelas de placar "evita tirar quem acabou de entrar", com uma única
+re-tentativa (itens 44 e 48; o item 12 da 3.15 registra o defeito que tira essa proteção do
+visitante). A frase deixa duas coisas em aberto: **quais** entradas contam, e **por quanto tempo** a
+proteção vale.
+
+1. Só contam as trocas das próprias janelas voluntárias, ou também o reserva que entrou pela
+   reposição de uma lesão e o que entrou pelo sacrifício de uma expulsão?
+2. "Acabou de entrar" tem prazo? Quem entrou no minuto 5 do 2º tempo ainda está protegido no 45?
+
+**Resolução (INFERIDO):** conta **toda** entrada, qualquer que seja a causa, e a proteção **não
+expira**. A lista é de todo mundo que aquele lado pôs em campo naquela partida; um nome entra nela
+quando o jogador pisa no campo e nunca sai dela. Está em `SideState.arrivals`, alimentada por
+`substitute`, que é o único caminho do banco para o campo. Testado em `SubstitutionWindowTest`, teste
+"a substitute who has just come on is not taken off again".
+
+Três razões. Primeira: uma vez em campo, um substituto não carrega marca nenhuma de por que entrou.
+A 3.8 descreve as três entradas - janela, sacrifício de expulsão, reposição de lesão - e todas as
+três terminam igual, com o reserva mais adequado à célula vaga acrescentado ao fim da lista (item
+45). Separar as três exigiria uma marca que a 3.8 não descreve em lugar nenhum. Segunda: um prazo
+exigiria um número, e a 3.8 não publica nenhum aqui, embora publique em toda outra regra de tempo da
+seção ("2º tempo e minuto >= 5", "após o minuto 40", "a cada 7 minutos"). Terceira: o efeito é
+pequeno e limitado dos dois lados. O teto de cinco trocas por lado deixa a lista com no máximo cinco
+nomes entre onze, e a re-tentativa é única, então nem a leitura mais protetora chega perto de
+bloquear as janelas de placar.
+
+**Leitura alternativa (1), não adotada: só as entradas pelas próprias janelas contam.** A favor
+dela: o parágrafo que enuncia a regra fala das janelas, e é razoável ler a proteção como interna ao
+mecanismo que ela descreve. Contra: sob ela, um lado que acabou de repor um lesionado poderia sacar
+o reserva no minuto seguinte, que é precisamente o comportamento que a frase existe para evitar, e a
+distinção não sobrevive ao fato de as três entradas serem indistinguíveis depois de feitas.
+
+**Leitura alternativa (2), não adotada: a proteção expira depois de alguns minutos.** A favor dela:
+"acabou de entrar" é literalmente uma janela de tempo curta, e sem prazo a regra passa a dizer "não
+tire ninguém que já foi trocado nesta partida", que é uma afirmação mais forte que a frase. Contra:
+não há número nenhum na 3.8 para esse prazo, e inventar um seria escolher a intensidade da regra no
+lugar do original. Note que as duas leituras só divergem quando um lado já trocou e a janela sorteia
+justamente o substituto, o que o teto de cinco trocas mantém raro.

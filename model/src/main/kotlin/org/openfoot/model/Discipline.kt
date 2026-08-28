@@ -109,9 +109,11 @@ data class InjuryRules(
  * Everything section 3.8's substitutions read that no rule set changes.
  *
  * Grouped like DisciplineRates above and for the same reason: none of it is a
- * lever, and the two rule sets carry identical values here. Section 3.15 names
- * no defect anywhere in the substitution block, so there is nothing for a
- * MODERN delta to repair.
+ * lever, and the two rule sets carry identical values here. Section 3.15 does
+ * name two defects in the substitution block, items 11 and 12, but both of
+ * them live where DisciplineRates's own two do, as flat properties of RuleSet,
+ * so that a MODERN delta stays one named argument rather than a nested copy.
+ * See RuleSet.substitutingSidesPerPass and RuleSet.arrivalsSideFor.
  *
  * The two deficit tables are indexed by TeamSide.ordinal, like
  * RuleSet.markingBonus is indexed by Marking.ordinal, so that the one place

@@ -116,6 +116,8 @@ data class RuleSet(
     @property:SpecRef("3.15") val redOverwriteFactor: Int,
     @property:SpecRef("3.15") val anyInjuryAtLeast: Int,
     @property:SpecRef("3.15") val injuryOverwriteFactor: Int,
+    @property:SpecRef("3.15") val substitutingSidesPerPass: Int,
+    @property:SpecRef("3.15") val scoreWindowArrivalsSide: List<TeamSide>,
 
     @property:SpecRef("3.15") val lineupRelaxationPasses: Int,
     @property:SpecRef("5.4") val benchTemplate: List<Int>,
@@ -125,4 +127,20 @@ data class RuleSet(
      * stays data rather than a when chain.
      */
     fun markingBonus(marking: Marking): Double = markingMidfieldBonus[marking.ordinal]
+
+    /**
+     * Whose list of arrivals a score window's "do not take off the man who
+     * just came on" check reads, when the window being run belongs to the
+     * given side.
+     *
+     * Section 3.15 item 12 says the original compares the side's own index
+     * against a value it never holds, so the list consulted is always the
+     * home side's, whichever side the window belongs to. That makes this a
+     * table of one entry per side rather than the identity it looks like it
+     * ought to be, and it is indexed by ordinal for the same reason
+     * markingBonus above is: the divergence stays data instead of becoming a
+     * branch on which rule set is running.
+     */
+    @SpecRef("3.15")
+    fun arrivalsSideFor(team: TeamSide): TeamSide = scoreWindowArrivalsSide[team.ordinal]
 }

@@ -4,6 +4,7 @@ import org.openfoot.engine.world.ScriptedInts
 import org.openfoot.model.PlayerId
 import org.openfoot.model.PlayerStyle
 import org.openfoot.model.Position
+import org.openfoot.model.RuleSet
 import org.openfoot.model.RuleSets
 import org.openfoot.model.Slot
 import org.openfoot.model.TeamSide
@@ -421,6 +422,304 @@ class SubstitutionWindowTest {
     }
 
     /**
+     * The score windows avoid taking off a man who came on earlier in the same
+     * match, and section 3.8 gives them exactly one redraw to do it with.
+     *
+     * The home side is a goal down on its own chasing minute and its cell 2 is
+     * a man who came on. Two draws in order: 7, which is cell 2 in lineup
+     * order and is the man to be avoided, then 2, which is cell 24 and is the
+     * third of the eleven. Neither index is nought and neither cell is the
+     * first of the lineup, so nothing here passes by the draw being ignored.
+     *
+     * Cell 24 asks for an offensive forward, so the sixty comes on rather than
+     * the stronger centre back that stands first on the bench: the man who
+     * comes on is neither the first reserve nor the best one.
+     */
+    @Test
+    fun `a score window redraws once off a man who came on`() {
+        val before = arriving(scored(home = 0, away = 1), TeamSide.HOME, listOf(PlayerId(2)))
+        val rng = ScriptedInts(7, 2)
+
+        val after = before.runSubstitutionWindow(
+            team = TeamSide.HOME,
+            plan = planOf(chasing = listOf(25)),
+            minute = SECOND_HALF_START + 25,
+            clock = CLOCK,
+            rng = rng,
+        )
+
+        val logged = after.log.filterIsInstance<MatchEvent.Substitution>().single()
+        assertEquals(SubstitutionReason.CHASING, logged.reason)
+        assertEquals(PlayerId(24), logged.off.id)
+        assertEquals(FORWARD_ID, logged.on.id)
+        assertEquals(24, logged.on.slot.value)
+        assertEquals(2, rng.draws)
+    }
+
+    /**
+     * A draw that names nobody who came on is not redrawn, even with a list of
+     * arrivals to consult. The same state as above and the same list, with the
+     * single draw 2 naming cell 24 rather than the cell 2 the list holds, so a
+     * window that redrew unconditionally would run ScriptedInts out and fail.
+     */
+    @Test
+    fun `a draw that misses the arrivals is not redrawn`() {
+        val before = arriving(scored(home = 0, away = 1), TeamSide.HOME, listOf(PlayerId(2)))
+        val rng = ScriptedInts(2)
+
+        val after = before.runSubstitutionWindow(
+            team = TeamSide.HOME,
+            plan = planOf(chasing = listOf(25)),
+            minute = SECOND_HALF_START + 25,
+            clock = CLOCK,
+            rng = rng,
+        )
+
+        assertEquals(PlayerId(24), after.log.filterIsInstance<MatchEvent.Substitution>().single().off.id)
+        assertEquals(1, rng.draws)
+    }
+
+    /**
+     * One redraw and not a loop: when the redraw names a second man who came
+     * on, he is the one taken off anyway.
+     *
+     * Both cell 2 and cell 24 came on here, and the two draws are 7 and 2, the
+     * same pair as the redraw test above. The window takes off cell 24, which
+     * is a man the rule was trying to protect, and makes no third draw.
+     */
+    @Test
+    fun `the redraw stands even when it names another man who came on`() {
+        val before = arriving(
+            scored(home = 0, away = 1),
+            TeamSide.HOME,
+            listOf(PlayerId(2), PlayerId(24)),
+        )
+        val rng = ScriptedInts(7, 2)
+
+        val after = before.runSubstitutionWindow(
+            team = TeamSide.HOME,
+            plan = planOf(chasing = listOf(25)),
+            minute = SECOND_HALF_START + 25,
+            clock = CLOCK,
+            rng = rng,
+        )
+
+        val logged = after.log.filterIsInstance<MatchEvent.Substitution>().single()
+        assertEquals(PlayerId(24), logged.off.id)
+        assertEquals(2, rng.draws)
+    }
+
+    /**
+     * The redraw runs before the keeper is judged, which is the order these
+     * two guards of section 3.8 are applied in and the one case that tells the
+     * two orders apart.
+     *
+     * The keeper here came on this match, which a side whose own keeper was
+     * hurt reaches routinely, so index nought names both the keeper and a man
+     * who has just arrived. Under the order taken the arrival is redrawn off
+     * and the second draw, 2, names cell 24, so the window makes a change and
+     * spends two draws. Under the other order the keeper would have been
+     * judged first, the window would have died on him and the draw count would
+     * have been one. See OPEN-QUESTIONS item 48.
+     */
+    @Test
+    fun `a keeper who came on is redrawn rather than wasting the window`() {
+        val before = arriving(scored(home = 0, away = 1), TeamSide.HOME, listOf(PlayerId(1)))
+        val rng = ScriptedInts(0, 2)
+
+        val after = before.runSubstitutionWindow(
+            team = TeamSide.HOME,
+            plan = planOf(chasing = listOf(25)),
+            minute = SECOND_HALF_START + 25,
+            clock = CLOCK,
+            rng = rng,
+        )
+
+        val logged = after.log.filterIsInstance<MatchEvent.Substitution>().single()
+        assertEquals(PlayerId(24), logged.off.id)
+        assertEquals(2, rng.draws)
+    }
+
+    /**
+     * The keeper is judged on whichever index the draw finally settled on, so
+     * a redraw that lands on him wastes the window exactly as a first draw on
+     * him would. Cell 2 came on, the first draw of 7 names him, and the redraw
+     * of nought names the keeper: nothing changes, nothing is logged, and no
+     * third draw is made.
+     */
+    @Test
+    fun `a redraw that lands on the keeper wastes the window`() {
+        val before = arriving(scored(home = 0, away = 1), TeamSide.HOME, listOf(PlayerId(2)))
+        val rng = ScriptedInts(7, 0)
+
+        val after = before.runSubstitutionWindow(
+            team = TeamSide.HOME,
+            plan = planOf(chasing = listOf(25)),
+            minute = SECOND_HALF_START + 25,
+            clock = CLOCK,
+            rng = rng,
+        )
+
+        assertEquals(before, after)
+        assertEquals(2, rng.draws)
+    }
+
+    /**
+     * The man a window brings on is recorded as an arrival, and the next
+     * window will not take him off. Two windows on one state, end to end,
+     * which is the only test here that does not hand the arrivals in ready
+     * made.
+     *
+     * The routine minute takes cell 2 off for the centre back, who is appended
+     * to the end of the lineup and so stands at index ten of eleven. The
+     * chasing minute that follows draws exactly that index, finds the man who
+     * came on a minute ago and redraws 2, which is cell 24, taking the forward
+     * off the bench instead. Index ten is the last of the list and index two
+     * the third, so neither is reachable by taking the front of the lineup.
+     */
+    @Test
+    fun `a substitute who has just come on is not taken off again`() {
+        val before = state(homeGoals = 0, awayGoals = 1, energyByCell = mapOf(2 to 55))
+
+        val afterRoutine = before.runSubstitutionWindow(
+            team = TeamSide.HOME,
+            plan = planOf(routine = listOf(20)),
+            minute = SECOND_HALF_START + 20,
+            clock = CLOCK,
+            rng = ScriptedInts(),
+        )
+
+        assertEquals(listOf(Arrival(TeamSide.HOME, CENTRE_BACK_ID)), afterRoutine.home.arrivals)
+        assertEquals(CENTRE_BACK_ID, afterRoutine.setup.home.lineup.last().id)
+
+        val rng = ScriptedInts(10, 2)
+        val after = afterRoutine.runSubstitutionWindow(
+            team = TeamSide.HOME,
+            plan = planOf(chasing = listOf(25)),
+            minute = SECOND_HALF_START + 25,
+            clock = CLOCK,
+            rng = rng,
+        )
+
+        val chasing = after.log.filterIsInstance<MatchEvent.Substitution>().last()
+        assertEquals(SubstitutionReason.CHASING, chasing.reason)
+        assertEquals(PlayerId(24), chasing.off.id)
+        assertEquals(FORWARD_ID, chasing.on.id)
+        assertEquals(2, rng.draws)
+        assertEquals(
+            listOf(Arrival(TeamSide.HOME, CENTRE_BACK_ID), Arrival(TeamSide.HOME, FORWARD_ID)),
+            after.home.arrivals,
+        )
+    }
+
+    /**
+     * Section 3.15 item 12: the check reads the home side's list of arrivals
+     * whichever side the window belongs to, so the away side has no protection
+     * at all and can take off, a minute later, the substitute it has just
+     * brought on.
+     *
+     * The away side is a goal down on its own chasing minute, and its cell 24
+     * is a man it brought on; the home side has brought nobody on. Its single
+     * draw of 2 names that very man and he goes straight off, with no redraw
+     * and so with one draw and not two.
+     */
+    @Test
+    fun `the away side takes off the man it just brought on`() {
+        val before = arriving(
+            state(homeGoals = 1, awayGoals = 0, awayBench = bench()),
+            TeamSide.AWAY,
+            listOf(PlayerId(24)),
+        )
+        val rng = ScriptedInts(2)
+
+        val after = before.runSubstitutionWindow(
+            team = TeamSide.AWAY,
+            plan = planOf(chasing = listOf(25)),
+            minute = SECOND_HALF_START + 25,
+            clock = CLOCK,
+            rng = rng,
+        )
+
+        val logged = after.log.filterIsInstance<MatchEvent.Substitution>().single()
+        assertEquals(TeamSide.AWAY, logged.side)
+        assertEquals(PlayerId(24), logged.off.id)
+        assertEquals(1, rng.draws)
+    }
+
+    /**
+     * The modern rules point each side at its own list, so the same state and
+     * the same first draw redraw for the away side instead. The second draw,
+     * 1, names cell 22, and the away side changes him rather than the man it
+     * had just brought on.
+     *
+     * Cell 22 asks for an offensive forward, so the sixty comes on rather than
+     * the stronger centre back that stands first on the bench: the reserve
+     * expected here is neither the first of the bench nor the best of it, so
+     * the assertion cannot be satisfied by a search that took either.
+     */
+    @Test
+    fun `the modern rules protect the away side too`() {
+        val before = arriving(
+            state(homeGoals = 1, awayGoals = 0, awayBench = bench(), rules = RuleSets.MODERN),
+            TeamSide.AWAY,
+            listOf(PlayerId(24)),
+        )
+        val rng = ScriptedInts(2, 1)
+
+        val after = before.runSubstitutionWindow(
+            team = TeamSide.AWAY,
+            plan = planOf(chasing = listOf(25)),
+            minute = SECOND_HALF_START + 25,
+            clock = CLOCK,
+            rng = rng,
+        )
+
+        val logged = after.log.filterIsInstance<MatchEvent.Substitution>().single()
+        assertEquals(PlayerId(22), logged.off.id)
+        assertEquals(FORWARD_ID, logged.on.id)
+        assertEquals(22, logged.on.slot.value)
+        assertEquals(2, rng.draws)
+    }
+
+    /**
+     * A home arrival whose squad index an away player also holds does not
+     * protect that away player, because the check compares the side as well as
+     * the identity.
+     *
+     * A PlayerId is an index into the squad its owner was picked from, so the
+     * two squads hand out the same small numbers and a home arrival can carry
+     * the number of an away starter. Here the home side has brought on a man
+     * whose id is 24 and the away side's cell 24 carries that same id, and the
+     * away window draws 2, which names it. Section 3.15 item 12 says the away
+     * side has no protection at all, so what must happen is one draw and that
+     * man going off; a check that compared bare numbers would redraw here, and
+     * would both protect a man item 12 leaves unprotected and spend a second
+     * draw the away side's stream never gives back.
+     */
+    @Test
+    fun `a home arrival does not protect the away player who shares his id`() {
+        val before = arriving(
+            state(homeGoals = 1, awayGoals = 0, awayBench = bench()),
+            TeamSide.HOME,
+            listOf(PlayerId(24)),
+        )
+        val rng = ScriptedInts(2)
+
+        val after = before.runSubstitutionWindow(
+            team = TeamSide.AWAY,
+            plan = planOf(chasing = listOf(25)),
+            minute = SECOND_HALF_START + 25,
+            clock = CLOCK,
+            rng = rng,
+        )
+
+        val logged = after.log.filterIsInstance<MatchEvent.Substitution>().single()
+        assertEquals(TeamSide.AWAY, logged.side)
+        assertEquals(PlayerId(24), logged.off.id)
+        assertEquals(1, rng.draws)
+    }
+
+    /**
      * A window with nobody left on the bench, or with all five substitutions
      * spent, changes nothing and logs nothing.
      */
@@ -586,6 +885,7 @@ class SubstitutionWindowTest {
             bench: List<MatchPlayer> = bench(),
             awayBench: List<MatchPlayer> = emptyList(),
             humanHome: Boolean = false,
+            rules: RuleSet = RULES,
         ): MatchState {
             val home = Lineups.side(
                 Lineups.FORMATION_4_4_2.map { Lineups.player(it, strength = 50) },
@@ -593,7 +893,7 @@ class SubstitutionWindowTest {
             )
             val away = Lineups.sideOfSlots(Lineups.FORMATION_4_4_2, strength = 50)
             val base = initialState(
-                setup = MatchSetup(home, away, season = 1, rules = RULES),
+                setup = MatchSetup(home, away, season = 1, rules = rules),
                 startingPossessor = TeamSide.HOME,
                 homeBench = bench,
                 awayBench = awayBench,
@@ -610,6 +910,21 @@ class SubstitutionWindowTest {
         }
 
         fun scored(home: Int, away: Int): MatchState = state(homeGoals = home, awayGoals = away)
+
+        /**
+         * The same state with the named side already carrying the given men
+         * as arrivals. Handing the list in rather than playing the window that
+         * would have produced it keeps a test of the redraw a test of the
+         * redraw alone; the one test that does play both windows in order is
+         * "a substitute who has just come on is not taken off again".
+         *
+         * The ids are stamped with the side whose list they are being put on,
+         * which is what substitute itself does. A test that wants a home
+         * arrival carrying an id an away player also holds asks for it that
+         * way, by putting the id on the home side's list.
+         */
+        fun arriving(state: MatchState, team: TeamSide, ids: List<PlayerId>): MatchState =
+            state.with(team, state.of(team).copy(arrivals = ids.map { Arrival(team, it) }))
 
         fun withEnergy(
             byCell: Map<Int, Int>,

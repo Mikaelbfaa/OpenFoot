@@ -43,6 +43,14 @@ import kotlin.test.assertTrue
  * either; that change is pinned the same way, in SubstitutionWindowTest and
  * DisciplineChainTest.
  *
+ * The two substitution defects of section 3.15 items 11 and 12 are invisible
+ * here for the same reason, and by construction rather than by luck of these
+ * seeds. Item 12's just came on retry reads a list that only a substitution
+ * can ever add to, and item 11 passes over the away side's window only when
+ * the home side actually substituted, so a match in which nobody is ever
+ * substituted can reach neither. Both are pinned in SubstitutionWindowTest and
+ * DisciplineChainTest instead.
+ *
  * These four seeds cannot tell attempt-counting apart from event-counting in
  * DisciplineCounts, and never could: formation 4, the four four two every
  * fixture here uses, occupies cells 1, 22, 24, 11, 13, 14, 16, 2, 9, 3 and 5,

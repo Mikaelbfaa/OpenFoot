@@ -385,15 +385,39 @@ private fun MatchState.injure(team: TeamSide, minute: Int, rng: Rng): MatchState
 /**
  * The fourth branch of the chain: each side's own substitution window.
  *
- * Both sides are offered one, in a fixed order, each from a stream of its own
- * derived from its side ordinal, so that whether the home side substitutes
- * cannot move what the away side draws in the same minute.
+ * Both sides are offered one, in the fixed order TeamSide declares them, the
+ * home side first, each from a stream of its own derived from its side
+ * ordinal, so that whether the home side substitutes cannot move what the away
+ * side draws in the same minute.
  *
- * Every gate on the window lives inside runSubstitutionWindow, including the
- * first half and the fifth minute of the half. This function adds none of its
- * own: it decides only whether to offer the window at all, which it does in
- * every minute the chain left empty and in the interval whatever the chain
- * did.
+ * That order is load bearing and not merely tidy. Section 3.15 item 11 says
+ * the original evaluates the two windows of one pass together and stops at the
+ * first side that actually changed somebody, so a pass in which the home side
+ * substituted never examines the away side's window at all. That is
+ * substitutingSidesPerPass, a count rather than a flag because what the
+ * original limits is how many changes one pass can carry: classic allows one
+ * and modern allows both. It counts sides that actually substituted and not
+ * windows opened, so a home window that opened and was wasted on the keeper,
+ * or that found the score against it, still leaves the away window to be
+ * examined.
+ *
+ * A skipped window makes no draw, which is what not being examined means, and
+ * costs nothing here in any case: each side draws from a fork of its own, so a
+ * side never offered its window consumes nothing another side would have used.
+ *
+ * Where this bites is narrow, and section 3.15 item 11 says where. The two
+ * sides draw their minutes from one pool without replacement, so only the
+ * interval, which is evaluated for both sides at once by construction, and a
+ * chasing or routine minute that the two sides happen to share can put two
+ * live windows in one pass. This engine draws each side's plan on its own, so
+ * a shared minute is reachable here as well for now; the interval is the case
+ * that survives whatever happens to that.
+ *
+ * Every gate on the window itself lives inside runSubstitutionWindow,
+ * including the first half and the fifth minute of the half. This function
+ * adds only the limit above: it decides whether to offer the window at all,
+ * which it does in every minute the chain left empty and in the interval
+ * whatever the chain did.
  */
 @SpecRef("3.8")
 private fun MatchState.openSubstitutionWindows(
@@ -403,7 +427,12 @@ private fun MatchState.openSubstitutionWindows(
 ): MatchState {
     val windows = rng.fork(SUBSTITUTION_STREAM)
     var state = this
+    var substituted = 0
     for (team in TeamSide.entries) {
+        if (substituted >= setup.rules.substitutingSidesPerPass) {
+            return state
+        }
+        val spentBefore = state.of(team).substitutionsUsed
         state = state.runSubstitutionWindow(
             team = team,
             plan = state.of(team).plan,
@@ -411,6 +440,9 @@ private fun MatchState.openSubstitutionWindows(
             clock = clock,
             rng = windows.fork(team.ordinal.toLong()),
         )
+        if (state.of(team).substitutionsUsed != spentBefore) {
+            substituted++
+        }
     }
     return state
 }
