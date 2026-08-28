@@ -1245,7 +1245,7 @@ justamente para o teste não morrer quando os pools passarem a ser sorteados jun
 ### 44. Quem sai no intervalo e num minuto de "correndo atrás"
 
 A 3.8 descreve as três janelas em três frases seguidas: "No intervalo: se perde por >=1 (mandante) /
->=2 (visitante), 50% de chance de **troca aleatória**. Em minuto 'correndo atrás': mandante **troca**
+>=2 (visitante), 49% de chance de **troca aleatória**. Em minuto 'correndo atrás': mandante **troca**
 se perde ou empata; visitante só se perde. Em minuto de rotina: **troca por cansaço** - primeiro
 não-goleiro com energia < 60". A primeira janela qualifica a troca de aleatória, a terceira a
 qualifica de por cansaço, e a do meio não qualifica nada: só diz "troca".

@@ -302,16 +302,17 @@ object RuleSets {
      * docs/known-quirks.md carries the same argument for a reader who is not
      * in the code; OPEN-QUESTIONS item 44 records the wasted window itself but
      * says nothing about rule sets, so it is not the authority for this.
-     * Three reasons. Section 3.15 does not
-     * name it: every delta above repairs something that list calls a defect,
-     * and this is written in section 3.8 as the rule itself and confirmed as
-     * the original's own behaviour. Repairing it would move a probability
-     * rather than a rule, roughly one score window in eleven, which is the
-     * same kind of change as the fixed line divisors below that this file
-     * already refuses to make. And the repair is not even determined: a
-     * window that must not be wasted has to either redraw or draw over the ten
-     * outfielders instead of the eleven, and nothing in the spec says which,
-     * so modern would be inventing a rule rather than removing a mistake.
+     *
+     * Three reasons. Section 3.15 does not name it: every delta above repairs
+     * something that list calls a defect, and this is written in section 3.8
+     * as the rule itself and confirmed as the original's own behaviour.
+     * Repairing it would move a probability rather than a rule, roughly one
+     * score window in eleven, which is the same kind of change as the fixed
+     * line divisors below that this file already refuses to make. And the
+     * repair is not even determined: a window that must not be wasted has to
+     * either redraw or draw over the ten outfielders instead of the eleven,
+     * and nothing in the spec says which, so modern would be inventing a rule
+     * rather than removing a mistake.
      *
      * The fixed line divisors of five, five and three are deliberately not
      * changed here. That is a balance decision rather than a defect, and it

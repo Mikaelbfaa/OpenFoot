@@ -153,24 +153,6 @@ Ficam registrados aqui para quando o código chegar nessas partes.
 - Prorrogação nunca é simulada. Empate em mata-mata vai direto para uma fórmula abstrata de
   pênaltis (seção 3.10).
 - Clubes da IA não têm dinheiro (seção 6.0). Esse é o mais estrutural de todos.
-- **A janela de substituição do visitante é engolida pela do mandante.** As duas são avaliadas na
-  mesma passagem, mandante primeiro; se o mandante trocou de fato, a do visitante nem é examinada.
-  No intervalo, onde os dois lados são sempre avaliados juntos, isso vale para toda partida em que
-  o mandante trocou no intervalo (seção 3.15 item 11).
-- **A trava "não tire quem acabou de entrar" só protege o mandante.** No sorteio das janelas de
-  placar, a lista consultada é sempre a de quem entrou pelo mandante, para os dois times. O
-  visitante pode sacar num minuto o reserva que pôs em campo no minuto anterior (seção 3.15 item 12).
-- **As janelas de placar desperdiçam a troca quando o sorteio cai no goleiro.** O índice é sorteado
-  sobre a escalação inteira e não há nova tentativa: ~1 em 11 janelas de intervalo ou de "correndo
-  atrás" não produz troca nenhuma (seção 3.8).
-- **Os contadores que derrubam o limiar do cartão contam tentativas, não eventos.** Eles sobem mesmo
-  quando o grupo de risco sorteado está vazio, então a sobrescrita da lesão - a mais violenta das
-  três - dispara a partir da primeira tentativa de lesão, tenha ela lesionado alguém ou não
-  (seção 3.8).
-- **A perda permanente de força por lesão depois dos 35 tem piso 0, não 1.** O piso só é aplicado
-  quando o resultado fica negativo; uma força que cai exatamente em 0 fica em 0 (seção 3.8).
-- **Uma lesão de duração 0 tira o jogador da partida e não registra lesão nenhuma.** Acontece com
-  jogadores de até 20 anos quando o termo de sorteio sai zero (seção 3.8).
 
 ## Não são defeitos
 

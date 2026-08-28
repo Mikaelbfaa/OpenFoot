@@ -605,9 +605,12 @@ internal fun scoreWindowTarget(
  *
  * Opened for both sides independently. The chasing and routine windows are
  * minutes of play, and each opens only when that minute's discipline chain
- * produced no card and no injury; the interval window is not gated by the
- * chain's outcome at all, because it stands for a minute of play that never
- * happens, so no chain ever runs there for it to be gated by. See isInterval.
+ * produced no card and no injury. The interval minute is a played minute
+ * too, at intoHalf zero of the second half, and disciplineMinute runs the
+ * same chain on it as on any other minute; what keeps its window open even
+ * when that chain produces a card or an injury is disciplineMinute's
+ * explicit not isInterval check on the result, not an absent chain. See
+ * isInterval and disciplineMinute.
  * Section 3.8 lists the window as the fourth branch of the victim chain,
  * which would open it only for the side that minute's victim draw happened to
  * land on; but every side draws its own minutes, so a side's own minute would

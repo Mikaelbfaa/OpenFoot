@@ -5,6 +5,33 @@ import org.openfoot.model.SpecRef
 import org.openfoot.model.TeamSide
 
 /**
+ * One man who has come on, and the side he came on for.
+ *
+ * The side is carried beside the identity rather than left implicit in which
+ * side's list the entry sits in, because these lists are read across sides. A
+ * PlayerId is the player's index into the squad his lineup was picked from, so
+ * it is unique inside one squad and not between two: the same number names one
+ * man in the home squad and a different man in the away squad, and both squads
+ * are indexed from the same small range.
+ *
+ * Section 3.15 item 12 is what makes that matter. It has the away side's
+ * window consult the home side's list of arrivals, and says the consequence is
+ * that the away side has no protection at all. Compared as bare numbers, a
+ * home arrival whose squad index happened to equal an away starter's would
+ * match, and the away side would be handed a redraw it is not supposed to
+ * have, on a man chosen by nothing but a collision of two squad indices; the
+ * redraw would spend a draw and shift the away side's stream as well.
+ * Comparing an Arrival makes a cross side match impossible by construction, so
+ * the away side reads the wrong list and is therefore never protected, which
+ * is the defect section 3.15 describes rather than a weaker version of it.
+ */
+@SpecRef("3.8")
+data class Arrival(
+    @property:SpecRef("3.8") val side: TeamSide,
+    @property:SpecRef("3.8") val id: PlayerId,
+)
+
+/**
  * What one side carries through a match that is not on the pitch.
  *
  * The players on the pitch live in MatchSide, because that is what every line
@@ -42,33 +69,6 @@ import org.openfoot.model.TeamSide
  * Every map here is ordered. An unordered map would make a match depend on
  * iteration order, which is the one thing this engine may never do.
  */
-/**
- * One man who has come on, and the side he came on for.
- *
- * The side is carried beside the identity rather than left implicit in which
- * side's list the entry sits in, because these lists are read across sides. A
- * PlayerId is the player's index into the squad his lineup was picked from, so
- * it is unique inside one squad and not between two: the same number names one
- * man in the home squad and a different man in the away squad, and both squads
- * are indexed from the same small range.
- *
- * Section 3.15 item 12 is what makes that matter. It has the away side's
- * window consult the home side's list of arrivals, and says the consequence is
- * that the away side has no protection at all. Compared as bare numbers, a
- * home arrival whose squad index happened to equal an away starter's would
- * match, and the away side would be handed a redraw it is not supposed to
- * have, on a man chosen by nothing but a collision of two squad indices; the
- * redraw would spend a draw and shift the away side's stream as well.
- * Comparing an Arrival makes a cross side match impossible by construction, so
- * the away side reads the wrong list and is therefore never protected, which
- * is the defect section 3.15 describes rather than a weaker version of it.
- */
-@SpecRef("3.8")
-data class Arrival(
-    @property:SpecRef("3.8") val side: TeamSide,
-    @property:SpecRef("3.8") val id: PlayerId,
-)
-
 @SpecRef("3.9")
 data class SideState(
     val bench: List<MatchPlayer> = emptyList(),

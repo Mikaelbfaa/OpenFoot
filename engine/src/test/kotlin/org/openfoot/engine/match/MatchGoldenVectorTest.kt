@@ -65,8 +65,8 @@ import kotlin.test.assertTrue
  * across these four matches and a matching roll always finds somebody. The
  * sendingsOff counter never reaches manyRedsAtLeast either, since seed ten's
  * one dismissal is the only one any of the four seeds produces. Neither of
- * the two behaviours a second yellow being read as a red, and a counter
- * moving on an empty group has anything here to act on, so a version that
+ * the two behaviours - a second yellow being read as a red, and a counter
+ * moving on an empty group - has anything here to act on, so a version that
  * still had both defects would replay this file exactly and pass it. The
  * guarantee that they are fixed lives in DisciplineChainTest's scripted
  * cases instead, which assert the counters and a computed threshold directly

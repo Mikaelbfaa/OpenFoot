@@ -423,9 +423,12 @@ private fun MatchState.injure(team: TeamSide, minute: Int, rng: Rng): MatchState
  * sides draw their minutes from one pool without replacement, so only the
  * interval, which is evaluated for both sides at once by construction, and a
  * chasing or routine minute that the two sides happen to share can put two
- * live windows in one pass. This engine draws each side's plan on its own, so
- * a shared minute is reachable here as well for now; the interval is the case
- * that survives whatever happens to that.
+ * live windows in one pass. Both sides now read a chasing or a routine pool
+ * from the same shuffle, which is exactly why a shared minute cannot happen
+ * within one pool; what keeps it reachable here is that the chasing pool, 19
+ * to 38, and the two routine pools, 16 to 35 and 36 to 42, are separate
+ * shuffles whose ranges overlap, so one side's chasing minute can still land
+ * on the other's routine one. The interval is the other case that survives.
  *
  * Every gate on the window itself lives inside runSubstitutionWindow,
  * including the first half and the fifth minute of the half. This function
