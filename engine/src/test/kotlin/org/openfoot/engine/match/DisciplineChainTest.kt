@@ -646,10 +646,12 @@ class DisciplineChainTest {
      *
      * The home side is a goal down, which is the deficit section 3.8 asks a
      * home side for at the interval, and its coin came up for a change when the
-     * plan was drawn. Its window makes one draw, 2, over the ten outfielders in
-     * lineup order, which is its cell 11. The away side wants two goals before
-     * it considers a change and is a goal up, so its window makes no draw at
-     * all and its stream is scripted empty.
+     * plan was drawn. Its window makes one draw, 2, over the whole eleven in
+     * lineup order, keeper included, which is its cell 24: index nought is the
+     * keeper's own cell 1, so a draw of 2 is the third of the eleven rather
+     * than the third outfielder. The away side wants two goals before it
+     * considers a change and is a goal up, so its window makes no draw at all
+     * and its stream is scripted empty.
      */
     @Test
     fun `the interval window opens`() {
@@ -667,14 +669,14 @@ class DisciplineChainTest {
         val after = before.disciplineMinute(INTERVAL, CLOCK, withWindows(chain, homeWindow, awayWindow))
 
         assertEquals(4, chain.draws, "the chain made its victim draw and its three rolls")
-        assertEquals(1, homeWindow.draws, "the interval takes a random outfielder, which is one draw")
+        assertEquals(1, homeWindow.draws, "the interval takes a drawn lineup player, which is one draw")
         assertEquals(0, awayWindow.draws, "a side a goal up makes no draw at the interval")
 
         val swap = after.log.single() as MatchEvent.Substitution
         assertEquals(TeamSide.HOME, swap.side, "the side that was a goal down")
         assertEquals(SubstitutionReason.HALF_TIME, swap.reason, "the reason logged")
-        assertEquals(11, swap.off.slot.value, "the third outfielder in lineup order comes off")
-        assertEquals(MIDFIELD_RESERVE, swap.on.id, "the reserve who suits cell 11 comes on")
+        assertEquals(24, swap.off.slot.value, "the third of the whole eleven in lineup order comes off")
+        assertEquals(ATTACK_RESERVE, swap.on.id, "the reserve who suits cell 24 comes on")
         assertEquals(1, after.home.substitutionsUsed, "home substitutions used")
         assertEquals(0, after.away.substitutionsUsed, "away substitutions used")
     }
@@ -693,7 +695,7 @@ class DisciplineChainTest {
      * The two draws after it are the risk group, 0 for g0, and the player, 1
      * for the second of the home side's two cells in 10 to 13, which is cell
      * 13. The booked player is still on the pitch, so the window's draw of 2
-     * still lands on cell 11.
+     * still lands on cell 24, the same as the interval test above.
      */
     @Test
     fun `a card at the interval does not close the interval window`() {
@@ -717,8 +719,8 @@ class DisciplineChainTest {
 
         val swap = after.log[1] as MatchEvent.Substitution
         assertEquals(SubstitutionReason.HALF_TIME, swap.reason, "the interval window still opened")
-        assertEquals(11, swap.off.slot.value, "the drawn outfielder comes off")
-        assertEquals(MIDFIELD_RESERVE, swap.on.id, "the reserve who suits cell 11 comes on")
+        assertEquals(24, swap.off.slot.value, "the drawn lineup player comes off")
+        assertEquals(ATTACK_RESERVE, swap.on.id, "the reserve who suits cell 24 comes on")
         assertEquals(2, after.log.size, "a booking and a substitution and nothing else")
         assertEquals(1, after.home.substitutionsUsed, "home substitutions used")
     }

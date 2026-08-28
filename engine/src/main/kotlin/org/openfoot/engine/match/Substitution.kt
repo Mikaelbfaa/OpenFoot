@@ -400,22 +400,27 @@ internal fun tirednessTarget(
 }
 
 /**
- * A player drawn uniformly from the side's outfielders.
+ * A player drawn uniformly from the whole lineup on the pitch, keeper
+ * included.
  *
  * Section 3.8 calls the interval's change a "troca aleatoria" and then names
  * the chasing minute's change only as a "troca", in the next sentence and with
  * no scan of its own; the routine minute is the one that overrides the choice
- * with the tiredness scan. Both of the first two therefore take a random man,
- * and the keeper is not among them: a side does not answer a deficit by
- * changing its goalkeeper. See OPEN-QUESTIONS item 44.
+ * with the tiredness scan. Both of the first two therefore draw an index over
+ * the whole eleven, not over the ten outfielders, and this function does not
+ * filter the keeper's cell out of that index: it draws exactly one player and
+ * hands him back whoever he is. What a draw landing on the keeper means is not
+ * this function's business. The caller reads the slot it gets back and, when
+ * it names the keeper, wastes the window: no substitution and no second draw.
+ * See OPEN-QUESTIONS item 44.
  */
 @SpecRef("3.8")
-internal fun randomOutfielder(side: MatchSide, rules: RuleSet, rng: Rng): MatchPlayer? {
-    val outfielders = side.lineup.filter { it.slot.value != rules.keeperSlot }
-    if (outfielders.isEmpty()) {
+internal fun randomLineupPlayer(side: MatchSide, rng: Rng): MatchPlayer? {
+    val lineup = side.lineup
+    if (lineup.isEmpty()) {
         return null
     }
-    return outfielders[rng.rand(outfielders.size)]
+    return lineup[rng.rand(lineup.size)]
 }
 
 /**
@@ -443,6 +448,13 @@ internal fun randomOutfielder(side: MatchSide, rules: RuleSet, rng: Rng): MatchP
  * Nothing at all happens for a human managed side, for a side that has spent
  * its five, or for a side with an empty bench, and none of those cases makes a
  * draw. A window that opens but finds the score wrong makes no draw either.
+ *
+ * The interval and the chasing windows draw their man from randomLineupPlayer,
+ * which runs over the whole eleven and does not filter the keeper's cell out.
+ * When that draw names him the window is wasted here: nothing changes, nothing
+ * is logged, and no second draw is made to replace the wasted one. Roughly one
+ * in eleven of these windows dies this way, which is section 3.8's own cost and
+ * not a bug in the draw. See OPEN-QUESTIONS item 44.
  *
  * The null branch on chooseReplacement below cannot be reached from here and
  * is kept as a guard rather than removed. The cascade of section 5.4 carries
@@ -501,13 +513,15 @@ internal fun MatchState.runSubstitutionWindow(
         else -> return this
     }
 
-    val off = (
-        if (reason == SubstitutionReason.TIREDNESS) {
-            tirednessTarget(this, team, intoHalf, rng)
-        } else {
-            randomOutfielder(side, rules, rng)
+    val off = if (reason == SubstitutionReason.TIREDNESS) {
+        tirednessTarget(this, team, intoHalf, rng) ?: return this
+    } else {
+        val drawn = randomLineupPlayer(side, rng) ?: return this
+        if (drawn.slot.value == rules.keeperSlot) {
+            return this
         }
-        ) ?: return this
+        drawn
+    }
 
     val on = chooseReplacement(this, team, off.slot) ?: return this
     return substitute(team, off, on, off.slot, minute, reason)

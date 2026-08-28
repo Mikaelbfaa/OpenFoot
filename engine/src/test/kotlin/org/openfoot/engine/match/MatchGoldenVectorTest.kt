@@ -36,7 +36,12 @@ import kotlin.test.assertTrue
  * here and a dismissal or an injury leaves the side on ten for the rest of
  * the match. That is the harder case for section 3.4's fixed divisors and is
  * the one worth pinning; the substitution wiring is pinned by
- * DisciplineChainTest, which plays whole matches with a bench.
+ * DisciplineChainTest, which plays whole matches with a bench. An empty bench
+ * means canSubstitute refuses every window before it ever draws, so the
+ * interval and chasing windows' draw over the whole eleven, keeper included,
+ * and the wasted window a keeper draw now costs, have nothing here to act on
+ * either; that change is pinned the same way, in SubstitutionWindowTest and
+ * DisciplineChainTest.
  *
  * These four seeds cannot tell attempt-counting apart from event-counting in
  * DisciplineCounts, and never could: formation 4, the four four two every

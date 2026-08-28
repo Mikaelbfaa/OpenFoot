@@ -227,30 +227,57 @@ class SubstitutionWindowTest {
     }
 
     /**
-     * The draw that picks who comes off is over the ten men who are not in the
-     * keeper's cell, taken in lineup order. Every index is pinned rather than
-     * a sample, so the mapping from a draw to a player is the assertion and
-     * not an accident of index nought also being the first of the list. Cell
-     * one never appears, which is the keeper being excluded.
+     * The draw that picks who comes off runs over the whole eleven, keeper
+     * included, taken in lineup order: cell one is the first index rather
+     * than being excluded. Every index is pinned rather than a sample, so the
+     * mapping from a draw to a player is the assertion and not an accident of
+     * some index also being the first of the list.
      */
     @Test
-    fun `the outfield draw runs over the ten non keepers in lineup order`() {
+    fun `the lineup draw runs over all eleven including the keeper`() {
         val side = state().setup.home
-        val drawn = (0..9).map { randomOutfielder(side, RULES, ScriptedInts(it))!!.slot.value }
+        val drawn = (0..10).map { randomLineupPlayer(side, ScriptedInts(it))!!.slot.value }
 
-        assertEquals(listOf(22, 24, 11, 13, 14, 16, 2, 9, 3, 5), drawn)
+        assertEquals(listOf(1, 22, 24, 11, 13, 14, 16, 2, 9, 3, 5), drawn)
     }
 
     /**
-     * A chasing minute takes a drawn outfielder instead. Index one is cell
-     * twenty four, the second of the ten and not the first, and that cell asks
-     * for an offensive forward, so the sixty comes on ahead of the stronger
-     * centre back.
+     * A chasing minute's draw can land on the keeper, and section 3.8 wastes
+     * the window rather than redraw: nothing changes, nothing is logged, and
+     * the drawn minute is simply spent. Index nought is cell one, the
+     * keeper's cell and the first of the whole eleven. ScriptedInts is
+     * handed only that one value, so a caller that tried a second draw to
+     * find somebody else would fail here rather than pass quietly.
      */
     @Test
-    fun `a chasing minute changes a drawn outfielder`() {
+    fun `a chasing minute drawn on the keeper wastes the window`() {
         val before = scored(home = 0, away = 1)
-        val rng = ScriptedInts(1)
+        val rng = ScriptedInts(0)
+
+        val after = before.runSubstitutionWindow(
+            team = TeamSide.HOME,
+            plan = planOf(chasing = listOf(25)),
+            minute = SECOND_HALF_START + 25,
+            clock = CLOCK,
+            rng = rng,
+        )
+
+        assertEquals(before, after)
+        assertEquals(1, rng.draws)
+    }
+
+    /**
+     * A chasing minute takes a drawn non keeper instead. Index two is cell
+     * twenty four, the third of the whole eleven and neither the first index
+     * nor the first of the lineup, so a passing result here proves the draw's
+     * index was actually read rather than the lineup's own first() winning by
+     * accident. Cell twenty four asks for an offensive forward, so the sixty
+     * comes on ahead of the stronger centre back.
+     */
+    @Test
+    fun `a chasing minute changes the non keeper the draw names`() {
+        val before = scored(home = 0, away = 1)
+        val rng = ScriptedInts(2)
 
         val after = before.runSubstitutionWindow(
             team = TeamSide.HOME,
@@ -283,7 +310,7 @@ class SubstitutionWindowTest {
             plan = planOf(chasing = listOf(25)),
             minute = SECOND_HALF_START + 25,
             clock = CLOCK,
-            rng = ScriptedInts(1),
+            rng = ScriptedInts(2),
         )
 
         val logged = after.log.filterIsInstance<MatchEvent.Substitution>().single()
@@ -315,7 +342,7 @@ class SubstitutionWindowTest {
             plan = planOf(chasing = listOf(25), routine = listOf(25)),
             minute = SECOND_HALF_START + 25,
             clock = CLOCK,
-            rng = ScriptedInts(1),
+            rng = ScriptedInts(2),
         )
 
         val logged = after.log.filterIsInstance<MatchEvent.Substitution>().single()
@@ -347,13 +374,13 @@ class SubstitutionWindowTest {
 
     /**
      * The interval is the first minute of the second half. It needs both the
-     * plan's coin and the score, and it takes a drawn outfielder like a
-     * chasing minute does. Index six is cell two, the seventh of the ten, and
-     * that cell asks for a right sided fullback and nothing of the sub role,
-     * so the cascade of section 5.4 reaches the centre back.
+     * plan's coin and the score, and it draws over the whole eleven like a
+     * chasing minute does. Index seven is cell two, the eighth of the whole
+     * eleven, and that cell asks for a right sided fullback and nothing of the
+     * sub role, so the cascade of section 5.4 reaches the centre back.
      */
     @Test
-    fun `the interval changes a drawn outfielder when the coin and the score agree`() {
+    fun `the interval changes a drawn non keeper when the coin and the score agree`() {
         val before = scored(home = 0, away = 1)
 
         val after = before.runSubstitutionWindow(
@@ -361,7 +388,7 @@ class SubstitutionWindowTest {
             plan = planOf(halfTimeSwap = true),
             minute = SECOND_HALF_START,
             clock = CLOCK,
-            rng = ScriptedInts(6),
+            rng = ScriptedInts(7),
         )
 
         val logged = after.log.filterIsInstance<MatchEvent.Substitution>().single()
