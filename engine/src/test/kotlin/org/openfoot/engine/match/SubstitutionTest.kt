@@ -84,25 +84,69 @@ class SubstitutionTest {
     }
 
     /**
-     * The keeper's cell is the exception section 3.8 spells out: only a keeper
-     * may take it. With no keeper on the bench nobody comes on and the cell
-     * stays empty, which section 3.4 rates with its missing keeper figure. The
-     * ninety on the bench is the strongest man there and is still refused,
-     * which is what tells the filter apart from a preference. See open
-     * question 41.
+     * The keeper's cell takes the section 5.4 cascade with no exception.
+     * Section 3.8 is explicit: with no keeper on the bench the cascade
+     * descends to a centre back, then a fullback, a midfielder and a forward,
+     * and the cell is never left empty for want of a spare goalkeeper. This
+     * reverses the earlier reading of section 3.8, which read the rule as a
+     * filter that only a keeper could pass. See OPEN-QUESTIONS item 41.
+     *
+     * The bench below is a forward, a midfielder and a fullback, every one of
+     * them stronger than the centre back, so a search that fell back to
+     * strength rather than walking the cascade position by position would
+     * pick one of the three ahead of him. Every reserve is defensive with no
+     * side stated as a mismatch, which is what the keeper's cell asks for at
+     * the first, strictest pass of section 3.2's relaxed search, so the
+     * cascade's own position order is what decides and nothing about fit
+     * does.
      */
     @Test
-    fun `only a keeper may take the keeper's cell`() {
-        val outfieldOnly = stateWithBench(
-            reserve(strength = 90, id = 30, position = Position.FORWARD),
+    fun `the cascade fills the keeper's cell with no exception`() {
+        val state = stateWithBench(
+            reserve(strength = 95, id = 30, position = Position.FORWARD),
+            reserve(strength = 90, id = 31, position = Position.MIDFIELDER),
+            reserve(strength = 85, id = 32, position = Position.FULLBACK),
+            reserve(strength = 60, id = 33, position = Position.CENTREBACK),
         )
-        assertNull(chooseReplacement(outfieldOnly, TeamSide.HOME, Slot(1)))
+        val replacement = chooseReplacement(state, TeamSide.HOME, Slot(1))
+        assertEquals(PlayerId(33), replacement!!.id, "the centre back, not the strongest reserve")
+        assertEquals(Position.CENTREBACK, replacement.naturalPosition)
+    }
 
-        val withKeeper = stateWithBench(
-            reserve(strength = 90, id = 30, position = Position.FORWARD),
-            reserve(strength = 40, id = 31, position = Position.GOALKEEPER),
+    /**
+     * The consequence of the cascade filling the keeper's cell: section 3.4's
+     * keeper aggregate rates the outfielder who ends up there rather than
+     * reaching for the missing keeper figure, rules.missingKeeperRating, which
+     * only applies when the cell has nobody in it at all.
+     *
+     * The reserve is a strength seventy centre back. Individual abilities are
+     * off, so his rating starts at his strength; section 3.3 halves it for
+     * being out of position in the keeper's cell, bfRound(70 x 0.5) = 35, or
+     * 3.5 on the zero to ten scale a rating is expressed on. Section 3.4 then
+     * scales that already halved rating by keeperOutOfPositionFactor and
+     * rounds again: bfRound(3.5 x 0.2) = bfRound(0.7) = 1. The missing keeper
+     * rating the old, filtered reading would have produced instead is 0.1, so
+     * 1.0 against 0.1 is what tells the two readings apart.
+     */
+    @Test
+    fun `an outfielder in goal is rated, not the missing keeper figure`() {
+        val reserve = reserve(strength = 70, id = 30, position = Position.CENTREBACK)
+        val before = stateWithBench(reserve)
+        val keeper = before.setup.home.lineup.first { it.slot.value == 1 }
+
+        val replacement = chooseReplacement(before, TeamSide.HOME, Slot(1))
+        assertEquals(reserve.id, replacement!!.id)
+
+        val after = before.substitute(
+            team = TeamSide.HOME,
+            off = keeper,
+            on = replacement,
+            cell = keeper.slot,
+            minute = 60,
+            reason = SubstitutionReason.INJURY,
         )
-        assertEquals(40, chooseReplacement(withKeeper, TeamSide.HOME, Slot(1))!!.strength)
+
+        assertEquals(1.0, keeperAggregate(after.setup.home, RULES), TOLERANCE)
     }
 
     /**
@@ -337,7 +381,8 @@ class SubstitutionTest {
      * When a defender is sent off the AI keeps its shape by sacrificing a
      * forward. The forward's cells are tried first, eighteen to twenty five,
      * and only when nobody stands there does it take an attacking midfielder
-     * from fourteen to seventeen.
+     * from fourteen to seventeen. Neither case needs the third range, so both
+     * are run as an outfielder's dismissal.
      *
      * The four four two seats its forwards at twenty two and twenty four, and
      * twenty two comes first in the formation's own list, so it is the man
@@ -346,24 +391,43 @@ class SubstitutionTest {
     @Test
     fun `the sacrifice takes a forward before an attacking midfielder`() {
         val withForwards = Lineups.sideOfSlots(Lineups.FORMATION_4_4_2, strength = 50)
-        assertEquals(22, sacrificeTarget(withForwards, RULES)!!.slot.value)
+        assertEquals(22, sacrificeTarget(withForwards, RULES, dismissedWasKeeper = false)!!.slot.value)
 
         val noForwards = Lineups.sideOfSlots(
             listOf(1, 2, 9, 3, 5, 11, 13, 16, 14, 10, 17),
             strength = 50,
         )
-        assertEquals(16, sacrificeTarget(noForwards, RULES)!!.slot.value)
+        assertEquals(16, sacrificeTarget(noForwards, RULES, dismissedWasKeeper = false)!!.slot.value)
     }
 
     /**
-     * The two ranges are the whole rule. A side whose eleven stand only in the
-     * keeper's cell, the defence and the holding midfield has nobody in either
-     * of them, so the AI sacrifices nobody rather than reaching further back.
+     * The two ordinary ranges are the whole rule for an outfielder's
+     * dismissal. A side whose eleven stand only in the keeper's cell, the
+     * defence and the holding midfield has nobody in either of them, so the
+     * AI sacrifices nobody rather than reaching further back.
      */
     @Test
     fun `a side with neither has nobody to sacrifice`() {
         val side = Lineups.sideOfSlots(listOf(1, 2, 9, 3, 4, 5, 6, 7, 8, 11, 13), strength = 50)
-        assertNull(sacrificeTarget(side, RULES))
+        assertNull(sacrificeTarget(side, RULES, dismissedWasKeeper = false))
+    }
+
+    /**
+     * The third range is section 3.8's own exception to the rule above, and it
+     * opens only when the man sent off was the keeper. The same shape as the
+     * test above, nobody in eighteen to twenty five or in fourteen to
+     * seventeen: an outfielder's dismissal still sacrifices nobody, but a
+     * keeper's dismissal falls back to the first man standing anywhere in
+     * cells two to twenty five, which in lineup order is cell two.
+     */
+    @Test
+    fun `a dismissed keeper opens a third range an outfielder does not`() {
+        val side = Lineups.sideOfSlots(listOf(1, 2, 9, 3, 4, 5, 6, 7, 8, 11, 13), strength = 50)
+        assertNull(
+            sacrificeTarget(side, RULES, dismissedWasKeeper = false),
+            "an outfielder's dismissal must not reach the third range",
+        )
+        assertEquals(2, sacrificeTarget(side, RULES, dismissedWasKeeper = true)!!.slot.value)
     }
 
     private companion object {

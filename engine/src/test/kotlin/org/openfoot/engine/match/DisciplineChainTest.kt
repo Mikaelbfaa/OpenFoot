@@ -5,6 +5,7 @@ import org.openfoot.model.PlayerId
 import org.openfoot.model.PlayerStyle
 import org.openfoot.model.Position
 import org.openfoot.model.Rng
+import org.openfoot.model.RuleSet
 import org.openfoot.model.RuleSets
 import org.openfoot.model.Slot
 import org.openfoot.model.SplitMix64Rng
@@ -81,7 +82,12 @@ class DisciplineChainTest {
     /**
      * A player already booked is sent off rather than booked again, and both
      * events reach the log, because section 3.8's suspension rule counts a
-     * sending off for a second yellow as a yellow as well.
+     * sending off for a second yellow as a yellow as well. The sendingsOff
+     * counter itself does not move, because only a direct red feeds the
+     * overwrite that counter drives; the log is unchanged from before this
+     * fix, only the counter feeding the threshold overwrite changes. See
+     * section 3.8, the paragraph beginning "Os tres contadores que essas
+     * sobrescritas leem", and OPEN-QUESTIONS item 39.
      *
      * The same four draws as the booking above, against a home side whose cell
      * 11 already carries one booking and a match that already carries one
@@ -101,9 +107,9 @@ class DisciplineChainTest {
 
         assertEquals(4, ints.draws, "a dismissal for a second yellow draws no more than a booking")
         assertEquals(
-            DisciplineCounts(yellows = 2, sendingsOff = 1),
+            DisciplineCounts(yellows = 2, sendingsOff = 0),
             after.counts,
-            "a second yellow moves both counters",
+            "a second yellow moves the yellow counter and leaves sendingsOff untouched",
         )
 
         val booking = after.log[0] as MatchEvent.Booking
@@ -204,6 +210,92 @@ class DisciplineChainTest {
     }
 
     /**
+     * The third sacrifice range, wired end to end: a dismissed keeper on a
+     * side with nobody in eighteen to twenty five or in fourteen to seventeen
+     * still costs the side a man, from cells two to twenty five.
+     *
+     * Formation four cannot show this, since it occupies every one of section
+     * 3.8's seven risk groups, so the lineup here is built by hand: cells 1,
+     * 2, 9, 3, 4, 5, 6, 7, 8, 11 and 13, which is the same shape
+     * SubstitutionTest's sacrificeTarget cases use directly. It carries the
+     * keeper, six defenders and two holding midfielders, and nothing at all
+     * from fourteen up.
+     *
+     * Five draws:
+     *
+     * 1. 56 for the victim side, so the home side
+     * 2. 0 against the yellow threshold of 70, a miss
+     * 3. 1 against the red threshold of 900, so a direct red fires
+     * 4. 0 for the risk group, which is the red table's own band of nought to
+     *    nought, the keeper
+     * 5. 0 for the player, the only candidate the keeper's group ever offers,
+     *    cell 1
+     *
+     * Nothing after that draws. Cell one is at or below
+     * sendingOffSacrificeMaxSlot, so the shape keeping rule applies; the two
+     * ordinary ranges hold nobody, and only because the dismissed man was the
+     * keeper does the search fall back to the third range, cells two to
+     * twenty five, and take cell two, the first man standing there. The
+     * reserve who fills the keeper's own vacated cell is the bench centre
+     * back, because the cascade of section 5.4 tries goalkeeper first, finds
+     * none, and takes the centre back over the bench's midfielder and
+     * forward.
+     */
+    @Test
+    fun `a dismissed keeper reaches the third sacrifice range`() {
+        val ints = ScriptedInts(56, 0, 1, 0, 0)
+        val cells = listOf(1, 2, 9, 3, 4, 5, 6, 7, 8, 11, 13)
+        val after = state(homeCells = cells).disciplineMinute(FIRST_HALF_MINUTE, CLOCK, disciplineOnly(ints))
+
+        assertEquals(5, ints.draws, "the sacrifice itself draws nothing")
+        assertEquals(DisciplineCounts(sendingsOff = 1), after.counts, "counts")
+
+        val dismissal = after.log[0] as MatchEvent.SendingOff
+        assertEquals(1, dismissal.player.slot.value, "the keeper's own cell")
+
+        val swap = after.log[1] as MatchEvent.Substitution
+        assertEquals(SubstitutionReason.SENDING_OFF, swap.reason, "the reason logged")
+        assertEquals(2, swap.off.slot.value, "the first man in the third range, cell two, is sacrificed")
+        assertEquals(DEFENCE_RESERVE, swap.on.id, "the reserve who suits the vacated cell comes on")
+        assertEquals(1, swap.on.slot.value, "he takes the cell the dismissed keeper left")
+        assertEquals(2, after.log.size, "a dismissal and a substitution and nothing else")
+
+        assertEquals(10, after.setup.home.lineup.size, "the side is down to ten")
+        assertEquals(1, after.home.substitutionsUsed, "the sacrifice spends a substitution")
+        assertNull(
+            after.setup.home.lineup.firstOrNull { it.slot.value == 2 },
+            "the sacrificed cell two player must be off the pitch",
+        )
+    }
+
+    /**
+     * The mirror of the case above, on the very same lineup: an outfielder's
+     * dismissal never reaches the third range, so a side with nobody in the
+     * two ordinary ranges sacrifices nobody at all.
+     *
+     * The same five draws except the risk group, which is 1 here and
+     * therefore the red table's g0 band of 1 to 79, cells 10 to 13, and the
+     * player draw, which takes the first of the lineup's two cells in that
+     * range, cell 11.
+     */
+    @Test
+    fun `an outfielder dismissed on the same lineup sacrifices nobody`() {
+        val ints = ScriptedInts(56, 0, 1, 1, 0)
+        val cells = listOf(1, 2, 9, 3, 4, 5, 6, 7, 8, 11, 13)
+        val after = state(homeCells = cells).disciplineMinute(FIRST_HALF_MINUTE, CLOCK, disciplineOnly(ints))
+
+        assertEquals(5, ints.draws, "no draw is made once the search runs out of ranges")
+        assertEquals(DisciplineCounts(sendingsOff = 1), after.counts, "counts")
+
+        val dismissal = after.log.single() as MatchEvent.SendingOff
+        assertEquals(11, dismissal.player.slot.value, "the cell the dismissed player stands in")
+
+        assertEquals(10, after.setup.home.lineup.size, "the side is down to ten")
+        assertEquals(0, after.home.substitutionsUsed, "an outfielder's dismissal reaches no third range")
+        assertEquals(3, after.home.bench.size, "the bench is untouched")
+    }
+
+    /**
      * An injury is replaced, and its length costs the three duration draws
      * section 3.8 names, made before anything about the bench is decided.
      *
@@ -254,22 +346,237 @@ class DisciplineChainTest {
     }
 
     /**
-     * A minute in which nothing fired opens a window for both sides, not only
-     * for the side this minute's victim draw landed on.
+     * A duration of nought registers no injury at all, which section 3.8 says
+     * outright is possible only for a player of twenty or under whose own
+     * short term x draws nought. Three facts, pinned together: the player
+     * still leaves the pitch, no Injury event reaches the log, and the
+     * injuries counter still moves, because it counts the attempt rather than
+     * the log entry.
      *
-     * Four draws on the chain, all of them misses:
+     * The cell 5 player is twenty here rather than the usual twenty five, on a
+     * home side built by hand for exactly that reason. The same nine draws as
+     * the injury above, except the short term x, which is nought rather than
+     * three:
+     *
+     * 1. 56 for the victim side, so the home side
+     * 2. 0 against the yellow threshold of 70, a miss
+     * 3. 0 against the red threshold of 900, a miss
+     * 4. 1 against the injury threshold of 1000, so an injury fires
+     * 5. 250 for the risk group, the injury table's g2 band of 250 to 319
+     * 6. 1 for the player, the second of the home side's two cells in that
+     *    range, which is cell 5
+     * 7. 0 for the short term x, discarding the energy term as every player
+     *    of his age does
+     * 8. 0 for the long term draw, which he does not use either
+     * 9. 50 for the severity, inside the band that adds nothing
+     *
+     * Nought x plus no severity bonus is nought days, and the home bench is
+     * empty, so the departure runs through the plain leavePitch fallback
+     * rather than through a replacement.
+     */
+    @Test
+    fun `a duration of nought registers no injury but still counts the attempt`() {
+        val ints = ScriptedInts(56, 0, 0, 1, 250, 1, 0, 0, 50)
+        val home = Lineups.side(
+            Lineups.FORMATION_4_4_2.map { cell ->
+                Lineups.player(cell, strength = 50, age = if (cell == 5) 20 else 25)
+            },
+            context = Lineups.context(isHome = true),
+        )
+        val away = Lineups.sideOfSlots(
+            Lineups.FORMATION_4_4_2,
+            strength = 50,
+            context = Lineups.context(isHome = false),
+        )
+        val before = initialState(
+            setup = MatchSetup(home = home, away = away, season = 1, rules = RuleSets.CLASSIC),
+            startingPossessor = TeamSide.HOME,
+            homeBench = emptyList(),
+            awayBench = emptyList(),
+        )
+
+        val after = before.disciplineMinute(FIRST_HALF_MINUTE, CLOCK, disciplineOnly(ints))
+
+        assertEquals(9, ints.draws, "an injury attempt costs six chain draws and three duration draws at nought too")
+        assertEquals(DisciplineCounts(injuries = 1), after.counts, "the attempt still counts")
+        assertTrue(after.log.isEmpty(), "a duration of nought is not a lesao, so nothing is logged: ${after.log}")
+        assertNull(
+            after.setup.home.lineup.firstOrNull { it.slot.value == 5 },
+            "the player still leaves the pitch even though nothing was logged",
+        )
+        assertEquals(10, after.setup.home.lineup.size, "the side plays on a man short")
+        assertEquals(0, after.home.substitutionsUsed, "an empty bench spends no substitution")
+    }
+
+    /**
+     * The same duration of nought, with a bench available this time, to pin
+     * that a departure logging no Injury event still runs through the same
+     * replacement search as any other injury rather than skipping it. Without
+     * this case the reading that a duration of nought is still replaced is
+     * documented but not tested: a version that returned early on days equal
+     * to nought, before ever reaching canSubstitute, would pass every other
+     * test in this file.
+     *
+     * The same nine draws and the same hand built home side as the case
+     * above, with the ordinary three man bench in place of the empty one.
+     * Cell 5 asks for a centre back, so the bench's defensive centre back
+     * comes on, exactly as in the twenty five year old version of this same
+     * injury further up this file.
+     */
+    @Test
+    fun `a duration of nought is still replaced when the bench allows it`() {
+        val ints = ScriptedInts(56, 0, 0, 1, 250, 1, 0, 0, 50)
+        val home = Lineups.side(
+            Lineups.FORMATION_4_4_2.map { cell ->
+                Lineups.player(cell, strength = 50, age = if (cell == 5) 20 else 25)
+            },
+            context = Lineups.context(isHome = true),
+        )
+        val away = Lineups.sideOfSlots(
+            Lineups.FORMATION_4_4_2,
+            strength = 50,
+            context = Lineups.context(isHome = false),
+        )
+        val before = initialState(
+            setup = MatchSetup(home = home, away = away, season = 1, rules = RuleSets.CLASSIC),
+            startingPossessor = TeamSide.HOME,
+            homeBench = bench(),
+            awayBench = emptyList(),
+        )
+
+        val after = before.disciplineMinute(FIRST_HALF_MINUTE, CLOCK, disciplineOnly(ints))
+
+        assertEquals(9, ints.draws, "a replaced duration of nought costs the same nine draws")
+        assertEquals(DisciplineCounts(injuries = 1), after.counts, "the attempt still counts")
+        assertTrue(
+            after.log.none { it is MatchEvent.Injury },
+            "a duration of nought is not a lesao, so no Injury event reaches the log: ${after.log}",
+        )
+
+        val swap = after.log.single() as MatchEvent.Substitution
+        assertEquals(SubstitutionReason.INJURY, swap.reason, "the reason logged")
+        assertEquals(5, swap.off.slot.value, "the player still leaves through his own cell")
+        assertEquals(DEFENCE_RESERVE, swap.on.id, "the reserve who suits the vacated cell comes on")
+        assertEquals(5, swap.on.slot.value, "he takes the cell the departed player left")
+
+        assertEquals(11, after.setup.home.lineup.size, "a bench that can replace him keeps the side at eleven")
+        assertEquals(1, after.home.substitutionsUsed, "the replacement spends a substitution")
+    }
+
+    /**
+     * Section 3.8's real keeper restriction, confirmed against the original to
+     * run the opposite way from what the old spec text said: a reserve keeper
+     * may not come on for an injured outfielder. The old text read as a filter
+     * on the keeper's own cell instead, which SubstitutionTest's cascade test
+     * now disproves directly; this is the refusal that actually exists, and it
+     * lives in injure rather than in chooseReplacement. See section 3.8, the
+     * paragraph beginning "A restricao de goleiro e o inverso do que se
+     * poderia esperar", and OPEN-QUESTIONS item 41.
+     *
+     * The home bench holds nothing but a reserve keeper. Nine draws, the same
+     * shape as the injury above:
+     *
+     * 1. 56 for the victim side, so the home side
+     * 2. 0 against the yellow threshold of 70, a miss
+     * 3. 0 against the red threshold of 900, a miss
+     * 4. 1 against the injury threshold of 1000, so an injury fires
+     * 5. 250 for the risk group, the injury table's g2 band of 250 to 319,
+     *    cells 3 to 8
+     * 6. 0 for the player, the first of the home side's two cells in that
+     *    range, which is cell 3
+     * 7. 3 for the short term x
+     * 8. 0 for the long term draw, which a twenty five year old does not use
+     * 9. 50 for the severity, inside the band that adds nothing
+     *
+     * The injury itself is logged exactly as it would be with any other
+     * bench. What does not happen is the swap: the reserve keeper is not a
+     * keeper leaving and is a keeper entering, which is exactly the shape
+     * section 3.8 forbids, so the side plays on with ten and the reserve
+     * keeper stays exactly where he was.
+     */
+    @Test
+    fun `an injured outfielder is not replaced by a bench that holds only a reserve keeper`() {
+        val ints = ScriptedInts(56, 0, 0, 1, 250, 0, 3, 0, 50)
+        val before = state(homeBench = listOf(reserveKeeper()))
+        val after = before.disciplineMinute(FIRST_HALF_MINUTE, CLOCK, disciplineOnly(ints))
+
+        assertEquals(9, ints.draws, "an injury costs six chain draws and three duration draws")
+        assertEquals(DisciplineCounts(injuries = 1), after.counts, "counts")
+
+        val injury = after.log.single() as MatchEvent.Injury
+        assertEquals(3, injury.player.slot.value, "the cell the injured player stands in")
+
+        assertTrue(
+            after.log.none { it is MatchEvent.Substitution },
+            "a reserve keeper must not replace an injured outfielder: ${after.log}",
+        )
+        assertEquals(10, after.setup.home.lineup.size, "the side plays on a man short")
+        assertEquals(0, after.home.substitutionsUsed, "the refusal spends no substitution")
+        assertEquals(1, after.home.bench.size, "the reserve keeper is still on the bench, unused")
+    }
+
+    /**
+     * The case the rule allows, on the very same bench: a reserve keeper
+     * replacing an injured keeper is a keeper leaving, which satisfies section
+     * 3.8's refusal on its first branch regardless of who comes on.
+     *
+     * The same nine draws as above except the risk group, which is 0 here and
+     * therefore the injury table's own goleiro band, and the player draw,
+     * which is 0 for the only candidate the keeper's group ever offers, cell
+     * 1.
+     */
+    @Test
+    fun `the same bench does replace an injured keeper`() {
+        val ints = ScriptedInts(56, 0, 0, 1, 0, 0, 3, 0, 50)
+        val before = state(homeBench = listOf(reserveKeeper()))
+        val after = before.disciplineMinute(FIRST_HALF_MINUTE, CLOCK, disciplineOnly(ints))
+
+        assertEquals(9, ints.draws, "an injury costs six chain draws and three duration draws")
+        assertEquals(DisciplineCounts(injuries = 1), after.counts, "counts")
+
+        val injury = after.log[0] as MatchEvent.Injury
+        assertEquals(1, injury.player.slot.value, "the keeper's own cell")
+
+        val swap = after.log[1] as MatchEvent.Substitution
+        assertEquals(SubstitutionReason.INJURY, swap.reason, "the reason logged")
+        assertEquals(RESERVE_KEEPER, swap.on.id, "the reserve keeper comes on")
+        assertEquals(1, swap.on.slot.value, "he takes the injured keeper's own cell")
+
+        assertEquals(11, after.setup.home.lineup.size, "an injury to the keeper is still replaced")
+        assertEquals(1, after.home.substitutionsUsed, "the replacement spends a substitution")
+        assertEquals(0, after.home.bench.size, "the reserve keeper leaves the bench")
+    }
+
+    /**
+     * A minute in which nothing fired opens a window for the side this
+     * minute's victim draw did not land on, as well as for the one it did.
+     *
+     * Two quiet minutes rather than one, on two routine pools that do not
+     * share a minute. Section 3.15 item 11 makes a minute both sides want a
+     * change in swallow the away side's window whenever the home side actually
+     * changed somebody, so one shared minute can no longer show both sides
+     * substituting; it shows that defect instead, which is pinned on its own
+     * further down. Two distinct minutes are also the shape a real pair of
+     * plans has, since section 3.8 draws the two sides' minutes from one pool
+     * without replacement.
+     *
+     * Each minute makes the same four chain draws, all of them misses:
      *
      * 1. 0 for the victim side, which is at or below the home threshold of 55,
-     *    so the away side is this minute's victim
+     *    so the away side is this minute's victim, in both minutes
      * 2. 0 against the yellow threshold of 75, a miss
      * 3. 0 against the red threshold of 800, a miss
      * 4. 0 against the injury threshold of 800, a miss
      *
-     * Both sides have the tenth minute of the second half among their routine
-     * minutes and both have a tired man in it. A routine minute at or before
-     * the fortieth of the half scans from the front and draws nothing at all,
-     * so each side's own substitution stream is scripted empty and would fail
-     * if the window drew from it.
+     * Both minutes sit in the first phase of the second half, whose bounds are
+     * fifteen and thirty, so both read that same row of the three tables.
+     *
+     * The home side has the tenth minute of the second half among its routine
+     * minutes and the away side the eleventh, and each has a tired man in it.
+     * A routine minute at or before the fortieth of the half scans from the
+     * front and draws nothing at all, so each side's own substitution stream
+     * is scripted empty in both minutes and would fail if a window drew from
+     * it.
      *
      * The home side's tired man is its cell 11 and the away side's is its cell
      * 24, and neither is the first outfielder in its lineup, so a window that
@@ -277,38 +584,53 @@ class DisciplineChainTest {
      * caught here as well.
      */
     @Test
-    fun `a quiet minute opens both sides' windows`() {
-        val chain = ScriptedInts(0, 0, 0, 0)
-        val homeWindow = ScriptedInts()
-        val awayWindow = ScriptedInts()
+    fun `each side's own quiet minute opens its own window`() {
         val before = state(
             awayBench = awayBench(),
             homePlan = SubstitutionPlan(chasing = emptyList(), routine = listOf(10), halfTimeSwap = false),
-            awayPlan = SubstitutionPlan(chasing = emptyList(), routine = listOf(10), halfTimeSwap = false),
+            awayPlan = SubstitutionPlan(chasing = emptyList(), routine = listOf(11), halfTimeSwap = false),
             homeEnergyByCell = mapOf(11 to 50),
             awayEnergyByCell = mapOf(24 to 50),
         )
 
-        val after = before.disciplineMinute(
+        val homeChain = ScriptedInts(0, 0, 0, 0)
+        val homeWindow = ScriptedInts()
+        val awayIdle = ScriptedInts()
+        val afterHomeMinute = before.disciplineMinute(
             SECOND_HALF_MINUTE,
             CLOCK,
-            withWindows(chain, homeWindow, awayWindow),
+            withWindows(homeChain, homeWindow, awayIdle),
         )
 
-        assertEquals(4, chain.draws, "a quiet minute makes the three rolls and the victim draw")
+        assertEquals(4, homeChain.draws, "a quiet minute makes the three rolls and the victim draw")
         assertEquals(0, homeWindow.draws, "an early routine minute scans from the front")
+        assertEquals(1, afterHomeMinute.home.substitutionsUsed, "the home minute is the home side's")
+        assertEquals(0, afterHomeMinute.away.substitutionsUsed, "the away side has no change due here")
+
+        val awayChain = ScriptedInts(0, 0, 0, 0)
+        val homeIdle = ScriptedInts()
+        val awayWindow = ScriptedInts()
+        val after = afterHomeMinute.disciplineMinute(
+            SECOND_HALF_MINUTE + 1,
+            CLOCK,
+            withWindows(awayChain, homeIdle, awayWindow),
+        )
+
+        assertEquals(4, awayChain.draws, "the second quiet minute makes the same four draws")
         assertEquals(0, awayWindow.draws, "an early routine minute scans from the front")
         assertEquals(DisciplineCounts(), after.counts, "no counter moves in a quiet minute")
 
         val swaps = after.log.filterIsInstance<MatchEvent.Substitution>()
-        assertEquals(2, swaps.size, "both sides substituted: ${after.log}")
+        assertEquals(2, swaps.size, "each side substituted in its own minute: ${after.log}")
 
         val home = swaps.single { it.side == TeamSide.HOME }
+        assertEquals(SECOND_HALF_MINUTE, home.minute, "the home side changed in its own minute")
         assertEquals(SubstitutionReason.TIREDNESS, home.reason, "the home reason")
         assertEquals(11, home.off.slot.value, "the tired home player comes off")
         assertEquals(MIDFIELD_RESERVE, home.on.id, "the home reserve who suits cell 11")
 
         val away = swaps.single { it.side == TeamSide.AWAY }
+        assertEquals(SECOND_HALF_MINUTE + 1, away.minute, "the away side changed in its own minute")
         assertEquals(SubstitutionReason.TIREDNESS, away.reason, "the away reason")
         assertEquals(24, away.off.slot.value, "the tired away player comes off")
         assertEquals(AWAY_ATTACK_RESERVE, away.on.id, "the away reserve who suits cell 24")
@@ -358,7 +680,12 @@ class DisciplineChainTest {
 
     /**
      * A roll that matches ends the minute even when it turns out to hit
-     * nobody, rather than falling through to the roll below it.
+     * nobody, rather than falling through to the roll below it, and the
+     * yellow counter still moves for that empty attempt: section 3.8 says the
+     * three counters are incremented even when the risk group drawn holds
+     * nobody, so a match's counters can run ahead of what its log shows. See
+     * the paragraph beginning "Os tres contadores que essas sobrescritas
+     * leem" and OPEN-QUESTIONS item 39.
      *
      * Section 3.8 resolves at the first thing that casa, and what matches is
      * the roll, not the event. The home side here stands in cells 1, 22, 24,
@@ -371,7 +698,7 @@ class DisciplineChainTest {
      *
      * The player draw is skipped rather than made and thrown away, so an
      * unusual shape does not shift the rest of the stream. Nothing at all is
-     * logged and no counter moves, because no card happened.
+     * logged, because no card happened, but the yellow attempt still counts.
      *
      * Exactly three draws are scripted, so a chain that fell through to the
      * red roll would run the stream out and fail rather than pass quietly.
@@ -387,9 +714,67 @@ class DisciplineChainTest {
 
         assertEquals(3, ints.draws, "the chain must stop at the roll that matched")
         assertTrue(after.log.isEmpty(), "no card happened, so nothing is logged: ${after.log}")
-        assertEquals(DisciplineCounts(), after.counts, "no counter moves for a card nobody got")
+        assertEquals(DisciplineCounts(yellows = 1), after.counts, "the matched attempt still counts")
         assertSame(before.setup, after.setup, "nobody left the pitch")
-        assertEquals(before, after, "the whole state is untouched")
+        assertEquals(
+            before.copy(counts = DisciplineCounts(yellows = 1)),
+            after,
+            "nothing but the counter changed",
+        )
+    }
+
+    /**
+     * What the two changes above are for together: an injury attempt that
+     * finds an empty risk group still feeds the more than or equal to one
+     * lesao overwrite on the very next threshold read, even though no injury
+     * was ever logged.
+     * anyInjuryAtLeast is 1 under the classic rules, so a single such attempt
+     * already satisfies it; a match whose log carries no injury at all can
+     * still have its card rate collapse the way section 3.8 says happens
+     * "depois da primeira lesao da partida". A version that counted events
+     * rather than attempts would never move injuries here and this assertion
+     * would catch it.
+     *
+     * The home side stands in cells 1, 2, 3, 4, 5, 6, 7, 8, 9, 11 and 12,
+     * the same lineup RiskGroupTest uses to leave risk group g5, cells 19 to
+     * 24, with nobody in it. Five draws:
+     *
+     * 1. 56 for the victim side, so the home side
+     * 2. 0 against the yellow threshold of 70, a miss
+     * 3. 0 against the red threshold of 900, a miss
+     * 4. 1 against the injury threshold of 1000, so the injury roll matches
+     * 5. 450 for the risk group, which is inside the injury table's g5 band
+     *    of 420 to 499, and nobody stands there
+     *
+     * The player draw is skipped, nothing is logged, and the minute ends
+     * there with the injuries counter moved to one. Feeding that counter into
+     * minuteThresholds for the tenth minute of the second half, whose own
+     * injury base is 800, returns a yellow threshold of injuryOverwriteFactor
+     * times 800 rather than the plain table cell an unmoved counter would
+     * have produced.
+     */
+    @Test
+    fun `an empty injury attempt still fires the overwrite on the next minute`() {
+        val ints = ScriptedInts(56, 0, 0, 1, 450)
+        val before = state(homeCells = listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12))
+        val after = before.disciplineMinute(FIRST_HALF_MINUTE, CLOCK, disciplineOnly(ints))
+
+        assertEquals(5, ints.draws, "the chain must stop at the roll that matched")
+        assertTrue(after.log.isEmpty(), "no injury happened, so nothing is logged: ${after.log}")
+        assertEquals(DisciplineCounts(injuries = 1), after.counts, "the matched attempt still counts")
+
+        val nextThresholds = minuteThresholds(
+            SECOND_HALF_MINUTE,
+            CLOCK,
+            after.setup.home,
+            after.counts,
+            after.setup.rules,
+        )
+        assertEquals(
+            after.setup.rules.injuryOverwriteFactor * 800,
+            nextThresholds.yellow,
+            "the overwrite must fire even though the log carries no injury at all",
+        )
     }
 
     /**
@@ -408,10 +793,12 @@ class DisciplineChainTest {
      *
      * The home side is a goal down, which is the deficit section 3.8 asks a
      * home side for at the interval, and its coin came up for a change when the
-     * plan was drawn. Its window makes one draw, 2, over the ten outfielders in
-     * lineup order, which is its cell 11. The away side wants two goals before
-     * it considers a change and is a goal up, so its window makes no draw at
-     * all and its stream is scripted empty.
+     * plan was drawn. Its window makes one draw, 2, over the whole eleven in
+     * lineup order, keeper included, which is its cell 24: index nought is the
+     * keeper's own cell 1, so a draw of 2 is the third of the eleven rather
+     * than the third outfielder. The away side wants two goals before it
+     * considers a change and is a goal up, so its window makes no draw at all
+     * and its stream is scripted empty.
      */
     @Test
     fun `the interval window opens`() {
@@ -429,14 +816,14 @@ class DisciplineChainTest {
         val after = before.disciplineMinute(INTERVAL, CLOCK, withWindows(chain, homeWindow, awayWindow))
 
         assertEquals(4, chain.draws, "the chain made its victim draw and its three rolls")
-        assertEquals(1, homeWindow.draws, "the interval takes a random outfielder, which is one draw")
+        assertEquals(1, homeWindow.draws, "the interval takes a drawn lineup player, which is one draw")
         assertEquals(0, awayWindow.draws, "a side a goal up makes no draw at the interval")
 
         val swap = after.log.single() as MatchEvent.Substitution
         assertEquals(TeamSide.HOME, swap.side, "the side that was a goal down")
         assertEquals(SubstitutionReason.HALF_TIME, swap.reason, "the reason logged")
-        assertEquals(11, swap.off.slot.value, "the third outfielder in lineup order comes off")
-        assertEquals(MIDFIELD_RESERVE, swap.on.id, "the reserve who suits cell 11 comes on")
+        assertEquals(24, swap.off.slot.value, "the third of the whole eleven in lineup order comes off")
+        assertEquals(ATTACK_RESERVE, swap.on.id, "the reserve who suits cell 24 comes on")
         assertEquals(1, after.home.substitutionsUsed, "home substitutions used")
         assertEquals(0, after.away.substitutionsUsed, "away substitutions used")
     }
@@ -455,7 +842,7 @@ class DisciplineChainTest {
      * The two draws after it are the risk group, 0 for g0, and the player, 1
      * for the second of the home side's two cells in 10 to 13, which is cell
      * 13. The booked player is still on the pitch, so the window's draw of 2
-     * still lands on cell 11.
+     * still lands on cell 24, the same as the interval test above.
      */
     @Test
     fun `a card at the interval does not close the interval window`() {
@@ -479,20 +866,184 @@ class DisciplineChainTest {
 
         val swap = after.log[1] as MatchEvent.Substitution
         assertEquals(SubstitutionReason.HALF_TIME, swap.reason, "the interval window still opened")
-        assertEquals(11, swap.off.slot.value, "the drawn outfielder comes off")
-        assertEquals(MIDFIELD_RESERVE, swap.on.id, "the reserve who suits cell 11 comes on")
+        assertEquals(24, swap.off.slot.value, "the drawn lineup player comes off")
+        assertEquals(ATTACK_RESERVE, swap.on.id, "the reserve who suits cell 24 comes on")
         assertEquals(2, after.log.size, "a booking and a substitution and nothing else")
         assertEquals(1, after.home.substitutionsUsed, "home substitutions used")
     }
 
     /**
-     * The counters at the final whistle are exactly what the log says.
+     * Section 3.15 item 11: the away side's window is swallowed by the home
+     * side's.
+     *
+     * The two windows of one pass are run together, the home side first, and a
+     * pass in which the home side actually changed somebody never examines the
+     * away side's window at all. The away side here is a goal down on a
+     * chasing minute of its own and has three men on the bench, so its window
+     * would fire if it were ever looked at; its stream is scripted empty, and
+     * a chasing window draws over the whole eleven the moment it opens, so a
+     * pass that examined it would fail here rather than pass quietly.
+     *
+     * The minute is the twenty fifth of the second half and it is a routine
+     * minute for the home side and a chasing minute for the away side. That
+     * pairing is deliberate and is the one section 3.15 item 11 leaves
+     * reachable. The interval, which item 11 also names, cannot show this at
+     * all: section 3.8 asks the home side for a deficit of one at the interval
+     * and the away side for a deficit of two, and one side's deficit is the
+     * other side's surplus, so the two conditions can never hold in the same
+     * match. The same arithmetic rules out two chasing windows in one minute,
+     * whose deficits are nought and one. A routine minute asks nothing of the
+     * score, so it is the only window that can share a minute with a live one
+     * on the other side. Section 3.8 also draws the two sides' minutes from
+     * one pool without replacement, which leaves a shared minute reachable
+     * only across two different pools; the chasing window of nineteen to
+     * thirty eight and the routine pool of sixteen to thirty five are two such
+     * pools and they overlap at the twenty fifth minute, which is why this
+     * pairs those two rather than two routine minutes out of one pool.
+     *
+     * The chain draws four times and misses three times: 0 for the victim
+     * side, which is the away side, then 0 against the yellow threshold of 70,
+     * 0 against the red threshold of 700 and 0 against the injury threshold of
+     * 600. The twenty fifth minute of the half is in the middle phase, whose
+     * bounds are fifteen and thirty.
+     *
+     * The home side's routine minute is an early one, so its tiredness scan
+     * starts at the front and draws nothing; its tired man is cell 24, and the
+     * reserve who suits that cell is the last of the three on the bench and
+     * the weakest of them, so neither the front of the bench nor the best of
+     * it would have produced him.
+     */
+    @Test
+    fun `a home change swallows the away window in a shared minute`() {
+        val chain = ScriptedInts(0, 0, 0, 0)
+        val homeWindow = ScriptedInts()
+        val awayWindow = ScriptedInts()
+        val before = state(
+            awayBench = awayBench(),
+            homePlan = SubstitutionPlan(chasing = emptyList(), routine = listOf(25), halfTimeSwap = false),
+            awayPlan = SubstitutionPlan(chasing = listOf(25), routine = emptyList(), halfTimeSwap = false),
+            homeEnergyByCell = mapOf(24 to 50),
+            homeGoals = 1,
+            awayGoals = 0,
+        )
+
+        val after = before.disciplineMinute(
+            SHARED_MINUTE,
+            CLOCK,
+            withWindows(chain, homeWindow, awayWindow),
+        )
+
+        assertEquals(4, chain.draws, "a quiet minute makes the three rolls and the victim draw")
+        assertEquals(0, homeWindow.draws, "an early routine minute scans from the front")
+        assertEquals(0, awayWindow.draws, "the away window was never examined, so it never drew")
+
+        val swap = after.log.filterIsInstance<MatchEvent.Substitution>().single()
+        assertEquals(TeamSide.HOME, swap.side, "only the home side changed anybody")
+        assertEquals(SubstitutionReason.TIREDNESS, swap.reason, "the home reason")
+        assertEquals(24, swap.off.slot.value, "the tired home player comes off")
+        assertEquals(ATTACK_RESERVE, swap.on.id, "the reserve who suits cell 24")
+        assertEquals(1, after.home.substitutionsUsed, "home substitutions used")
+        assertEquals(0, after.away.substitutionsUsed, "the away side lost its window")
+    }
+
+    /**
+     * A home window that opened and changed nobody leaves the away window to
+     * be examined, so what closes it is the home side's change and not the
+     * home side's window.
+     *
+     * The same minute and the same two plans as the test above, with nobody
+     * tired on the home side: its routine minute opens, its tiredness scan
+     * finds nobody under sixty and it changes nobody. The away side's chasing
+     * window then draws 2, the third of the whole eleven in lineup order and
+     * so its cell 24, and the reserve that cell suits is the last and weakest
+     * of its three.
+     */
+    @Test
+    fun `a home window that changed nobody leaves the away window open`() {
+        val chain = ScriptedInts(0, 0, 0, 0)
+        val homeWindow = ScriptedInts()
+        val awayWindow = ScriptedInts(2)
+        val before = state(
+            awayBench = awayBench(),
+            homePlan = SubstitutionPlan(chasing = emptyList(), routine = listOf(25), halfTimeSwap = false),
+            awayPlan = SubstitutionPlan(chasing = listOf(25), routine = emptyList(), halfTimeSwap = false),
+            homeGoals = 1,
+            awayGoals = 0,
+        )
+
+        val after = before.disciplineMinute(
+            SHARED_MINUTE,
+            CLOCK,
+            withWindows(chain, homeWindow, awayWindow),
+        )
+
+        assertEquals(0, homeWindow.draws, "an early routine minute scans from the front")
+        assertEquals(1, awayWindow.draws, "the away window opened and drew its man")
+
+        val swap = after.log.filterIsInstance<MatchEvent.Substitution>().single()
+        assertEquals(TeamSide.AWAY, swap.side, "only the away side changed anybody")
+        assertEquals(SubstitutionReason.CHASING, swap.reason, "the away reason")
+        assertEquals(24, swap.off.slot.value, "the drawn away player comes off")
+        assertEquals(AWAY_ATTACK_RESERVE, swap.on.id, "the away reserve who suits cell 24")
+        assertEquals(0, after.home.substitutionsUsed, "the home side changed nobody")
+        assertEquals(1, after.away.substitutionsUsed, "away substitutions used")
+    }
+
+    /**
+     * The modern rules let both windows of one pass run, so the state that was
+     * swallowed above produces two changes instead of one. The away window
+     * draws 2, its cell 24, exactly as it does when the home side changes
+     * nobody.
+     */
+    @Test
+    fun `the modern rules let both sides change in one minute`() {
+        val chain = ScriptedInts(0, 0, 0, 0)
+        val homeWindow = ScriptedInts()
+        val awayWindow = ScriptedInts(2)
+        val before = state(
+            awayBench = awayBench(),
+            homePlan = SubstitutionPlan(chasing = emptyList(), routine = listOf(25), halfTimeSwap = false),
+            awayPlan = SubstitutionPlan(chasing = listOf(25), routine = emptyList(), halfTimeSwap = false),
+            homeEnergyByCell = mapOf(24 to 50),
+            homeGoals = 1,
+            awayGoals = 0,
+            rules = RuleSets.MODERN,
+        )
+
+        val after = before.disciplineMinute(
+            SHARED_MINUTE,
+            CLOCK,
+            withWindows(chain, homeWindow, awayWindow),
+        )
+
+        assertEquals(1, awayWindow.draws, "the away window opened and drew its man")
+
+        val swaps = after.log.filterIsInstance<MatchEvent.Substitution>()
+        assertEquals(2, swaps.size, "both sides changed somebody: ${after.log}")
+        assertEquals(24, swaps.single { it.side == TeamSide.HOME }.off.slot.value, "the tired home man")
+        assertEquals(24, swaps.single { it.side == TeamSide.AWAY }.off.slot.value, "the drawn away man")
+        assertEquals(1, after.home.substitutionsUsed, "home substitutions used")
+        assertEquals(1, after.away.substitutionsUsed, "away substitutions used")
+    }
+
+    /**
+     * The counters at the final whistle are never behind what the log says,
+     * and agree with it exactly at every one of these sixty seeds, though
+     * DisciplineCounts's own docstring explains why that need not always hold:
+     * an attempt that lands on an empty risk group moves a counter without
+     * logging anything, so a counter can in general run ahead of the fold
+     * below it. None of these sixty seeds happens to draw that way; the case
+     * where it does is pinned on its own by a scripted draw rather than by
+     * chance here.
      *
      * Sixty whole matches at fixed seeds, both sides carrying a bench, folded
-     * event by event: a booking is a yellow, a dismissal of either kind is a
-     * sending off, an injury is an injury. A sending off for a second yellow
-     * logs both events and therefore counts in both columns, which is the case
-     * a fold and a running counter are most likely to disagree on.
+     * event by event: a booking is a yellow, a direct red dismissal is a
+     * sending off, an injury is an injury. A dismissal for a second yellow is
+     * excluded from the sendingsOff fold on purpose: it logs a SendingOff
+     * event, since the log is unchanged by this fix, but it does not move the
+     * sendingsOff counter, since only a direct red feeds the overwrite that
+     * counter drives. This is the case a fold and a running counter are most
+     * likely to disagree on if the exclusion above is ever lost.
      *
      * The three totals over the sample are asserted to be positive as well, so
      * that the invariant cannot be satisfied by a chain that never fires: a
@@ -512,10 +1063,15 @@ class DisciplineChainTest {
             val log = played.state.log
             val fold = DisciplineCounts(
                 yellows = log.count { it is MatchEvent.Booking },
-                sendingsOff = log.count { it is MatchEvent.SendingOff },
+                sendingsOff = log.count { it is MatchEvent.SendingOff && !it.secondYellow },
                 injuries = log.count { it is MatchEvent.Injury },
             )
-            assertEquals(fold, played.state.counts, "seed $seed disagreed with its own log")
+            assertEquals(
+                fold,
+                played.state.counts,
+                "seed $seed drew an attempt that landed on an empty risk group, so the " +
+                    "counter ran ahead of the log fold",
+            )
 
             yellows += fold.yellows
             sendingsOff += fold.sendingsOff
@@ -546,10 +1102,19 @@ class DisciplineChainTest {
         /** The nought'th minute of the second half, which stands for the break. */
         const val INTERVAL = 47
 
+        /**
+         * The twenty fifth minute of the second half, and its middle phase.
+         * The kind of minute both sides can want a change in: it lies inside
+         * the chasing window of nineteen to thirty eight and inside the
+         * routine pool of sixteen to thirty five at once.
+         */
+        const val SHARED_MINUTE = 72
+
         val MIDFIELD_RESERVE = PlayerId(30)
         val DEFENCE_RESERVE = PlayerId(31)
         val ATTACK_RESERVE = PlayerId(32)
         val AWAY_ATTACK_RESERVE = PlayerId(42)
+        val RESERVE_KEEPER = PlayerId(90)
 
         /**
          * A bench of three, strongest first, each a natural fit for a
@@ -563,6 +1128,9 @@ class DisciplineChainTest {
             reserve(DEFENCE_RESERVE, 65, Position.CENTREBACK, PlayerStyle.DEFENSIVE),
             reserve(ATTACK_RESERVE, 60, Position.FORWARD, PlayerStyle.OFFENSIVE),
         )
+
+        /** A bench of exactly one, the shape the keeper refusal tests need. */
+        fun reserveKeeper(): MatchPlayer = reserve(RESERVE_KEEPER, 40, Position.GOALKEEPER, PlayerStyle.DEFENSIVE)
 
         /** The same three for the away side, on identities of their own. */
         fun awayBench(): List<MatchPlayer> = listOf(
@@ -580,7 +1148,10 @@ class DisciplineChainTest {
                 style = style,
             )
 
-        fun setup(homeCells: List<Int> = Lineups.FORMATION_4_4_2) = MatchSetup(
+        fun setup(
+            homeCells: List<Int> = Lineups.FORMATION_4_4_2,
+            rules: RuleSet = RuleSets.CLASSIC,
+        ) = MatchSetup(
             home = Lineups.sideOfSlots(
                 homeCells,
                 strength = 50,
@@ -592,7 +1163,7 @@ class DisciplineChainTest {
                 context = Lineups.context(isHome = false),
             ),
             season = 1,
-            rules = RuleSets.CLASSIC,
+            rules = rules,
         )
 
         /**
@@ -613,9 +1184,10 @@ class DisciplineChainTest {
             homeCells: List<Int> = Lineups.FORMATION_4_4_2,
             homeGoals: Int = 0,
             awayGoals: Int = 0,
+            rules: RuleSet = RuleSets.CLASSIC,
         ): MatchState {
             val base = initialState(
-                setup = setup(homeCells),
+                setup = setup(homeCells, rules),
                 startingPossessor = TeamSide.HOME,
                 homeBench = homeBench,
                 awayBench = awayBench,

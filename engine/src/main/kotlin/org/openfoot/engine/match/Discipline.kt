@@ -1,5 +1,6 @@
 package org.openfoot.engine.match
 
+import org.openfoot.model.Position
 import org.openfoot.model.Rng
 import org.openfoot.model.RuleSet
 import org.openfoot.model.Slot
@@ -126,10 +127,11 @@ internal fun minuteThresholds(
  *
  * The chain resolves at the first roll that matches, not at the first event
  * that reaches the log. A roll that matches and then draws a risk group whose
- * cells nobody stands in produces nothing at all, and the minute still ends
- * there rather than falling through to the next roll or to the window. That
- * is the spec's own wording, and it is only reachable at all on a side already
- * short of players.
+ * cells nobody stands in logs nothing at all, and the minute still ends there
+ * rather than falling through to the next roll or to the window. That is the
+ * spec's own wording, and it is only reachable at all on a side already short
+ * of players. The matching roll still counts as an attempt in DisciplineCounts
+ * even then; see that type's own docstring for why.
  *
  * The window opens for both sides independently rather than only for the side
  * this minute's victim draw landed on. Section 3.8 writes it as the fourth
@@ -148,9 +150,12 @@ internal fun MatchState.disciplineMinute(minute: Int, clock: MatchClock, rng: Rn
     val thresholds = minuteThresholds(minute, clock, setup.side(team), counts, setup.rules)
 
     val resolved = when {
-        chain.rand(thresholds.yellow) == EVENT_FIRES -> book(team, minute, chain)
-        chain.rand(thresholds.red) == EVENT_FIRES -> sendOff(team, minute, chain)
-        chain.rand(thresholds.injury) == EVENT_FIRES -> injure(team, minute, chain)
+        chain.rand(thresholds.yellow) == EVENT_FIRES ->
+            countedYellow().book(team, minute, chain)
+        chain.rand(thresholds.red) == EVENT_FIRES ->
+            countedSendingOff().sendOff(team, minute, chain)
+        chain.rand(thresholds.injury) == EVENT_FIRES ->
+            countedInjury().injure(team, minute, chain)
         else -> null
     }
 
@@ -161,15 +166,42 @@ internal fun MatchState.disciplineMinute(minute: Int, clock: MatchClock, rng: Rn
 }
 
 /**
+ * The three counters below move the moment their own roll matches, not the
+ * moment an event reaches the log.
+ *
+ * Section 3.8 says outright that they are incremented even when the risk
+ * group drawn afterwards holds nobody and no card or injury happens. book,
+ * sendOff and injure therefore never touch DisciplineCounts themselves; the
+ * increment always happens here, on the state the chain hands them, before
+ * drawRiskGroup is ever called. See DisciplineCounts's own docstring.
+ */
+@SpecRef("3.8")
+private fun MatchState.countedYellow(): MatchState = copy(counts = counts.copy(yellows = counts.yellows + 1))
+
+/** See countedYellow. Only a direct red reaches this branch of the chain. */
+@SpecRef("3.8")
+private fun MatchState.countedSendingOff(): MatchState =
+    copy(counts = counts.copy(sendingsOff = counts.sendingsOff + 1))
+
+/** See countedYellow. */
+@SpecRef("3.8")
+private fun MatchState.countedInjury(): MatchState = copy(counts = counts.copy(injuries = counts.injuries + 1))
+
+/**
  * A booking, and the dismissal it becomes when it is the player's second.
  *
- * Both events are logged for a second yellow, and both counters move, because
- * section 3.8's suspension rule counts a sending off for a second yellow as a
- * yellow as well. See OPEN-QUESTIONS item 39.
+ * Both events are logged for a second yellow, but only the yellow counter
+ * moves for it: section 3.8's suspension rule counts a sending off for a
+ * second yellow as a yellow as well, but the three threshold overwrites read
+ * a sendingsOff counter that only a direct red feeds. See OPEN-QUESTIONS item
+ * 39. The yellow counter itself is not touched here at all; it was already
+ * moved by disciplineMinute's countedYellow the moment the roll matched, which
+ * is what makes it count the attempt rather than the card.
  *
- * A group whose cells nobody stands in produces no card at all and no counter
- * moves. drawVictim skips its own draw in that case rather than making it and
- * throwing it away, so an unusual shape does not shift the rest of the stream.
+ * A group whose cells nobody stands in logs no card at all, but the attempt
+ * already counted. drawVictim skips its own draw in that case rather than
+ * making it and throwing it away, so an unusual shape does not shift the rest
+ * of the stream.
  */
 @SpecRef("3.8")
 private fun MatchState.book(team: TeamSide, minute: Int, rng: Rng): MatchState {
@@ -180,7 +212,6 @@ private fun MatchState.book(team: TeamSide, minute: Int, rng: Rng): MatchState {
     val booked = (side.bookings[player.id] ?: 0) + 1
     val carded = with(team, side.copy(bookings = side.bookings + (player.id to booked))).copy(
         log = log + MatchEvent.Booking(minute, team, player),
-        counts = counts.copy(yellows = counts.yellows + 1),
     )
 
     return if (booked < BOOKINGS_BEFORE_DISMISSAL) {
@@ -190,7 +221,14 @@ private fun MatchState.book(team: TeamSide, minute: Int, rng: Rng): MatchState {
     }
 }
 
-/** A direct red, which section 3.8 draws from a table of its own. */
+/**
+ * A direct red, which section 3.8 draws from a table of its own.
+ *
+ * The sendingsOff counter is not touched here: disciplineMinute's
+ * countedSendingOff already moved it the moment the red roll matched, so it
+ * counts the attempt rather than the card, and a group whose cells nobody
+ * stands in still leaves it moved even though dismiss never runs.
+ */
 @SpecRef("3.8")
 private fun MatchState.sendOff(team: TeamSide, minute: Int, rng: Rng): MatchState {
     val group = drawRiskGroup(setup.rules.discipline.redRisk, rng)
@@ -204,6 +242,12 @@ private fun MatchState.sendOff(team: TeamSide, minute: Int, rng: Rng): MatchStat
  * The player leaves and is not replaced: a side reduced to ten stays at ten
  * for the rest of the match, which is what makes section 3.4's fixed divisors
  * bite. What follows is the shape keeping rule and not a replacement for him.
+ *
+ * Neither counter is touched here. A second yellow's yellow was already moved
+ * by book's caller when the yellow roll matched, and a direct red's sendingsOff
+ * was already moved by sendOff's caller when the red roll matched; a second
+ * yellow never moves sendingsOff at all, by design, since only a direct red
+ * feeds the overwrite that counter drives.
  */
 @SpecRef("3.8")
 private fun MatchState.dismiss(
@@ -213,7 +257,6 @@ private fun MatchState.dismiss(
     secondYellow: Boolean,
 ): MatchState = copy(
     log = log + MatchEvent.SendingOff(minute, team, player, secondYellow),
-    counts = counts.copy(sendingsOff = counts.sendingsOff + 1),
 ).leavePitch(team, player).sacrificeFor(team, player.slot, minute)
 
 /**
@@ -234,10 +277,16 @@ private fun MatchState.dismiss(
  * Nothing here draws. Section 3.8 names the cells to look in and the search of
  * section 5.4 decides who comes on, so the lineup's own order settles both.
  *
- * The forward is only taken off once somebody has been found to come on. A
- * cell nobody on the bench may fill, which under section 3.8's keeper rule is
- * the keeper's and only the keeper's, would otherwise cost the side a forward
- * and give it nothing back. See OPEN-QUESTIONS item 41.
+ * The forward is only taken off once somebody has been found to come on. With
+ * the cascade of section 5.4 carrying no exception for the keeper's cell any
+ * more, the only way that search comes back empty is an empty bench, which
+ * canSubstitute has already ruled out above, so the guard below is defensive
+ * rather than live. See OPEN-QUESTIONS item 41.
+ *
+ * cell is the dismissed man's own vacated cell, not the sacrificed forward's,
+ * so cell.value == keeperSlot is exactly the case the dismissed man was the
+ * keeper. That is what tells sacrificeTarget whether the third, wider range
+ * of section 3.8's exception is open to it.
  */
 @SpecRef("3.8")
 private fun MatchState.sacrificeFor(team: TeamSide, cell: Slot, minute: Int): MatchState {
@@ -250,7 +299,8 @@ private fun MatchState.sacrificeFor(team: TeamSide, cell: Slot, minute: Int): Ma
     if (!canSubstitute(side, sideState.bench, sideState.substitutionsUsed, subs.maxPerSide)) {
         return this
     }
-    val off = sacrificeTarget(side, setup.rules) ?: return this
+    val dismissedWasKeeper = cell.value == setup.rules.keeperSlot
+    val off = sacrificeTarget(side, setup.rules, dismissedWasKeeper) ?: return this
     val on = chooseReplacement(this, team, cell) ?: return this
     return substitute(team, off, on, cell, minute, SubstitutionReason.SENDING_OFF)
 }
@@ -264,9 +314,41 @@ private fun MatchState.sacrificeFor(team: TeamSide, cell: Slot, minute: Int): Ma
  *
  * Unlike a dismissal, an injury is replaced rather than absorbed, and the
  * replacement takes the injured man's own cell. A side with nobody to bring
- * on, a side that has spent its five and a human managed side all play on with
- * ten instead, and the keeper's cell may still end up empty, which is the one
- * case chooseReplacement can refuse. See OPEN-QUESTIONS item 41.
+ * on, a side that has spent its five and a human managed side all play on
+ * with ten instead. So does a side whose bench holds only a reserve keeper
+ * and whose injured man is not the keeper: section 3.8's own restriction on
+ * a reserve keeper is the inverse of what the old spec text read here, and it
+ * bites at exactly this call site rather than at chooseReplacement.
+ *
+ * The swap is allowed only when the man leaving is the keeper or the man
+ * coming on is not, which is section 3.8's own wording read straight: the one
+ * thing it forbids is a reserve keeper taking an outfielder's cell. Read the
+ * other way round, what is never refused is a keeper replacing a keeper, an
+ * outfielder replacing a keeper, which is the cascade case chooseReplacement
+ * itself now handles with no exception, or an outfielder replacing an
+ * outfielder. A later reader who remembers the old spec text should read this
+ * as the correction confirmed against the original, not as a typo: section
+ * 3.8, the paragraph beginning "A restricao de goleiro e o inverso do que se
+ * poderia esperar", and OPEN-QUESTIONS item 41.
+ *
+ * Both leaving and entering are read off naturalPosition, the position a
+ * player was born to rather than the cell he happens to stand in, matching
+ * what chooseReplacement's own ordering and SlotCandidate.position already
+ * read everywhere else in section 3.8's substitution code.
+ *
+ * The injuries counter is not touched here: disciplineMinute's countedInjury
+ * already moved it the moment the injury roll matched, so it counts the
+ * attempt rather than the injury, and a group whose cells nobody stands in
+ * still leaves it moved even though nobody is ever hurt.
+ *
+ * A duration of nought, which only a player of twenty or under can draw and
+ * only when his own short term x comes up nought, registers no injury at all:
+ * section 3.8 says outright that it is not a lesao, so no Injury event is
+ * logged and no days are ever charged to the player. He still leaves the
+ * pitch exactly as any other injured man does, through the same
+ * canSubstitute check and the same replacement search below; what changes is
+ * only the log, not the departure. The injuries counter still moved above,
+ * since it counts the attempt rather than what the log ends up holding.
  */
 @SpecRef("3.8")
 private fun MatchState.injure(team: TeamSide, minute: Int, rng: Rng): MatchState {
@@ -277,20 +359,24 @@ private fun MatchState.injure(team: TeamSide, minute: Int, rng: Rng): MatchState
     val outcome = injuryOutcome(
         age = player.age,
         energy = sideState.energy.getValue(player.id),
+        strength = player.strength,
         rules = setup.rules,
         rng = rng,
     )
 
-    val hurt = copy(
-        log = log + MatchEvent.Injury(
-            minute = minute,
-            side = team,
-            player = player,
-            days = outcome.days,
-            permanentStrengthLoss = outcome.permanentStrengthLoss,
-        ),
-        counts = counts.copy(injuries = counts.injuries + 1),
-    )
+    val hurt = if (outcome.days == 0) {
+        this
+    } else {
+        copy(
+            log = log + MatchEvent.Injury(
+                minute = minute,
+                side = team,
+                player = player,
+                days = outcome.days,
+                permanentStrengthLoss = outcome.permanentStrengthLoss,
+            ),
+        )
+    }
 
     if (!canSubstitute(
             side,
@@ -302,21 +388,53 @@ private fun MatchState.injure(team: TeamSide, minute: Int, rng: Rng): MatchState
         return hurt.leavePitch(team, player)
     }
     val on = chooseReplacement(hurt, team, player.slot) ?: return hurt.leavePitch(team, player)
+    val leavingIsKeeper = player.naturalPosition == Position.GOALKEEPER
+    val enteringIsKeeper = on.naturalPosition == Position.GOALKEEPER
+    if (!leavingIsKeeper && enteringIsKeeper) {
+        return hurt.leavePitch(team, player)
+    }
     return hurt.substitute(team, player, on, player.slot, minute, SubstitutionReason.INJURY)
 }
 
 /**
  * The fourth branch of the chain: each side's own substitution window.
  *
- * Both sides are offered one, in a fixed order, each from a stream of its own
- * derived from its side ordinal, so that whether the home side substitutes
- * cannot move what the away side draws in the same minute.
+ * Both sides are offered one, in the fixed order TeamSide declares them, the
+ * home side first, each from a stream of its own derived from its side
+ * ordinal, so that whether the home side substitutes cannot move what the away
+ * side draws in the same minute.
  *
- * Every gate on the window lives inside runSubstitutionWindow, including the
- * first half and the fifth minute of the half. This function adds none of its
- * own: it decides only whether to offer the window at all, which it does in
- * every minute the chain left empty and in the interval whatever the chain
- * did.
+ * That order is load bearing and not merely tidy. Section 3.15 item 11 says
+ * the original evaluates the two windows of one pass together and stops at the
+ * first side that actually changed somebody, so a pass in which the home side
+ * substituted never examines the away side's window at all. That is
+ * substitutingSidesPerPass, a count rather than a flag because what the
+ * original limits is how many changes one pass can carry: classic allows one
+ * and modern allows both. It counts sides that actually substituted and not
+ * windows opened, so a home window that opened and was wasted on the keeper,
+ * or that found the score against it, still leaves the away window to be
+ * examined.
+ *
+ * A skipped window makes no draw, which is what not being examined means, and
+ * costs nothing here in any case: each side draws from a fork of its own, so a
+ * side never offered its window consumes nothing another side would have used.
+ *
+ * Where this bites is narrow, and section 3.15 item 11 says where. The two
+ * sides draw their minutes from one pool without replacement, so only the
+ * interval, which is evaluated for both sides at once by construction, and a
+ * chasing or routine minute that the two sides happen to share can put two
+ * live windows in one pass. Both sides now read a chasing or a routine pool
+ * from the same shuffle, which is exactly why a shared minute cannot happen
+ * within one pool; what keeps it reachable here is that the chasing pool, 19
+ * to 38, and the two routine pools, 16 to 35 and 36 to 42, are separate
+ * shuffles whose ranges overlap, so one side's chasing minute can still land
+ * on the other's routine one. The interval is the other case that survives.
+ *
+ * Every gate on the window itself lives inside runSubstitutionWindow,
+ * including the first half and the fifth minute of the half. This function
+ * adds only the limit above: it decides whether to offer the window at all,
+ * which it does in every minute the chain left empty and in the interval
+ * whatever the chain did.
  */
 @SpecRef("3.8")
 private fun MatchState.openSubstitutionWindows(
@@ -326,7 +444,12 @@ private fun MatchState.openSubstitutionWindows(
 ): MatchState {
     val windows = rng.fork(SUBSTITUTION_STREAM)
     var state = this
+    var substituted = 0
     for (team in TeamSide.entries) {
+        if (substituted >= setup.rules.substitutingSidesPerPass) {
+            return state
+        }
+        val spentBefore = state.of(team).substitutionsUsed
         state = state.runSubstitutionWindow(
             team = team,
             plan = state.of(team).plan,
@@ -334,6 +457,9 @@ private fun MatchState.openSubstitutionWindows(
             clock = clock,
             rng = windows.fork(team.ordinal.toLong()),
         )
+        if (state.of(team).substitutionsUsed != spentBefore) {
+            substituted++
+        }
     }
     return state
 }

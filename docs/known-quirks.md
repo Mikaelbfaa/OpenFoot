@@ -57,6 +57,52 @@ dela, para os dois times ao mesmo tempo.
 Spec: seção 3.8, defeito 5 da seção 3.15. Em `MODERN` as duas sobrescritas são desligadas colocando
 o gatilho de cada uma fora de alcance.
 
+### A janela de substituição do visitante é engolida pela do mandante
+
+As duas janelas de um mesmo minuto são avaliadas juntas, o mandante primeiro, e se o mandante
+**efetivamente trocou** alguém a janela do visitante nem chega a ser examinada. Na prática o
+visitante troca menos que o mandante ao longo de uma temporada, sem que nenhuma regra diga isso.
+
+Só morde quando um minuto vale para os dois lados ao mesmo tempo. O intervalo, que o item 11 cita,
+não serve: a 3.8 pede ao mandante um placar de 1 gol atrás e ao visitante 2, e o déficit de um lado
+é a sobra do outro, então as duas condições nunca valem na mesma partida. A mesma conta elimina duas
+janelas de "correndo atrás" no mesmo minuto. O que sobra é um minuto de **rotina** de um lado
+coincidindo com um de **"correndo atrás"** do outro: esses dois vêm de pools diferentes - 19-38
+contra 16-35 e 36-42 - e por isso continuam podendo cair no mesmo minuto, mesmo agora que os dois
+lados tiram seus minutos dos mesmos embaralhamentos. A aritmética está no item 43 do
+`spec/OPEN-QUESTIONS.md`.
+
+Spec: seção 3.8, defeito 11 da seção 3.15. Em `MODERN` as duas janelas de um mesmo minuto rodam.
+
+### O visitante saca quem acabou de entrar
+
+O sorteio das janelas de placar evita tirar quem entrou há pouco, com uma única re-tentativa, mas a
+checagem consulta **sempre a lista de quem entrou pelo mandante**, seja qual for o time da janela.
+Efeito: o mandante nunca tira quem acabou de entrar e o visitante não tem proteção nenhuma - pode
+sacar num minuto o reserva que pôs em campo no minuto anterior.
+
+Spec: seção 3.8, defeito 12 da seção 3.15. Em `MODERN` cada lado consulta a própria lista.
+
+### Os dois times tiram seus minutos do mesmo embaralhamento
+
+Os cinco pools de minutos de substituição (19-38 para "correndo atrás", 5-15, 16-35 e 36-42 para
+rotina, 43-47 para os extras) são embaralhados uma vez por partida, e os **dois** times leem blocos
+fixos e distintos do mesmo embaralhamento, o mandante primeiro. Não é um plano por time: é um
+sorteio só, para a partida inteira.
+
+Efeito: dentro de uma partida os dois lados nunca marcam o mesmo minuto **dentro do mesmo pool**.
+Isso mata a coincidência de "correndo atrás" contra "correndo atrás" e a de rotina contra rotina
+(que, quando os pools sorteados são diferentes, já estava morta porque as faixas não se sobrepõem).
+O que **continua** possível é um minuto de rotina de um lado cair sobre um de "correndo atrás" do
+outro, porque esses vêm de embaralhamentos diferentes - e é justamente disso que o defeito acima,
+a janela engolida, vive.
+
+Só a metade de dentro da partida é reproduzida. A outra metade do mesmo item 8, os pools serem
+estáticos **entre** partidas, continua fora; ver a seção seguinte.
+
+Spec: seção 3.8, defeito 8 da seção 3.15. Mantido nos dois conjuntos de regras: não é um número
+errado, é como o original sorteia.
+
 ### A IA nunca é punida por defesa quebrada
 
 As regras anti-exploit acima só valem quando há clube humano na partida.
@@ -65,14 +111,17 @@ Spec: seções 3.6b e 3.6c. Mantido.
 
 ## Nunca reproduzido, em nenhum conjunto de regras
 
-### Pools de minutos de substituição estáticos e compartilhados
+### Pools de minutos de substituição estáticos entre partidas
 
 O item 8 da seção 3.15 registra que os pools de minutos de substituição do original são
 estáticos e compartilhados, reembaralhados por partida, de modo que partidas consecutivas sorteiam
 minutos correlacionados. É um defeito nomeado como qualquer outro desta página, mas ao contrário de
-todos os outros ele não sai reproduzido sob `CLASSIC` nem corrigido sob `MODERN`: `substitutionPlan`
-sorteia um plano novo por time e por partida, de um gerador derivado só da semente daquela partida, e
-nada é compartilhado entre partidas.
+todos os outros ele não sai reproduzido sob `CLASSIC` nem corrigido sob `MODERN`:
+`matchSubstitutionPlans` embaralha os pools de novo a cada partida, de um gerador derivado só da
+semente daquela partida, e nada é guardado entre partidas.
+
+Só esta metade do item 8 fica de fora. A outra, os dois times lendo blocos fixos do mesmo
+embaralhamento **dentro** da partida, é reproduzida e tem seção própria acima.
 
 É uma divergência deliberada, não uma omissão. O defeito é estado global mutável, e reproduzi-lo
 faria o resultado de uma partida depender de quais partidas rodaram antes dela, o que quebra a
@@ -80,6 +129,12 @@ propriedade sobre a qual o projeto inteiro é construído: uma carreira se repet
 uma partida se resimula sozinha. A distribuição de cada plano isolado continua saindo das mesmas
 faixas e probabilidades que a 3.8 publica; só a correlação entre partidas vizinhas se perde, e nenhuma
 figura da 3.16 a mede.
+
+**A parte que não é estado global já foi reproduzida.** Dentro de uma partida os dois times tiram do
+**mesmo** embaralhamento, em posições fixas e distintas, e por isso não coincidem dentro de um mesmo
+pool. Isso é sorteio dentro da partida, não estado entre partidas, e não conflita com a
+reprodutibilidade. A garantia vale por pool e não entre pools: o detalhe está no item 42 do
+`spec/OPEN-QUESTIONS.md`.
 
 Spec: seção 3.15 item 8, seção 3.8. Resolução registrada em `spec/OPEN-QUESTIONS.md`, item 42.
 
@@ -129,6 +184,21 @@ Spec: seção 3.4. **Mantido em `CLASSIC` e em `MODERN`.**
 
 O que é defeito de verdade e continua corrigido em `MODERN` é o slot 18, logo acima: ali o jogador
 não entra em nenhuma conta. Isso não é trade-off, é um jogador que não existe.
+
+### A janela de placar sorteada no goleiro é desperdiçada
+
+As janelas de intervalo e de "correndo atrás" sorteiam um índice qualquer da escalação em campo, e
+não um jogador de linha. Se o índice cai no goleiro, a janela morre ali: ninguém sai, ninguém entra
+e nenhum sorteio novo é feito. Cerca de uma em onze dessas janelas se perde assim.
+
+Não vira delta do `MODERN`, por três motivos. A seção 3.15 não lista isso entre os defeitos, e a 3.8
+escreve como sendo a regra. Corrigir mexeria numa **probabilidade** e não numa regra, que é
+exatamente o tipo de mudança que os divisores fixos acima já recusam. E a correção nem é
+determinada: uma janela que não pode ser desperdiçada teria de re-sortear ou de sortear entre dez em
+vez de onze, e nada na spec diz qual - o `MODERN` estaria inventando uma regra, não removendo um
+erro.
+
+Spec: seção 3.8, item 44 do `spec/OPEN-QUESTIONS.md`. **Mantido em `CLASSIC` e em `MODERN`.**
 
 ## Como propor uma correção
 

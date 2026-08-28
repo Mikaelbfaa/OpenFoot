@@ -221,11 +221,13 @@ object RuleSets {
             ),
             permanentLossAge = 35,
             permanentLossAmount = 5,
+            permanentLossFloor = 1,
         ),
         substitutions = SubstitutionRules(
             maxPerSide = 5,
             windowOpensFrom = 5,
             sacrificeCells = listOf(18..25, 14..17),
+            keeperSacrificeFallbackCells = 2..25,
             sendingOffSacrificeMaxSlot = 13,
             chasingWindow = 19..38,
             chasingCount = 2,
@@ -238,7 +240,7 @@ object RuleSets {
             routineCount = 2,
             lateWindow = 43..47,
             lateChancePercents = listOf(79, 49),
-            halfTimeSwapPercent = 50,
+            halfTimeSwapPercent = 49,
             halfTimeDeficit = listOf(1, 2),
             chasingDeficit = listOf(0, 1),
             tirednessThreshold = 60,
@@ -251,13 +253,15 @@ object RuleSets {
         redOverwriteFactor = 2,
         anyInjuryAtLeast = 1,
         injuryOverwriteFactor = 5,
+        substitutingSidesPerPass = 1,
+        scoreWindowArrivalsSide = listOf(TeamSide.HOME, TeamSide.HOME),
 
         lineupRelaxationPasses = 2,
         benchTemplate = listOf(1, 1, 2, 4, 4, 12, 15, 15, 20, 20, 23),
     )
 
     /**
-     * Exactly five deltas, each of them a defect of the original.
+     * Exactly seven deltas, each of them a defect of the original.
      *
      * The first two live in the aggregate and shot code: slot eighteen
      * counting in no line, and home advantage applied with the wrong sign and
@@ -268,8 +272,8 @@ object RuleSets {
      * of them unreachable, so classic runs two and modern runs all three. It
      * changes which eleven the AI fields, not how a match is played.
      *
-     * The last two live in section 3.8's card thresholds, both named as
-     * defects by section 3.15 item 5: after two sendings off the yellow
+     * The fourth and fifth live in section 3.8's card thresholds, both named
+     * as defects by section 3.15 item 5: after two sendings off the yellow
      * threshold is overwritten to twice the red one, and after one injury it
      * is overwritten again to five times the injury one, both of which
      * collapse the booking rate for the rest of the match. Modern switches
@@ -277,6 +281,38 @@ object RuleSets {
      * idiom energyCostByAge already uses for its own fall through, rather than
      * through a flag. The doubling past five yellows is not named as a defect
      * and both rule sets keep it.
+     *
+     * The last two live in section 3.8's substitutions and are section 3.15's
+     * items 11 and 12. Item 11 is the away side's window being swallowed by
+     * the home side's: the two windows of one pass are run in one go, the home
+     * side first, and a pass in which the home side actually changed somebody
+     * never examines the away side's window at all. Classic allows one side
+     * per pass and modern allows both, which is a count rather than a flag
+     * because what the original limits is how many changes one pass can carry.
+     * Item 12 is the just came on check reading the home side's list of
+     * arrivals whichever side it is protecting, so the home side is never
+     * asked to take off a man it has just brought on and the away side has no
+     * protection whatever; modern points each side at its own list. The two
+     * are separate deltas rather than one because they are separate defects
+     * with separate effects: one costs the away side windows and the other
+     * costs it the protection inside a window it does get.
+     *
+     * The wasted keeper draw of section 3.8 is deliberately not a third delta
+     * here. This docstring is where that decision is argued, and
+     * docs/known-quirks.md carries the same argument for a reader who is not
+     * in the code; OPEN-QUESTIONS item 44 records the wasted window itself but
+     * says nothing about rule sets, so it is not the authority for this.
+     *
+     * Three reasons. Section 3.15 does not name it: every delta above repairs
+     * something that list calls a defect, and this is written in section 3.8
+     * as the rule itself and confirmed as the original's own behaviour.
+     * Repairing it would move a probability rather than a rule, roughly one
+     * score window in eleven, which is the same kind of change as the fixed
+     * line divisors below that this file already refuses to make. And the
+     * repair is not even determined: a window that must not be wasted has to
+     * either redraw or draw over the ten outfielders instead of the eleven,
+     * and nothing in the spec says which, so modern would be inventing a rule
+     * rather than removing a mistake.
      *
      * The fixed line divisors of five, five and three are deliberately not
      * changed here. That is a balance decision rather than a defect, and it
@@ -290,5 +326,7 @@ object RuleSets {
         lineupRelaxationPasses = 3,
         manyRedsAtLeast = Int.MAX_VALUE,
         anyInjuryAtLeast = Int.MAX_VALUE,
+        substitutingSidesPerPass = 2,
+        scoreWindowArrivalsSide = listOf(TeamSide.HOME, TeamSide.AWAY),
     )
 }

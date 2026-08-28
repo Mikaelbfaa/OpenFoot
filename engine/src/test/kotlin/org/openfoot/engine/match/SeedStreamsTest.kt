@@ -20,6 +20,16 @@ import kotlin.test.assertTrue
  * than only the pairs that share a fork level today. Which tags share a level
  * is a fact about the current wiring and has already changed once, so the
  * cheaper assertion would have to be revisited every time it moves.
+ *
+ * SUBSTITUTION_PLAN_STREAM used to be forked once more, by the side's ordinal,
+ * because the two sides drew independent plans. Section 3.15 item 8's shared
+ * shuffle made that one draw for the match, so the stream is now read directly
+ * and its children nought and one have no caller. They are held reserved
+ * rather than freed, which the constant's own docstring says and which the
+ * count in the scripted test of SubstitutionPlanTest enforces: one script
+ * feeding one generator produces both plans, so nothing can be forking per
+ * side behind it. There is nothing to add to the list below, since the freed
+ * tags were never fixed streams of their own.
  */
 class SeedStreamsTest {
 

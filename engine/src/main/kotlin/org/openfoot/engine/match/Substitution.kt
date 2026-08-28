@@ -1,11 +1,12 @@
 package org.openfoot.engine.match
 
+import org.openfoot.model.Band
 import org.openfoot.model.Half
-import org.openfoot.model.Position
 import org.openfoot.model.Rng
 import org.openfoot.model.RuleSet
 import org.openfoot.model.Slot
 import org.openfoot.model.SpecRef
+import org.openfoot.model.SubstitutionRules
 import org.openfoot.model.TeamSide
 import org.openfoot.model.bound
 import org.openfoot.model.chooseCandidate
@@ -48,11 +49,20 @@ fun MatchPlayer.movedTo(slot: Slot): MatchPlayer = MatchPlayer(
  * the cell beats a stronger one who does not, and two who both suit it are
  * separated by strength.
  *
- * The keeper's cell is the exception section 3.8 spells out, and it is a
- * filter rather than a preference: with no keeper on the bench the cell stays
- * empty and section 3.4's missing keeper rating is what the side then plays
- * with. Every other cell falls back on the search's own catch all and is
- * always filled. See OPEN-QUESTIONS item 41.
+ * The keeper's cell carries no exception here. Section 3.8 is explicit that
+ * the section 5.4 cascade is applied to it exactly as to any other cell: with
+ * no keeper on the bench the cascade descends to a centre back, then a
+ * fullback, a midfielder and a forward, and one of them plays in goal with
+ * section 5.3's halving and section 3.4's round(GK x 0.2) on top of it. The
+ * cell stays empty only when the bench itself is empty, the same as any other
+ * cell. See OPEN-QUESTIONS item 41.
+ *
+ * The rule that used to live here, restricting the keeper's cell to a keeper
+ * reserve, does exist in section 3.8 but runs the other way and belongs to a
+ * different call site: it forbids a reserve keeper from replacing an injured
+ * outfielder, not the cascade from filling the keeper's cell with an
+ * outfielder. That refusal is applied in Discipline.kt's injure, after this
+ * function has already answered which reserve fits.
  *
  * No draw is made here at all. Which reserve comes on is decided entirely by
  * the ordering and the fit.
@@ -61,12 +71,7 @@ fun MatchPlayer.movedTo(slot: Slot): MatchPlayer = MatchPlayer(
 internal fun chooseReplacement(state: MatchState, team: TeamSide, cell: Slot): MatchPlayer? {
     val rules = state.setup.rules
     val side = state.of(team)
-    val eligible = if (cell.value == rules.keeperSlot) {
-        side.bench.filter { it.position == Position.GOALKEEPER }
-    } else {
-        side.bench
-    }
-    val ordered = eligible.sortedWith(
+    val ordered = side.bench.sortedWith(
         compareByDescending<MatchPlayer> { it.strength }
             .thenByDescending { side.energy.getValue(it.id) },
     )
@@ -114,6 +119,15 @@ internal fun MatchState.leavePitch(team: TeamSide, player: MatchPlayer): MatchSt
  *
  * His energy is left exactly as it was. Section 3.9 drains only the players on
  * the pitch, so a substitute comes on with whatever he has been sitting on.
+ *
+ * His identity is appended to the side's arrivals, whatever brought him on.
+ * This is the one place anybody ever reaches the pitch from the bench, so it
+ * is the one place that list can be kept, and section 3.8's two score windows
+ * read it to avoid taking off a man who has only just arrived. Section 3.8
+ * does not say that only a voluntary change counts as an arrival, and once a
+ * man is standing in a cell there is nothing left to tell the two apart, so
+ * the sacrifice after a dismissal and the replacement of an injured man count
+ * the same as a window's own change.
  */
 @SpecRef("3.8")
 internal fun MatchState.substitute(
@@ -136,6 +150,7 @@ internal fun MatchState.substitute(
         sideState.copy(
             bench = sideState.bench.filter { it.id != on.id },
             substitutionsUsed = sideState.substitutionsUsed + 1,
+            arrivals = sideState.arrivals + Arrival(team, arriving.id),
         ),
     )
 }
@@ -149,19 +164,28 @@ internal fun MatchState.substitute(
  * the rule set lists them, which is the order the spec writes them in, and a
  * side with nobody in either range has nobody to sacrifice.
  *
+ * dismissedWasKeeper opens a third range, keeperSacrificeFallbackCells, tried
+ * only after the first two have both come up empty and only when the man sent
+ * off was himself the keeper. A dismissed outfielder in the same shape leaves
+ * the AI with nobody to sacrifice at all; the wider search is section 3.8's
+ * own exception for the one dismissal that costs a side its goalkeeper.
+ *
  * No draw is made. Section 3.8 says which cells to look in and says nothing
  * about choosing between two players who both stand in them, so the lineup's
  * own order decides, the same order every aggregate of section 3.4 reads.
  */
 @SpecRef("3.8")
-internal fun sacrificeTarget(side: MatchSide, rules: RuleSet): MatchPlayer? {
+internal fun sacrificeTarget(side: MatchSide, rules: RuleSet, dismissedWasKeeper: Boolean): MatchPlayer? {
     for (cells in rules.substitutions.sacrificeCells) {
         val found = side.lineup.firstOrNull { it.slot.value in cells }
         if (found != null) {
             return found
         }
     }
-    return null
+    if (!dismissedWasKeeper) {
+        return null
+    }
+    return side.lineup.firstOrNull { it.slot.value in rules.substitutions.keeperSacrificeFallbackCells }
 }
 
 /**
@@ -176,7 +200,7 @@ internal fun sacrificeTarget(side: MatchSide, rules: RuleSet): MatchPlayer? {
  * one thing that makes a scripted test able to say which draw produced which
  * minute.
  *
- * halfTimeSwap is the interval's fifty per cent coin, drawn here with the rest
+ * halfTimeSwap is the interval's forty nine per cent coin, drawn here with the rest
  * of the plan rather than at the interval itself. It depends on nothing the
  * interval knows, so drawing it up front keeps a conditional draw out of the
  * per minute stream.
@@ -205,57 +229,163 @@ data class SubstitutionPlan(
 }
 
 /**
- * Draws one side's whole substitution plan.
+ * The two plans of one match, drawn together.
  *
- * The draw order is fixed and is the order section 3.8 lists the pools in.
- * Written out draw by draw, because the next thing to read this is the per
- * minute roll and the order is what keeps a recorded match replayable:
+ * They are one value rather than two because section 3.8 draws them together:
+ * the minutes of both sides come out of the same shuffle of the same pool, so
+ * neither plan can be produced without producing the other.
+ */
+@SpecRef("3.8")
+data class MatchSubstitutionPlans(
+    @property:SpecRef("3.8") val home: SubstitutionPlan,
+    @property:SpecRef("3.8") val away: SubstitutionPlan,
+) {
+    companion object {
+
+        /**
+         * The pair of a match in which neither side can substitute at all.
+         *
+         * Nothing is drawn to build it, which is what lets a match of two
+         * empty benches leave the plan stream untouched.
+         */
+        @SpecRef("3.8")
+        val NONE = MatchSubstitutionPlans(home = SubstitutionPlan.NONE, away = SubstitutionPlan.NONE)
+    }
+}
+
+/**
+ * Draws both sides' whole substitution plans, once per match.
  *
- * 1. the first chasing minute, rand over the nineteen to thirty eight window
- * 2. the second chasing minute, from the same window, redrawn on a collision
- * 3. the third chasing minute's coin, rand(100), which allows one below 69
- * 4. the third chasing minute, only when step 3 allowed it, redrawn as above
- * 5. the routine pool selector, rand(100) against the three band table
- * 6. the first routine minute, rand over the chosen pool
- * 7. the second routine minute, from the same pool, redrawn on a collision
- * 8. the first late coin, rand(100), which allows a minute below 79
- * 9. that late minute, only when step 8 allowed it, from 43 to 47
- * 10. the second late coin, rand(100), which allows a minute below 49
- * 11. that late minute, only when step 10 allowed it, redrawn on a collision
- * 12. the interval coin, rand(100), which swaps below 50
+ * Section 3.8 says the two sides draw their minutes from the same shuffled
+ * pool, without replacement between them, and section 3.15 item 8 says how:
+ * the five pools are shuffled at the start of the match and each side reads
+ * fixed, distinct positions of the shuffle it needs, the home side first. The
+ * consequence the two texts state is that the two sides' minutes never
+ * coincide, and it holds per pool rather than across pools; the note on
+ * OPEN-QUESTIONS item 42 sets out which pairs of pools overlap and therefore
+ * still can share a minute.
+ *
+ * The draw order is fixed and is written out draw by draw, because the next
+ * thing to read this is the per minute roll and the order is what keeps a
+ * recorded match replayable:
+ *
+ * 1. six chasing minutes over the nineteen to thirty eight window, without
+ *    replacement, the home side's three and then the away side's three
+ * 2. four minutes from each routine pool in the order the band table declares
+ *    them, without replacement inside each pool, the home side's two and then
+ *    the away side's two
+ * 3. four minutes from forty three to forty seven the same way
+ * 4. the home side's third chasing minute's coin, rand(100), which takes the
+ *    third position of its slice below 69
+ * 5. the home side's routine pool selector, rand(100) against the band table
+ * 6. the home side's first late coin, rand(100), which takes the first
+ *    position of its late slice below 79
+ * 7. the home side's second late coin, rand(100), which takes the second
+ *    position below 49
+ * 8. the home side's interval coin, rand(100), which swaps below 49
+ * 9. the same five coins for the away side, in the same order
+ *
+ * Every pool is drawn whether or not a coin later reads it, which is what
+ * makes the positions fixed: a side's minutes depend on its own coins and on
+ * nothing the other side drew. It is also what the original does, since it
+ * reshuffles all five pools at the start of every match and only then looks at
+ * what each side wants.
  *
  * Drawing without replacement is a list and a redraw rather than a set. A hash
  * container's iteration order would decide which minute a side ends up with,
  * and the redraw is what keeps the number of draws a collision costs visible
  * in the stream instead of hidden inside a shuffle.
  *
- * A plan is drawn fresh per side and per match, from that match's own stream.
- * Section 3.15 item 8 says the original's pools are static and shared, so
- * consecutive matches draw correlated minutes; that is the one named defect of
- * the original neither rule set here reproduces, because it is global mutable
- * state rather than a wrong number and copying it would make a match's result
- * depend on which matches ran before it. See OPEN-QUESTIONS item 42.
+ * The pair is drawn fresh per match, from that match's own stream. Section
+ * 3.15 item 8 also says the original's pools are static and shared between
+ * matches, so consecutive matches draw correlated minutes; that half of the
+ * item is the one named defect of the original neither rule set here
+ * reproduces, because it is global mutable state rather than a wrong number
+ * and copying it would make a match's result depend on which matches ran
+ * before it. See OPEN-QUESTIONS item 42.
  */
 @SpecRef("3.8")
-internal fun substitutionPlan(rng: Rng, rules: RuleSet): SubstitutionPlan {
+internal fun matchSubstitutionPlans(rng: Rng, rules: RuleSet): MatchSubstitutionPlans {
     val subs = rules.substitutions
 
-    val chasing = mutableListOf<Int>()
-    repeat(subs.chasingCount) {
-        chasing += drawFresh(rng, subs.chasingWindow, chasing)
+    val chasing = sharedPool(rng, subs.chasingWindow, subs.chasingCount + EXTRA_CHASING_MINUTES)
+    val routine = subs.routinePools.map { band ->
+        Band(band.draws, sharedPool(rng, band.value, subs.routineCount))
     }
+    val late = sharedPool(rng, subs.lateWindow, subs.lateChancePercents.size)
+
+    return MatchSubstitutionPlans(
+        home = sidePlan(rng, subs, TeamSide.HOME, chasing, routine, late),
+        away = sidePlan(rng, subs, TeamSide.AWAY, chasing, routine, late),
+    )
+}
+
+/**
+ * One pool shuffled far enough for both sides to read their slice out of it.
+ *
+ * Only the positions the two sides can reach are drawn. Sampling that many
+ * distinct minutes by redrawing on a collision is the first positions of a
+ * uniform shuffle of the whole pool, so this is the shuffle section 3.15 item
+ * 8 describes, cut off where nobody would have read it.
+ *
+ * Exactly so only while drawFresh does not reach its cap. When it does, which
+ * it can in the forty three to forty seven window about three times in a
+ * million matches, the fallback takes the first free minute in scan order
+ * instead and that one position is no longer uniform. The fallback is
+ * therefore part of this distribution rather than unreachable scaffolding, and
+ * drawFresh's own docstring carries the arithmetic.
+ */
+@SpecRef("3.8")
+private fun sharedPool(rng: Rng, window: IntRange, perSide: Int): List<Int> {
+    val drawn = mutableListOf<Int>()
+    repeat(perSide * TeamSide.entries.size) {
+        drawn += drawFresh(rng, window, drawn)
+    }
+    return drawn
+}
+
+/**
+ * The positions of a shuffled pool that belong to one side.
+ *
+ * Each side gets a block as long as the most it could ever take from that
+ * pool, the home side first, which is what makes the positions fixed: the
+ * away side's block does not move when a home coin refuses the minute it was
+ * offered. Item 42 records the original reading it the same way, the home
+ * side taking the first two minutes of a pool and the visitor the third and
+ * the fourth.
+ */
+@SpecRef("3.8")
+private fun List<Int>.sliceFor(team: TeamSide, perSide: Int): List<Int> =
+    subList(team.ordinal * perSide, (team.ordinal + 1) * perSide)
+
+/**
+ * One side's plan, read off pools that are already shuffled.
+ *
+ * Only the coins are drawn here, and they only decide how much of the side's
+ * own slice it keeps. A coin that refuses leaves its position unread by
+ * anybody rather than handing it to the other side.
+ */
+@SpecRef("3.8")
+private fun sidePlan(
+    rng: Rng,
+    subs: SubstitutionRules,
+    team: TeamSide,
+    chasingPool: List<Int>,
+    routinePools: List<Band<List<Int>>>,
+    latePool: List<Int>,
+): SubstitutionPlan {
+    val chasingSlice = chasingPool.sliceFor(team, subs.chasingCount + EXTRA_CHASING_MINUTES)
+    val chasing = chasingSlice.take(subs.chasingCount).toMutableList()
     if (rng.rand(PERCENT_DRAW_BOUND) < subs.extraChasingPercent) {
-        chasing += drawFresh(rng, subs.chasingWindow, chasing)
+        chasing += chasingSlice[subs.chasingCount]
     }
 
-    val pool = subs.routinePools.pick(rng.rand(subs.routinePools.bound()))
-    val routine = mutableListOf<Int>()
-    repeat(subs.routineCount) {
-        routine += drawFresh(rng, pool, routine)
-    }
-    for (percent in subs.lateChancePercents) {
+    val pool = routinePools.pick(rng.rand(routinePools.bound()))
+    val routine = pool.sliceFor(team, subs.routineCount).toMutableList()
+    val lateSlice = latePool.sliceFor(team, subs.lateChancePercents.size)
+    for ((position, percent) in subs.lateChancePercents.withIndex()) {
         if (rng.rand(PERCENT_DRAW_BOUND) < percent) {
-            routine += drawFresh(rng, subs.lateWindow, routine)
+            routine += lateSlice[position]
         }
     }
 
@@ -285,16 +415,20 @@ internal fun substitutionPlan(rng: Rng, rules: RuleSet): SubstitutionPlan {
  * to the cap, and the tightest window is the one where that is largest.
  *
  * The tightest of the windows section 3.8 draws from is lateWindow, 43 to 47,
- * whose width is five and from which at most one minute is ever already taken.
- * At a cap of twenty five that is one fifth to the twenty fifth, about three
- * times ten to the minus eighteen. The narrowest routine pool, 36 to 42, gives
- * one seventh to the forty ninth, and the chasing window of 19 to 38 gives at
- * most two twentieths to the four hundredth. So the fallback is unreachable in
- * practice at every draw site and exists only as the totality guarantee.
+ * whose width is five and from which three minutes are already taken when the
+ * fourth and last position of its shuffle is drawn, one late minute for each
+ * side. At a cap of twenty five that is three fifths to the twenty fifth,
+ * about three in a million matches. The narrowest routine pool, 36 to 42,
+ * takes four of seven and gives three sevenths to the forty ninth, about one
+ * in ten to the eighteen; the chasing window of 19 to 38 takes six of twenty
+ * and gives at most a quarter to the four hundredth. So the fallback is out of
+ * reach at every draw site but the last position of the late window, where it
+ * is rare enough to bias nothing measurable and still leaves the draw
+ * deterministic.
  *
- * A cap of the width alone would not do. It leaves the late window at one
- * fifth to the fifth, about three in ten thousand plans, which is a real if
- * small bias towards the earlier minutes of that window.
+ * A cap of the width alone would not do. It leaves the late window at three
+ * fifths to the fifth, about one plan in thirteen, which would be a real bias
+ * towards the earlier minutes of that window rather than a totality guarantee.
  */
 @SpecRef("3.8")
 private fun drawFresh(rng: Rng, window: IntRange, taken: List<Int>): Int {
@@ -356,6 +490,13 @@ private fun deficitOf(state: MatchState, team: TeamSide): Int =
  * stands in, the same way section 3.9's drain exempts him, so a keeper
  * improvised into a line cell is scanned like anybody else and an outfielder
  * improvised into goal is skipped like a keeper.
+ *
+ * The late scan does not wrap. It walks from the drawn start to the end of
+ * the lineup and stops there, so a tired man sitting before the start index
+ * is never reached and the scan can finish having found nobody even though
+ * somebody on the pitch qualifies. Section 3.8 states this outright, and it
+ * is the original's own shortfall rather than an oversight here: a scan
+ * written to wrap would find that same man and change him instead.
  */
 @SpecRef("3.8")
 internal fun tirednessTarget(
@@ -375,8 +516,8 @@ internal fun tirednessTarget(
     val start = if (late) rng.rand(lineup.size) else 0
     val energy = state.of(team).energy
 
-    for (step in lineup.indices) {
-        val player = lineup[(start + step) % lineup.size]
+    for (index in start until lineup.size) {
+        val player = lineup[index]
         if (player.slot.value == rules.keeperSlot) {
             continue
         }
@@ -388,22 +529,75 @@ internal fun tirednessTarget(
 }
 
 /**
- * A player drawn uniformly from the side's outfielders.
+ * A player drawn uniformly from the whole lineup on the pitch, keeper
+ * included.
  *
  * Section 3.8 calls the interval's change a "troca aleatoria" and then names
  * the chasing minute's change only as a "troca", in the next sentence and with
  * no scan of its own; the routine minute is the one that overrides the choice
- * with the tiredness scan. Both of the first two therefore take a random man,
- * and the keeper is not among them: a side does not answer a deficit by
- * changing its goalkeeper. See OPEN-QUESTIONS item 44.
+ * with the tiredness scan. Both of the first two therefore draw an index over
+ * the whole eleven, not over the ten outfielders, and this function does not
+ * filter the keeper's cell out of that index: it draws exactly one player and
+ * hands him back whoever he is. Neither what a draw landing on the keeper
+ * means nor what a draw landing on a man who has just come on means is this
+ * function's business. scoreWindowTarget below is the one that may call it
+ * twice, and runSubstitutionWindow is the one that reads the slot it ends up
+ * with and wastes the window when it names the keeper. See OPEN-QUESTIONS
+ * items 44 and 48.
  */
 @SpecRef("3.8")
-internal fun randomOutfielder(side: MatchSide, rules: RuleSet, rng: Rng): MatchPlayer? {
-    val outfielders = side.lineup.filter { it.slot.value != rules.keeperSlot }
-    if (outfielders.isEmpty()) {
+internal fun randomLineupPlayer(side: MatchSide, rng: Rng): MatchPlayer? {
+    val lineup = side.lineup
+    if (lineup.isEmpty()) {
         return null
     }
-    return outfielders[rng.rand(outfielders.size)]
+    return lineup[rng.rand(lineup.size)]
+}
+
+/**
+ * Who a score window takes off, before anything is asked about the keeper.
+ *
+ * Section 3.8 says the draw avoids taking off a man who has just come on, with
+ * a single retry. That is a retry and not a loop: if the first draw names an
+ * arrival the index is drawn once more, and the second index stands whatever
+ * it names, including a second arrival. A side that has brought on four men
+ * can therefore still take one of them off, which is the shape section 3.8
+ * gives the rule rather than an omission here.
+ *
+ * arrivals is passed in rather than read off the side, because section 3.15
+ * item 12 says the original does not read the side's own list: it compares the
+ * side's index against a value the index never holds, so the list consulted is
+ * always the home side's, whichever side the window belongs to. The caller
+ * resolves that through RuleSet.arrivalsSideFor and hands the answer down, so
+ * the defect stays a rule set's value and never becomes a branch here. Under
+ * classic the away side is therefore checked against a list of home arrivals,
+ * which no away player can ever be a member of, so its check never fires and
+ * it can take off, a minute later, the substitute it has just brought on.
+ *
+ * The check is by identity, and the identity carries the side. A man who came
+ * on is a different MatchPlayer object standing in the cell he inherited, so
+ * comparing objects would find nobody and the whole rule would silently do
+ * nothing; and a PlayerId on its own is a squad index, which the two squads
+ * hand out from the same range, so comparing bare numbers across sides would
+ * match by accident and give the away side a protection section 3.15 item 12
+ * says it has none of. See Arrival.
+ *
+ * This runs before the keeper check rather than after it, which section 3.8
+ * states both of but does not order. See OPEN-QUESTIONS item 48 for the
+ * argument and for the reading not taken.
+ */
+@SpecRef("3.8")
+internal fun scoreWindowTarget(
+    side: MatchSide,
+    team: TeamSide,
+    arrivals: List<Arrival>,
+    rng: Rng,
+): MatchPlayer? {
+    val drawn = randomLineupPlayer(side, rng) ?: return null
+    if (Arrival(team, drawn.id) !in arrivals) {
+        return drawn
+    }
+    return randomLineupPlayer(side, rng)
 }
 
 /**
@@ -411,9 +605,12 @@ internal fun randomOutfielder(side: MatchSide, rules: RuleSet, rng: Rng): MatchP
  *
  * Opened for both sides independently. The chasing and routine windows are
  * minutes of play, and each opens only when that minute's discipline chain
- * produced no card and no injury; the interval window is not gated by the
- * chain's outcome at all, because it stands for a minute of play that never
- * happens, so no chain ever runs there for it to be gated by. See isInterval.
+ * produced no card and no injury. The interval minute is a played minute
+ * too, at intoHalf zero of the second half, and disciplineMinute runs the
+ * same chain on it as on any other minute; what keeps its window open even
+ * when that chain produces a card or an injury is disciplineMinute's
+ * explicit not isInterval check on the result, not an absent chain. See
+ * isInterval and disciplineMinute.
  * Section 3.8 lists the window as the fourth branch of the victim chain,
  * which would open it only for the side that minute's victim draw happened to
  * land on; but every side draws its own minutes, so a side's own minute would
@@ -432,17 +629,51 @@ internal fun randomOutfielder(side: MatchSide, rules: RuleSet, rng: Rng): MatchP
  * its five, or for a side with an empty bench, and none of those cases makes a
  * draw. A window that opens but finds the score wrong makes no draw either.
  *
+ * The interval and the chasing windows draw their man from scoreWindowTarget,
+ * which runs over the whole eleven and does not filter the keeper's cell out.
+ * When the index it comes back with names him the window is wasted here:
+ * nothing changes, nothing is logged, and no draw is made to replace the
+ * wasted one. Roughly one in eleven of these windows dies this way, which is
+ * section 3.8's own cost and not a bug in the draw. See OPEN-QUESTIONS item
+ * 44.
+ *
+ * Two guards therefore sit on the same drawn index, and section 3.8 states
+ * both without ordering them: the just came on retry, which is one redraw and
+ * lives inside scoreWindowTarget, and the keeper's wasted window, which is no
+ * redraw at all and lives here. They are applied in that order, so the keeper
+ * test is made exactly once, against whichever index the draw finally settled
+ * on. Reversing them costs a second keeper test: he would have to be judged
+ * before the retry and again after it, since a retry that delivered him must
+ * still waste the window rather than take him off. That reading is not
+ * incoherent and makes no extra draw, so section 3.8's "no second attempt",
+ * which is about a draw rather than a test, does not rule it out; it is merely
+ * less parsimonious, applying one rule at two points where the text states it
+ * once, and the two orders differ in exactly one case, an index that is both
+ * the keeper and a man who came on. The split between the two functions is
+ * what keeps the order visible: the draw and its one retry are one thing, and
+ * what the window does with the man it ends up with is another. See
+ * OPEN-QUESTIONS item 48.
+ *
+ * Which side's list of arrivals the retry consults is a rule set's value, read
+ * through RuleSet.arrivalsSideFor. Section 3.15 item 12 says the original
+ * always reads the home side's, so under classic the home side is never asked
+ * to take off a man it has just brought on and the away side has no protection
+ * at all.
+ *
  * The null branch on chooseReplacement below cannot be reached from here and
- * is kept as a guard rather than removed. Both of the two ways a man is chosen
- * to come off skip whoever stands in the keeper's cell, so this caller never
- * asks for the one cell chooseReplacement can refuse, and for every other cell
- * the search of section 5.4 ends in a catch all that returns somebody whenever
- * the bench is not empty, which this function has already checked. Removing
- * the branch would mean asserting all of that with a not null assertion two
- * files away from the code that makes it true, turning a case that cannot
- * happen into a crash instead of a minute in which nothing happens. The forced
- * changes of the sending off and the injury call chooseReplacement without
- * that guarantee, and there the null is live.
+ * is kept as a guard rather than removed. The cascade of section 5.4 carries
+ * no exception for the keeper's cell any more, so it ends in a catch all that
+ * returns somebody for any cell whenever the bench is not empty, which
+ * canSubstitute has already checked above. Removing the branch would mean
+ * asserting that with a not null assertion two files away from the code that
+ * makes it true, turning a case that cannot happen into a crash instead of a
+ * minute in which nothing happens. The same guarantee now holds at every call
+ * site chooseReplacement has, including the sending off's sacrifice and the
+ * injury's forced change, both of which check canSubstitute first as well;
+ * the one way a call to chooseReplacement can still come back empty handed is
+ * the injury's own refusal in Discipline.kt's injure, which walks away from a
+ * reserve keeper chooseReplacement already found rather than ever seeing it
+ * return null.
  */
 @SpecRef("3.8")
 internal fun MatchState.runSubstitutionWindow(
@@ -486,13 +717,16 @@ internal fun MatchState.runSubstitutionWindow(
         else -> return this
     }
 
-    val off = (
-        if (reason == SubstitutionReason.TIREDNESS) {
-            tirednessTarget(this, team, intoHalf, rng)
-        } else {
-            randomOutfielder(side, rules, rng)
+    val off = if (reason == SubstitutionReason.TIREDNESS) {
+        tirednessTarget(this, team, intoHalf, rng) ?: return this
+    } else {
+        val arrivals = of(rules.arrivalsSideFor(team)).arrivals
+        val drawn = scoreWindowTarget(side, team, arrivals, rng) ?: return this
+        if (drawn.slot.value == rules.keeperSlot) {
+            return this
         }
-        ) ?: return this
+        drawn
+    }
 
     val on = chooseReplacement(this, team, off.slot) ?: return this
     return substitute(team, off, on, off.slot, minute, reason)
@@ -551,3 +785,14 @@ private const val INTERVAL_MINUTE = 0
 /** The bound of every per cent draw section 3.8's substitution block makes. */
 @SpecRef("3.8")
 private const val PERCENT_DRAW_BOUND = 100
+
+/**
+ * How many chasing minutes beyond the fixed count a coin can ever buy a side.
+ *
+ * Section 3.8 writes the chasing pool as two minutes a side plus one more on a
+ * coin, so this is the difference between what a side always takes and the
+ * longest slice it could read. The pool is shuffled to fit the longest slice,
+ * whether the coin then reads its last position or not.
+ */
+@SpecRef("3.8")
+private const val EXTRA_CHASING_MINUTES = 1

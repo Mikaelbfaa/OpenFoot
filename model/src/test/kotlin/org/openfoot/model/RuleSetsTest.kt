@@ -7,14 +7,27 @@ import kotlin.test.assertSame
 class RuleSetsTest {
 
     /**
-     * Five deltas, each a defect of the original. Slot eighteen counting in no
-     * line, home advantage applied with the wrong sign, one lineup relaxation
-     * pass unreachable, and the two card threshold overwrites of section 3.15
-     * item 5, switched off by putting their trigger counts out of reach rather
-     * than by a flag.
+     * Seven deltas, each a defect of the original. Slot eighteen counting in
+     * no line, home advantage applied with the wrong sign, one lineup
+     * relaxation pass unreachable, the two card threshold overwrites of
+     * section 3.15 item 5, switched off by putting their trigger counts out of
+     * reach rather than by a flag, and the two substitution defects of section
+     * 3.15 items 11 and 12: one side's change per pass swallowing the other
+     * side's window, and the just came on check reading the home side's list
+     * of arrivals whichever side it is protecting.
+     *
+     * The wasted keeper draw of section 3.8 is deliberately not among them.
+     * Section 3.15 does not name it a defect and section 3.8 states it as the
+     * rule; repairing it would move a probability, about one score window in
+     * eleven, rather than a rule; and the repair is not even determined, since
+     * a window that may not be wasted has to either redraw or draw over ten
+     * men instead of eleven and nothing says which. The argument is carried in
+     * full by the docstring of RuleSets.MODERN and by docs/known-quirks.md.
+     * OPEN-QUESTIONS item 44 records the wasted window itself and not this
+     * decision, so it is not where to look for it.
      */
     @Test
-    fun `the modern rules differ from the classic ones by five named deltas`() {
+    fun `the modern rules differ from the classic ones by seven named deltas`() {
         assertEquals(
             RuleSets.CLASSIC,
             RuleSets.MODERN.copy(
@@ -24,8 +37,36 @@ class RuleSetsTest {
                 lineupRelaxationPasses = 2,
                 manyRedsAtLeast = 2,
                 anyInjuryAtLeast = 1,
+                substitutingSidesPerPass = 1,
+                scoreWindowArrivalsSide = listOf(TeamSide.HOME, TeamSide.HOME),
             ),
         )
+    }
+
+    /**
+     * Section 3.15 item 11: one pass of the classic rules carries one side's
+     * change and a pass of the modern ones carries both. Two is every side
+     * there is, so the modern figure is no limit at all rather than a larger
+     * one.
+     */
+    @Test
+    fun `classic lets one side change per pass and modern both`() {
+        assertEquals(1, RuleSets.CLASSIC.substitutingSidesPerPass)
+        assertEquals(TeamSide.entries.size, RuleSets.MODERN.substitutingSidesPerPass)
+    }
+
+    /**
+     * Section 3.15 item 12: the classic rules read the home side's list of
+     * arrivals for both sides, so the home side is protected from taking off a
+     * man it has just brought on and the away side is not; the modern rules
+     * read each side's own list.
+     */
+    @Test
+    fun `classic reads the home arrivals list for both sides`() {
+        assertEquals(TeamSide.HOME, RuleSets.CLASSIC.arrivalsSideFor(TeamSide.HOME))
+        assertEquals(TeamSide.HOME, RuleSets.CLASSIC.arrivalsSideFor(TeamSide.AWAY))
+        assertEquals(TeamSide.HOME, RuleSets.MODERN.arrivalsSideFor(TeamSide.HOME))
+        assertEquals(TeamSide.AWAY, RuleSets.MODERN.arrivalsSideFor(TeamSide.AWAY))
     }
 
     @Test

@@ -36,7 +36,54 @@ import kotlin.test.assertTrue
  * here and a dismissal or an injury leaves the side on ten for the rest of
  * the match. That is the harder case for section 3.4's fixed divisors and is
  * the one worth pinning; the substitution wiring is pinned by
- * DisciplineChainTest, which plays whole matches with a bench.
+ * DisciplineChainTest, which plays whole matches with a bench. An empty bench
+ * means canSubstitute refuses every window before it ever draws, so the
+ * interval and chasing windows' draw over the whole eleven, keeper included,
+ * and the wasted window a keeper draw now costs, have nothing here to act on
+ * either; that change is pinned the same way, in SubstitutionWindowTest and
+ * DisciplineChainTest.
+ *
+ * The two substitution defects of section 3.15 items 11 and 12 are invisible
+ * here for the same reason, and by construction rather than by luck of these
+ * seeds. Item 12's just came on retry reads a list that only a substitution
+ * can ever add to, and item 11 passes over the away side's window only when
+ * the home side actually substituted, so a match in which nobody is ever
+ * substituted can reach neither. Both are pinned in SubstitutionWindowTest and
+ * DisciplineChainTest instead.
+ *
+ * Section 3.15 item 8's shared shuffle, which moved every substitution minute
+ * in every match that draws a plan at all, is invisible here for the plainest
+ * version of the same reason: with two empty benches no plan is drawn, so
+ * there is no minute to move. It is pinned in SubstitutionPlanTest.
+ *
+ * These four seeds cannot tell attempt-counting apart from event-counting in
+ * DisciplineCounts, and never could: formation 4, the four four two every
+ * fixture here uses, occupies cells 1, 22, 24, 11, 13, 14, 16, 2, 9, 3 and 5,
+ * which is at least one cell in every one of section 3.8's seven risk groups.
+ * Seed ten's own two departures, the away side's cells 13 and 16, still leave
+ * g0 holding cell 11 and g1 holding cell 14, so no risk group ever empties out
+ * across these four matches and a matching roll always finds somebody. The
+ * sendingsOff counter never reaches manyRedsAtLeast either, since seed ten's
+ * one dismissal is the only one any of the four seeds produces. Neither of
+ * the two behaviours - a second yellow being read as a red, and a counter
+ * moving on an empty group - has anything here to act on, so a version that
+ * still had both defects would replay this file exactly and pass it. The
+ * guarantee that they are fixed lives in DisciplineChainTest's scripted
+ * cases instead, which assert the counters and a computed threshold directly
+ * rather than a match's recorded figures, and so cannot be rebaselined out
+ * from under a regression the way a figure in this file could be.
+ *
+ * A third blindness sits alongside the two above and for the same reason as
+ * both: every player in every fixture here is age twenty five, the default
+ * playAt never overrides. Nothing that reads age can move a figure in this
+ * file. The post thirty five permanent strength loss, its floor at one, and
+ * the duration of nought that only a player of twenty or under can draw are
+ * all unreachable here regardless of what else changes; so is every one of
+ * the five age brackets injuryOutcome's ageTerms and energyBase read. A later
+ * task touching any age gated rule should expect this file to stay perfectly
+ * still and read that as confirming this blindness, not as evidence the
+ * change did nothing; DisciplineChainTest and InjuryTest are where an age
+ * gated rule is actually pinned.
  */
 class MatchGoldenVectorTest {
 
