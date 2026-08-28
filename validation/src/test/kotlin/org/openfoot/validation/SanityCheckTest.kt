@@ -22,7 +22,9 @@ import kotlin.test.assertTrue
  *
  * Every band was set around a measured value and then checked against what
  * section 3.16 predicts. Three of them do not agree with it, and each one is
- * recorded rather than papered over:
+ * recorded rather than papered over. The three discipline bands at the end
+ * used to be a fourth, fifth and sixth disagreement and are not any more: see
+ * the paragraph on them below.
  *
  * The tick count is 94, not the 92 of section 3.16, because section 3.1's own
  * stoppage draws average 94. See open question 28.
@@ -42,11 +44,19 @@ import kotlin.test.assertTrue
  * naming the direction. The reasoning behind those movements is one argument
  * and is set out here once rather than nine times.
  *
- * Over this sample section 3.8 produces about 1.28 bookings, 0.17 dismissals
+ * Over this sample section 3.8 produces about 1.29 bookings, 0.17 dismissals
  * and 0.12 injuries per match. A booking changes nothing a tick reads. A
  * dismissal and an injury both take a player off the pitch, and both sides
  * play here with an empty bench, so nobody is ever replaced: about 0.28 men
  * leave per match and stay gone.
+ *
+ * That empty bench is deliberate, and it is also this class's blind spot. It
+ * is the pairing section 3.16's own figures were taken against, so the fixture
+ * keeps it; the cost is that no substitution of section 3.8 can ever fire
+ * here, because an empty bench fails canSubstitute and both plans are blanked
+ * at kick off. Not one figure below moves when the substitution rules change.
+ * BenchedSanityCheckTest is the other half of the check and measures only what
+ * a bench can reach.
  *
  * A missing player costs his own line one over its fixed divisor, because
  * section 3.4 divides by a constant rather than by the number of men left.
@@ -62,19 +72,37 @@ import kotlin.test.assertTrue
  *
  * Which side gains is settled by the victim draw, section 3.8's one piece of
  * refereeing bias: the away side is drawn 56 per cent of the time and the home
- * side 44. Over this sample the home side collected 11289 of the 25675
+ * side 44. Over this sample the home side collected 11299 of the 25700
  * bookings, which is 43.97 per cent, so the draw behaves as the spec says. The
  * away side therefore loses men more often, and every figure below moves the
  * way that implies: the home shot volume, the home goals, the home conversion
  * and the home possession share all rise slightly, and the away figures all
  * fall slightly.
  *
- * The last three tests pin the discipline bullet of section 3.16 itself.
- * Yellows and injuries fall short of the ranges it states, as their own
- * tables predict. Sendings off do not fall short: they are too frequent, not
- * too rare, for a reason the direct red table alone cannot show, because a
- * second yellow logs a dismissal as well as a booking, so the sending off
- * count is not the direct red table alone. See open question 46.
+ * The last three tests pin the discipline bullet of section 3.16 itself, and
+ * they are the one part of this class that now agrees with it. They used to
+ * be three disagreements: section 3.16 asked for two to three bookings, a
+ * dismissal every eight to twelve matches and an injury every six to ten per
+ * side, and this engine produced none of the three. Section 3.16 has since
+ * been checked against the original and corrected, and what it asks for now is
+ * what section 3.8's own tables give and what these three tests measure. Open
+ * question 46 carries the whole argument and the arithmetic; the summary is
+ * that the old figures described a chain drawn once per side per minute, and
+ * the original draws a single victim side per minute, exactly as section 3.8
+ * has always said.
+ *
+ * Two of the three moved slightly when the six corrections of section 3.8
+ * landed on top of that, and both moves are the same correction: the counter
+ * a second yellow used to feed is now fed only by a direct red, so the
+ * overwrite that reads it fires less often, and the overwrite raises the
+ * booking threshold. Fewer overwrites means more bookings, 1.28375 up to
+ * 1.285, and more bookings means marginally more second yellows, one every
+ * 6.038647342995169 matches down to one every 6.036824630244491. Direct reds
+ * are untouched at 2463 of the sample, which is what that reading predicts.
+ * The injury rate did not move at all, and could not have: the one correction
+ * that touches injuries stops a duration of nought reaching the log, and a
+ * duration of nought needs a player of twenty or under, which this fixture
+ * does not have. BenchedSanityCheckTest does.
  */
 class SanityCheckTest {
 
@@ -368,7 +396,7 @@ class SanityCheckTest {
         val FULL_LINE_GOALS = 1.37..1.48
 
         /**
-         * Measured 1.28375. Section 3.8's own tables put the pre overwrite rate
+         * Measured 1.285. Section 3.8's own tables put the pre overwrite rate
          * near 1.5: a half spends about 15 minutes at phase nought, 15 at phase
          * one and 17 at phase two, and the effective threshold in each phase is
          * the table value plus the mean marking relief of 0.65 x 30 + 0.30 x 10
@@ -376,16 +404,22 @@ class SanityCheckTest {
          * 15/62.5 + 17/52.5. Second half: 15/67.5 + 15/62.5 + 17/52.5. That sums
          * to about 1.51, and the overwrites that follow a second red or a first
          * injury only ever raise the threshold, which can only lower the count
-         * further, so 1.28 measured under 1.51 predicted is consistent.
+         * further, so 1.285 measured under 1.51 predicted is consistent.
          *
-         * Section 3.16 says two to three. This one falls short. See open
-         * question 46.
+         * Section 3.16, as corrected against the original, says about 1.3, and
+         * this agrees with it. It used to say two to three, which this fell
+         * well short of; see open question 46 for why that figure was wrong.
+         *
+         * Up from 1.28375 with the six corrections of section 3.8, because a
+         * dismissal for a second yellow no longer feeds the counter the "two
+         * reds" overwrite reads, and that overwrite raises the booking
+         * threshold. Firing it less often leaves more bookings.
          */
         @SpecRef("3.16")
         val YELLOWS = 1.25..1.32
 
         /**
-         * Measured one every 6.038647342995169 matches. Section 3.8's direct
+         * Measured one every 6.036824630244491 matches. Section 3.8's direct
          * red table alone gives 15/1200 + 15/900 + 17/800 + 15/800 + 15/700 +
          * 17/550, about 0.122 a match, or one every 8.2. But MatchEvent's own
          * documentation records that a second yellow logs a SendingOff as well
@@ -394,10 +428,20 @@ class SanityCheckTest {
          * figure, and it is exactly why the measured rate is higher, not the
          * same.
          *
-         * Section 3.16 says one every eight to twelve. The measured rate is
-         * more frequent than that range's own floor, so this one falls short
-         * too, the opposite of what the direct red table alone would suggest.
-         * See open question 46.
+         * Over this sample that second path is 850 of the 3313 dismissals and
+         * the direct reds are the other 2463.
+         *
+         * Section 3.16, as corrected against the original, says one every six,
+         * and this agrees with it. It used to say one every eight to twelve,
+         * which the measured rate was more frequent than the floor of; see
+         * open question 46.
+         *
+         * More frequent than the 6.038647342995169 measured before the six
+         * corrections of section 3.8, by one dismissal in twenty thousand
+         * matches, and that one is a second yellow rather than a direct red:
+         * the direct red count is unchanged at 2463 and only the bookings
+         * moved, which is exactly what a correction confined to the booking
+         * threshold's overwrites predicts.
          */
         @SpecRef("3.16")
         val MATCHES_PER_SENDING_OFF = 5.7..6.4
@@ -411,8 +455,17 @@ class SanityCheckTest {
          * limiarAmarelo, never the injury roll itself. The measured value
          * agrees with that derivation to within a percent.
          *
-         * Section 3.16 says one every six to ten per side. This one falls
-         * short by nearly a factor of two. See open question 46.
+         * Section 3.16, as corrected against the original, says one every
+         * seventeen per side, and this agrees with it. It used to say one every
+         * six to ten, which this fell short of by nearly a factor of two; see
+         * open question 46.
+         *
+         * Unmoved by the six corrections of section 3.8, to the last digit.
+         * The only one of them that touches an injury stops a duration of
+         * nought reaching the log, and section 3.8 draws a duration of nought
+         * only for a player of twenty or under. Everybody here is twenty five,
+         * so the case is out of reach and the count cannot have moved. It is
+         * reachable in BenchedSanityCheckTest, which is where it is pinned.
          */
         @SpecRef("3.16")
         val MATCHES_PER_INJURY = 15.8..18.7

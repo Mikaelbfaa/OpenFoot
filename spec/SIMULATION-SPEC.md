@@ -570,6 +570,23 @@ Dois times equivalentes, não-humanos, campo normal, temporada 1:
   lado**. As figuras antigas - 2 a 3 amarelos, um vermelho a cada 8-12, uma lesão a cada 6-10 por
   lado - não saem das tabelas da 3.8 sob nenhuma leitura; ver o item 46 do `OPEN-QUESTIONS.md`.
 
+**O que este par de times NÃO mede.** Todos os números acima são de dois times **sem banco de
+reservas**, que é como as figuras desta seção foram levantadas. Um time sem banco nunca substitui
+ninguém, então **nenhuma** das quatro janelas de substituição da 3.8 chega a abrir e nenhum número
+desta seção se mexe quando as regras de substituição mudam. Os dois times também são todos de uma
+idade só, o que deixa fora de alcance a duração de lesão 0 da 3.8 (só sorteável até 20 anos) e
+quase toda a tabela de desgaste da 3.9. Uma reimplementação que só confira esta seção não terá
+verificado nada disso: precisa de um segundo par de times, com banco e com idades variadas, medindo
+substituições por partida por lado, com que frequência um lado gasta as cinco, e a divisão dessas
+substituições entre as janelas.
+
+Uma terceira cegueira **não** se resolve com banco nem com idade, e é a única que o segundo par
+também não fecha: a formação 4 ocupa os **sete** grupos de risco da 3.8 no apito inicial, então a
+tentativa que sorteia um **grupo vazio** - que ainda assim sobe os três contadores das sobrescritas,
+sem nada chegar ao log - só acontece depois de alguém ter saído de campo. É rara demais (umas poucas
+vezes em vinte mil partidas) para qualquer média enxergar, e só um teste de **sorteio roteirizado**
+cobre esse caminho. Ver o item 46 do `OPEN-QUESTIONS.md`.
+
 **Alavanca dominante do modelo:** 20 pontos de força de diferença no meio-campo (~ 2,0 em unidades
 de `B()`) levam o duelo de posse de 55% para ~69% e o de chance de 50% para ~56% - cerca de **40% de
 variação no volume de chutes**.

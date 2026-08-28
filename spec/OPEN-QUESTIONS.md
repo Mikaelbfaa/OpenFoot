@@ -1355,7 +1355,7 @@ fase 0, 15 na fase 1 e 17 na fase 2. O alívio médio de marcação é `0,65 x 3
 ```
 
 As sobrescritas do limiar (defeito 5 da 3.15) só aumentam esse limiar, nunca o diminuem, então só
-derrubam essa conta. Medido em `SanityCheckTest`: **1,28375** por partida, abaixo de 1,512 e coerente
+derrubam essa conta. Medido em `SanityCheckTest`: **1,285** por partida, abaixo de 1,512 e coerente
 com a direção das sobrescritas. A 3.16 pede 2 a 3. Fica abaixo.
 
 **Vermelho.** O limiar de vermelho não sofre nenhuma das sobrescritas da 3.8: elas mexem só no
@@ -1369,7 +1369,7 @@ A 3.16 pede 8 a 12, e essa conta bateria. Mas `MatchEvent.SendingOff` não conta
 direto: a 3.8 chama o segundo amarelo de "evento distinto", e a documentação de
 `MatchEvent.Booking` registra que um segundo amarelo grava os dois eventos, o cartão e a expulsão.
 A contagem medida é de expulsões dos dois tipos, não só de vermelho direto, e por isso vem mais alta
-que a conta acima: **uma a cada 6,038647342995169 partidas**, medido em `SanityCheckTest`. Isso fica
+que a conta acima: **uma a cada 6,036824630244491 partidas**, medido em `SanityCheckTest`. Isso fica
 abaixo do piso de 8 que a própria 3.16 pede. Também fica abaixo, e pelo lado oposto ao que a tabela
 de vermelho direto sozinha sugeriria: não é que faltem expulsões, é que a tabela de vermelho direto
 nunca foi a conta inteira.
@@ -1390,7 +1390,7 @@ partida, dá a cada lado o sorteio inteiro que hoje os dois lados dividem entre 
 o **total combinado** dos dois lados passaria a valer para **cada lado sozinho**, sem repartição
 nenhuma.
 
-Amarelo, sobre o valor medido e não sobre a previsão pré-sobrescritas: `1,28375 x 2 = 2,5675` por
+Amarelo, sobre o valor medido e não sobre a previsão pré-sobrescritas: `1,285 x 2 = 2,57` por
 partida - dentro dos 2 a 3 da 3.16, e não perto da borda. Lesão, sobre o valor medido: hoje o total
 combinado é `2 / 17,248814144027598 = 0,11596` por partida; sob a leitura alternativa cada lado
 sozinho passaria a ter essa taxa inteira, uma lesão a cada `1 / 0,11596 = 8,6` partidas por lado -
@@ -1403,17 +1403,17 @@ segundo amarelo, que só conta como par quando as duas cartas caem no mesmo joga
 direto simplesmente dobra: `0,122 x 2 = 0,244` por partida. O segundo amarelo não dobra, escala com
 o **quadrado** do volume de cada lado, porque a chance de duas cartas caírem no mesmo jogador é a
 chance conjunta de duas cartas, cada uma já proporcional ao volume. Hoje, o excedente medido sobre a
-tabela de vermelho direto - `0,165600 - 0,122 = 0,0436` por partida, combinado - é inteiramente
-segundo amarelo, e se reparte em cerca de `0,0436 / 2 = 0,0218` por lado, sobre um volume de amarelo
-de `1,28375 / 2 = 0,642` por lado. Sob a leitura alternativa esse volume por lado dobra para
-`1,28375`, e como o segundo amarelo escala com o quadrado do volume, o excedente por lado escala por
-`2^2 = 4`: `0,0218 x 4 = 0,0872` por lado, `0,174` somado nos dois lados. Total de vermelho sob a
-leitura alternativa: `0,244 + 0,174 = 0,418` por partida, uma expulsão a cada `1 / 0,418 = 2,4`
+tabela de vermelho direto - `0,165650 - 0,122 = 0,04365` por partida, combinado - é inteiramente
+segundo amarelo, e se reparte em cerca de `0,04365 / 2 = 0,021825` por lado, sobre um volume de amarelo
+de `1,285 / 2 = 0,6425` por lado. Sob a leitura alternativa esse volume por lado dobra para
+`1,285`, e como o segundo amarelo escala com o quadrado do volume, o excedente por lado escala por
+`2^2 = 4`: `0,021825 x 4 = 0,0873` por lado, `0,1746` somado nos dois lados. Total de vermelho sob a
+leitura alternativa: `0,244 + 0,1746 = 0,4186` por partida, uma expulsão a cada `1 / 0,4186 = 2,4`
 partidas - bem fora dos 8 a 12 da própria 3.16.
 
 **A leitura alternativa não é uma correção parcial: ela troca qual dos três números falha, e piora
 o pior deles.** Na leitura atual o vermelho já é o número mais próximo de bater: medido, ele é
-`8 / 6,038647342995169 = 1,3` vezes mais frequente que o piso da 3.16. Sob a leitura alternativa ele
+`8 / 6,036824630244491 = 1,3` vezes mais frequente que o piso da 3.16. Sob a leitura alternativa ele
 vira o único que não bate, e passa a `8 / 2,4 = 3,3` vezes mais frequente que esse mesmo piso - o
 pior desvio dos seis números desta questão, de longe, e cerca do triplo do desvio que a leitura
 atual já tem no mesmo número.
@@ -1456,6 +1456,52 @@ Dois ajustes de aritmética, os dois na mesma direção (menos cartões ainda):
    não 17 e 17. A conta prevista para o amarelo sai em 1,51 por partida do mesmo jeito.
 
 Continua **observável** no original, e é o teste que fecharia os três números de uma vez.
+
+**Re-medição depois das seis correções da 3.8 (MEDIDO, `SanityCheckTest`).** As seis correções
+aplicadas depois de a 3.8 ser verificada contra o original mexeram em dois dos três números, os dois
+por um mecanismo só. Nas casas decimais que a 3.16 publica nenhum dos três se mexeu, e a 3.16
+continua correta como está.
+
+| Número | Antes | Depois | Causa |
+|---|---|---|---|
+| Amarelos por partida | 1,28375 | **1,285** | expulsão por 2º amarelo deixou de alimentar o contador de vermelhos |
+| Partidas por expulsão | 6,038647342995169 | **6,036824630244491** | consequência do anterior: mais amarelos, mais 2º amarelo |
+| Partidas por lesão, por lado | 17,248814144027598 | **17,248814144027598** | inalterado |
+
+A causa dos dois primeiros é uma só, e é a mesma correção do item 39: uma expulsão por segundo
+amarelo soma 1 ao contador de amarelos e **nada** ao de vermelhos. A sobrescrita `>= 2 vermelhos`
+troca o limiar do amarelo por `2 x limiarVermelho`, que é muito **maior** que o limiar de amarelo -
+ou seja, derruba os cartões; alimentá-la com menos eventos faz ela disparar menos, e sobram mais
+amarelos. Mais amarelos produzem, na margem, mais pares de amarelo no mesmo jogador: a contagem de
+vermelho direto do mesmo experimento fica **inalterada em 2463** e todo o movimento das expulsões -
+uma em vinte mil partidas - é de segundo amarelo, que é exatamente o que essa leitura prevê.
+
+A lesão não se mexeu porque a correção que mexe em lesão é outra: uma duração de 0 deixou de
+registrar lesão nenhuma. A 3.8 só sorteia duração 0 para idade <= 20, e o par de times da 3.16 é todo
+de 25 anos, então o caso é inalcançável ali. Ele é alcançável no par com banco de reservas
+(`BenchedSanityCheckTest`), e lá o efeito é visível: **32 lesões de duração 0 no log antes da
+correção, 0 depois**, sobre a mesma amostra de vinte mil partidas.
+
+A outra metade da correção do item 39 - os contadores contarem **tentativas** e não eventos - quase
+não morde neste par de times, e isso é uma propriedade do par e não do motor: a formação 4 ocupa os
+**sete** grupos de risco da 3.8 no apito inicial, então a tentativa que sorteia um grupo vazio só
+acontece depois de alguém já ter saído de campo.
+
+Isso é **raro, e não estruturalmente impossível**, e a diferença importa. Duas coisas tornam o caso
+mais provável do que parece:
+
+1. **Não é só a expulsão que esvazia uma célula.** O par da 3.16 joga **sem banco**, então ninguém é
+   reposto e uma **lesão** esvazia a célula exatamente como uma expulsão - e a lesão é cerca de
+   **41% das saídas** (0,11595 lesões contra 0,16565 expulsões por partida, 0,2816 somadas).
+2. **A ocupação dos sete grupos não é uniforme.** O **g4** são as células 8-9, e a formação 4 tem só
+   o slot 9 ali; o grupo do goleiro tem só o slot 1. Nesses dois, **uma única saída** já esvazia o
+   grupo.
+
+Mesmo assim o caso é raro demais para qualquer faixa agregada enxergar - da ordem de umas poucas
+vezes em vinte mil partidas -, e é essa raridade, não uma impossibilidade estrutural, que faz os dois
+movimentos acima serem da ordem de 0,1%. Quem cobre esse caminho é o **sorteio roteirizado do
+`DisciplineChainTest`**, que é a única cobertura que ele tem e não pode ser removida com o argumento
+de que a formação 4 preenche os sete grupos.
 
 ### 47. Se o sacrifício da expulsão e a reposição da lesão valem no 1º tempo
 
@@ -1592,3 +1638,45 @@ tire ninguém que já foi trocado nesta partida", que é uma afirmação mais fo
 não há número nenhum na 3.8 para esse prazo, e inventar um seria escolher a intensidade da regra no
 lugar do original. Note que as duas leituras só divergem quando um lado já trocou e a janela sorteia
 justamente o substituto, o que o teto de cinco trocas mantém raro.
+
+### 50. Quantas janelas voluntárias de substituição a 3.8 tem, e como elas viram três motivos
+
+A 3.8 se conta de duas maneiras no mesmo parágrafo. A frase de abertura diz "as **três** janelas
+**voluntárias** abaixo só abrem no 2º tempo (+ janela do intervalo)", ou seja **quatro**; e logo
+abaixo dela vêm **dois** marcadores, "Minutos correndo atrás" e "Minutos de rotina". O parágrafo de
+resolução que fecha a seção volta a nomear três situações e não quatro: "No intervalo", "Em minuto
+correndo atrás", "Em minuto de rotina". Contando os marcadores dá 2 + 1 = 3; contando a primeira
+frase dá 3 + 1 = 4.
+
+**Resolução (INFERIDO): são quatro janelas, e elas chegam ao log sob três motivos.** As três
+voluntárias são "correndo atrás", "rotina" e o **pool tardio de 43-47**, que o próprio marcador de
+rotina descreve como "+1 de **43-47** com 79% e +1 de 43-47 com 49%"; com a janela do intervalo dão
+os quatro da primeira frase. Rotina e tardia compartilham um motivo porque saem da **mesma varredura
+de cansaço**, e por isso quatro janelas produzem três motivos.
+
+É o que o motor faz, e a correspondência é direta. `matchSubstitutionPlans` sorteia **três** coisas
+separadas - `chasingPool` (19-38), `routinePools` (5-15 / 16-35 / 36-42) e `latePool` (43-47) -, e
+`sidePlan` dobra a fatia tardia **dentro de** `plan.routine`. Depois `runSubstitutionWindow` atribui
+`HALF_TIME` ao intervalo, `CHASING` a `plan.chasing` e `TIREDNESS` a `plan.routine`, que já engloba a
+tardia. Quatro sorteios de pool, três motivos.
+
+A aritmética é o que força a leitura. Com duas janelas voluntárias o "três" da primeira frase não
+fecha de jeito nenhum, e o pool tardio é a **única** coisa da seção que é sorteada de um intervalo
+próprio (43-47), com moedas próprias (79% e 49%), e que não é nem "correndo atrás" nem um dos três
+pools de rotina. É o único candidato a terceira janela voluntária que o texto oferece.
+
+**Leitura alternativa, não adotada: o "três" é um erro de contagem e as voluntárias são duas.** Sob
+ela as janelas são três no total - "correndo atrás", "rotina" e o intervalo - e a fatia tardia é
+apenas mais uns minutos de rotina. A favor dela: é a contagem que os dois marcadores dão, é a que o
+parágrafo de resolução dá, e é como o próprio motor se descreve (o docstring de
+`runSubstitutionWindow` fala de "Three windows in the order section 3.8 lists them"). Contra: exige
+que a primeira frase esteja errada, quando existe uma leitura em que ela está certa; e a fatia tardia
+é mesmo um sorteio à parte, de um pool à parte, com moedas à parte, então tratá-la como parte da
+rotina é uma escolha e não um fato do texto.
+
+**Nada observável depende disso.** As duas leituras produzem exatamente o mesmo motor: a fatia tardia
+é acrescentada a `plan.routine` e lida pela mesma varredura de cansaço nas duas, e nenhum número
+muda. A questão é de **vocabulário** - quantas "janelas" nomear ao descrever a seção -, e está
+registrada porque a validação usa a contagem de quatro: o docstring do teste de motivos do
+`BenchedSanityCheckTest` diz que a 3.8 nomeia quatro janelas que chegam ao log sob três motivos, e um
+leitor que conte os marcadores acharia que é engano.
