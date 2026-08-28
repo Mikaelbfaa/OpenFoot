@@ -221,6 +221,7 @@ object RuleSets {
             ),
             permanentLossAge = 35,
             permanentLossAmount = 5,
+            permanentLossFloor = 1,
         ),
         substitutions = SubstitutionRules(
             maxPerSide = 5,
@@ -239,7 +240,7 @@ object RuleSets {
             routineCount = 2,
             lateWindow = 43..47,
             lateChancePercents = listOf(79, 49),
-            halfTimeSwapPercent = 50,
+            halfTimeSwapPercent = 49,
             halfTimeDeficit = listOf(1, 2),
             chasingDeficit = listOf(0, 1),
             tirednessThreshold = 60,

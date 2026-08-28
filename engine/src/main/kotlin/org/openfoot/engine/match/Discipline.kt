@@ -340,6 +340,15 @@ private fun MatchState.sacrificeFor(team: TeamSide, cell: Slot, minute: Int): Ma
  * already moved it the moment the injury roll matched, so it counts the
  * attempt rather than the injury, and a group whose cells nobody stands in
  * still leaves it moved even though nobody is ever hurt.
+ *
+ * A duration of nought, which only a player of twenty or under can draw and
+ * only when his own short term x comes up nought, registers no injury at all:
+ * section 3.8 says outright that it is not a lesao, so no Injury event is
+ * logged and no days are ever charged to the player. He still leaves the
+ * pitch exactly as any other injured man does, through the same
+ * canSubstitute check and the same replacement search below; what changes is
+ * only the log, not the departure. The injuries counter still moved above,
+ * since it counts the attempt rather than what the log ends up holding.
  */
 @SpecRef("3.8")
 private fun MatchState.injure(team: TeamSide, minute: Int, rng: Rng): MatchState {
@@ -350,19 +359,24 @@ private fun MatchState.injure(team: TeamSide, minute: Int, rng: Rng): MatchState
     val outcome = injuryOutcome(
         age = player.age,
         energy = sideState.energy.getValue(player.id),
+        strength = player.strength,
         rules = setup.rules,
         rng = rng,
     )
 
-    val hurt = copy(
-        log = log + MatchEvent.Injury(
-            minute = minute,
-            side = team,
-            player = player,
-            days = outcome.days,
-            permanentStrengthLoss = outcome.permanentStrengthLoss,
-        ),
-    )
+    val hurt = if (outcome.days == 0) {
+        this
+    } else {
+        copy(
+            log = log + MatchEvent.Injury(
+                minute = minute,
+                side = team,
+                player = player,
+                days = outcome.days,
+                permanentStrengthLoss = outcome.permanentStrengthLoss,
+            ),
+        )
+    }
 
     if (!canSubstitute(
             side,

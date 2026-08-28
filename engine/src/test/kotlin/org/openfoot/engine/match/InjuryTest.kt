@@ -14,6 +14,10 @@ import kotlin.test.assertEquals
  * rand(100). All are drawn before the age is consulted, so the stream costs
  * the same whatever the player's age, which is what keeps a squad's ages from
  * shifting every later draw of the match.
+ *
+ * Every case that does not care about the permanent strength loss passes a
+ * strength of a hundred, which is far enough above the five the loss can ever
+ * take that the floor can never be the thing under test by accident.
  */
 class InjuryTest {
 
@@ -25,8 +29,9 @@ class InjuryTest {
      */
     @Test
     fun `the youngest players discard the energy term`() {
-        val onEmpty = injuryOutcome(age = 20, energy = 0, rules = RULES, rng = ScriptedInts(6, 0, 50))
-        val onFull = injuryOutcome(age = 20, energy = 100, rules = RULES, rng = ScriptedInts(6, 0, 50))
+        val onEmpty = injuryOutcome(age = 20, energy = 0, strength = 100, rules = RULES, rng = ScriptedInts(6, 0, 50))
+        val onFull =
+            injuryOutcome(age = 20, energy = 100, strength = 100, rules = RULES, rng = ScriptedInts(6, 0, 50))
         assertEquals(6, onEmpty.days)
         assertEquals(6, onFull.days)
     }
@@ -39,9 +44,9 @@ class InjuryTest {
      */
     @Test
     fun `energy sets the base three ways`() {
-        assertEquals(12, injuryOutcome(25, 9, RULES, ScriptedInts(6, 0, 50)).days)
-        assertEquals(8, injuryOutcome(25, 49, RULES, ScriptedInts(6, 0, 50)).days)
-        assertEquals(7, injuryOutcome(25, 50, RULES, ScriptedInts(6, 0, 50)).days)
+        assertEquals(12, injuryOutcome(25, 9, 100, RULES, ScriptedInts(6, 0, 50)).days)
+        assertEquals(8, injuryOutcome(25, 49, 100, RULES, ScriptedInts(6, 0, 50)).days)
+        assertEquals(7, injuryOutcome(25, 50, 100, RULES, ScriptedInts(6, 0, 50)).days)
     }
 
     /**
@@ -50,9 +55,9 @@ class InjuryTest {
      */
     @Test
     fun `each age bracket adds its own constant`() {
-        assertEquals(7, injuryOutcome(25, 100, RULES, ScriptedInts(6, 0, 50)).days)
-        assertEquals(8, injuryOutcome(30, 100, RULES, ScriptedInts(6, 0, 50)).days)
-        assertEquals(9, injuryOutcome(35, 100, RULES, ScriptedInts(6, 0, 50)).days)
+        assertEquals(7, injuryOutcome(25, 100, 100, RULES, ScriptedInts(6, 0, 50)).days)
+        assertEquals(8, injuryOutcome(30, 100, 100, RULES, ScriptedInts(6, 0, 50)).days)
+        assertEquals(9, injuryOutcome(35, 100, 100, RULES, ScriptedInts(6, 0, 50)).days)
     }
 
     /**
@@ -63,7 +68,7 @@ class InjuryTest {
      */
     @Test
     fun `the second age bracket starts at twenty one`() {
-        assertEquals(7, injuryOutcome(21, 100, RULES, ScriptedInts(6, 0, 50)).days)
+        assertEquals(7, injuryOutcome(21, 100, 100, RULES, ScriptedInts(6, 0, 50)).days)
     }
 
     /**
@@ -72,7 +77,7 @@ class InjuryTest {
      */
     @Test
     fun `players past thirty five draw the long term`() {
-        assertEquals(15, injuryOutcome(36, 100, RULES, ScriptedInts(6, 4, 50)).days)
+        assertEquals(15, injuryOutcome(36, 100, 100, RULES, ScriptedInts(6, 4, 50)).days)
     }
 
     /**
@@ -84,13 +89,13 @@ class InjuryTest {
      */
     @Test
     fun `the long term bracket ends at forty five`() {
-        assertEquals(15, injuryOutcome(45, 100, RULES, ScriptedInts(6, 4, 50)).days)
+        assertEquals(15, injuryOutcome(45, 100, 100, RULES, ScriptedInts(6, 4, 50)).days)
     }
 
     /** Past forty five a further ten days is added on top of the long term. */
     @Test
     fun `players past forty five add ten days more`() {
-        assertEquals(25, injuryOutcome(46, 100, RULES, ScriptedInts(6, 4, 50)).days)
+        assertEquals(25, injuryOutcome(46, 100, 100, RULES, ScriptedInts(6, 4, 50)).days)
     }
 
     /**
@@ -102,22 +107,58 @@ class InjuryTest {
      */
     @Test
     fun `severity is added in the spec's order`() {
-        assertEquals(7 + 70, injuryOutcome(25, 100, RULES, ScriptedInts(6, 0, 1)).days)
-        assertEquals(7 + 40, injuryOutcome(25, 100, RULES, ScriptedInts(6, 0, 0)).days)
-        assertEquals(7 + 40, injuryOutcome(25, 100, RULES, ScriptedInts(6, 0, 3)).days)
-        assertEquals(7 + 20, injuryOutcome(25, 100, RULES, ScriptedInts(6, 0, 4)).days)
-        assertEquals(7 + 20, injuryOutcome(25, 100, RULES, ScriptedInts(6, 0, 9)).days)
-        assertEquals(7, injuryOutcome(25, 100, RULES, ScriptedInts(6, 0, 10)).days)
+        assertEquals(7 + 70, injuryOutcome(25, 100, 100, RULES, ScriptedInts(6, 0, 1)).days)
+        assertEquals(7 + 40, injuryOutcome(25, 100, 100, RULES, ScriptedInts(6, 0, 0)).days)
+        assertEquals(7 + 40, injuryOutcome(25, 100, 100, RULES, ScriptedInts(6, 0, 3)).days)
+        assertEquals(7 + 20, injuryOutcome(25, 100, 100, RULES, ScriptedInts(6, 0, 4)).days)
+        assertEquals(7 + 20, injuryOutcome(25, 100, 100, RULES, ScriptedInts(6, 0, 9)).days)
+        assertEquals(7, injuryOutcome(25, 100, 100, RULES, ScriptedInts(6, 0, 10)).days)
     }
 
     /**
-     * From thirty five the player loses five strength for good. The match only
-     * reports it: strength lives on the squad, which the engine cannot reach.
+     * From thirty five the player loses five strength for good, unless he does
+     * not have five to lose. On a hundred strength the loss is the plain five
+     * section 3.8 names; a player one year younger loses nothing at all.
      */
     @Test
     fun `an injury past thirty five costs five strength for good`() {
-        assertEquals(5, injuryOutcome(35, 100, RULES, ScriptedInts(6, 0, 50)).permanentStrengthLoss)
-        assertEquals(0, injuryOutcome(34, 100, RULES, ScriptedInts(6, 0, 50)).permanentStrengthLoss)
+        assertEquals(5, injuryOutcome(35, 100, 100, RULES, ScriptedInts(6, 0, 50)).permanentStrengthLoss)
+        assertEquals(0, injuryOutcome(34, 100, 100, RULES, ScriptedInts(6, 0, 50)).permanentStrengthLoss)
+    }
+
+    /**
+     * The floor only bites when subtracting five would carry the strength
+     * below nought, and even then it does not simply hand back one: it hands
+     * back only what is needed to reach the floor. A strength of five losing
+     * five lands exactly on nought and is left there, a reported loss of five
+     * rather than one; a strength of three losing five would land on minus
+     * two, so it is clamped to the floor of one instead, a reported loss of
+     * two rather than five.
+     */
+    @Test
+    fun `the floor only catches a result that would go negative`() {
+        assertEquals(
+            5,
+            injuryOutcome(35, 100, 5, RULES, ScriptedInts(6, 0, 50)).permanentStrengthLoss,
+            "five minus five lands on nought and is not floored to one",
+        )
+        assertEquals(
+            2,
+            injuryOutcome(35, 100, 3, RULES, ScriptedInts(6, 0, 50)).permanentStrengthLoss,
+            "three minus five would go negative, so it is clamped to the floor of one",
+        )
+    }
+
+    /**
+     * A duration of nought is possible only for a player of twenty or under,
+     * whose x can draw nought. injuryOutcome itself does not special case it:
+     * the zero is a plain sum of a nought x and no severity bonus, and it is
+     * the caller in Discipline.kt that reads a nought and skips the log entry.
+     * See DisciplineChainTest for that half of the rule.
+     */
+    @Test
+    fun `a twenty year old can draw a duration of nought`() {
+        assertEquals(0, injuryOutcome(20, 100, 100, RULES, ScriptedInts(0, 0, 50)).days)
     }
 
     /**
@@ -128,7 +169,7 @@ class InjuryTest {
     fun `the same three draws are made at every age`() {
         for (age in listOf(18, 25, 30, 35, 40, 50)) {
             val rng = ScriptedInts(6, 4, 50)
-            injuryOutcome(age, 100, RULES, rng)
+            injuryOutcome(age, 100, 100, RULES, rng)
             assertEquals(3, rng.draws, "age $age")
         }
     }

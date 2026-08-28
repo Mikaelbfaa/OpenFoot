@@ -346,6 +346,124 @@ class DisciplineChainTest {
     }
 
     /**
+     * A duration of nought registers no injury at all, which section 3.8 says
+     * outright is possible only for a player of twenty or under whose own
+     * short term x draws nought. Three facts, pinned together: the player
+     * still leaves the pitch, no Injury event reaches the log, and the
+     * injuries counter still moves, because it counts the attempt rather than
+     * the log entry.
+     *
+     * The cell 5 player is twenty here rather than the usual twenty five, on a
+     * home side built by hand for exactly that reason. The same nine draws as
+     * the injury above, except the short term x, which is nought rather than
+     * three:
+     *
+     * 1. 56 for the victim side, so the home side
+     * 2. 0 against the yellow threshold of 70, a miss
+     * 3. 0 against the red threshold of 900, a miss
+     * 4. 1 against the injury threshold of 1000, so an injury fires
+     * 5. 250 for the risk group, the injury table's g2 band of 250 to 319
+     * 6. 1 for the player, the second of the home side's two cells in that
+     *    range, which is cell 5
+     * 7. 0 for the short term x, discarding the energy term as every player
+     *    of his age does
+     * 8. 0 for the long term draw, which he does not use either
+     * 9. 50 for the severity, inside the band that adds nothing
+     *
+     * Nought x plus no severity bonus is nought days, and the home bench is
+     * empty, so the departure runs through the plain leavePitch fallback
+     * rather than through a replacement.
+     */
+    @Test
+    fun `a duration of nought registers no injury but still counts the attempt`() {
+        val ints = ScriptedInts(56, 0, 0, 1, 250, 1, 0, 0, 50)
+        val home = Lineups.side(
+            Lineups.FORMATION_4_4_2.map { cell ->
+                Lineups.player(cell, strength = 50, age = if (cell == 5) 20 else 25)
+            },
+            context = Lineups.context(isHome = true),
+        )
+        val away = Lineups.sideOfSlots(
+            Lineups.FORMATION_4_4_2,
+            strength = 50,
+            context = Lineups.context(isHome = false),
+        )
+        val before = initialState(
+            setup = MatchSetup(home = home, away = away, season = 1, rules = RuleSets.CLASSIC),
+            startingPossessor = TeamSide.HOME,
+            homeBench = emptyList(),
+            awayBench = emptyList(),
+        )
+
+        val after = before.disciplineMinute(FIRST_HALF_MINUTE, CLOCK, disciplineOnly(ints))
+
+        assertEquals(9, ints.draws, "an injury attempt costs six chain draws and three duration draws at nought too")
+        assertEquals(DisciplineCounts(injuries = 1), after.counts, "the attempt still counts")
+        assertTrue(after.log.isEmpty(), "a duration of nought is not a lesao, so nothing is logged: ${after.log}")
+        assertNull(
+            after.setup.home.lineup.firstOrNull { it.slot.value == 5 },
+            "the player still leaves the pitch even though nothing was logged",
+        )
+        assertEquals(10, after.setup.home.lineup.size, "the side plays on a man short")
+        assertEquals(0, after.home.substitutionsUsed, "an empty bench spends no substitution")
+    }
+
+    /**
+     * The same duration of nought, with a bench available this time, to pin
+     * that a departure logging no Injury event still runs through the same
+     * replacement search as any other injury rather than skipping it. Without
+     * this case the reading that a duration of nought is still replaced is
+     * documented but not tested: a version that returned early on days equal
+     * to nought, before ever reaching canSubstitute, would pass every other
+     * test in this file.
+     *
+     * The same nine draws and the same hand built home side as the case
+     * above, with the ordinary three man bench in place of the empty one.
+     * Cell 5 asks for a centre back, so the bench's defensive centre back
+     * comes on, exactly as in the twenty five year old version of this same
+     * injury further up this file.
+     */
+    @Test
+    fun `a duration of nought is still replaced when the bench allows it`() {
+        val ints = ScriptedInts(56, 0, 0, 1, 250, 1, 0, 0, 50)
+        val home = Lineups.side(
+            Lineups.FORMATION_4_4_2.map { cell ->
+                Lineups.player(cell, strength = 50, age = if (cell == 5) 20 else 25)
+            },
+            context = Lineups.context(isHome = true),
+        )
+        val away = Lineups.sideOfSlots(
+            Lineups.FORMATION_4_4_2,
+            strength = 50,
+            context = Lineups.context(isHome = false),
+        )
+        val before = initialState(
+            setup = MatchSetup(home = home, away = away, season = 1, rules = RuleSets.CLASSIC),
+            startingPossessor = TeamSide.HOME,
+            homeBench = bench(),
+            awayBench = emptyList(),
+        )
+
+        val after = before.disciplineMinute(FIRST_HALF_MINUTE, CLOCK, disciplineOnly(ints))
+
+        assertEquals(9, ints.draws, "a replaced duration of nought costs the same nine draws")
+        assertEquals(DisciplineCounts(injuries = 1), after.counts, "the attempt still counts")
+        assertTrue(
+            after.log.none { it is MatchEvent.Injury },
+            "a duration of nought is not a lesao, so no Injury event reaches the log: ${after.log}",
+        )
+
+        val swap = after.log.single() as MatchEvent.Substitution
+        assertEquals(SubstitutionReason.INJURY, swap.reason, "the reason logged")
+        assertEquals(5, swap.off.slot.value, "the player still leaves through his own cell")
+        assertEquals(DEFENCE_RESERVE, swap.on.id, "the reserve who suits the vacated cell comes on")
+        assertEquals(5, swap.on.slot.value, "he takes the cell the departed player left")
+
+        assertEquals(11, after.setup.home.lineup.size, "a bench that can replace him keeps the side at eleven")
+        assertEquals(1, after.home.substitutionsUsed, "the replacement spends a substitution")
+    }
+
+    /**
      * Section 3.8's real keeper restriction, confirmed against the original to
      * run the opposite way from what the old spec text said: a reserve keeper
      * may not come on for an injured outfielder. The old text read as a filter

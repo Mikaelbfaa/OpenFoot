@@ -72,6 +72,18 @@ import kotlin.test.assertTrue
  * cases instead, which assert the counters and a computed threshold directly
  * rather than a match's recorded figures, and so cannot be rebaselined out
  * from under a regression the way a figure in this file could be.
+ *
+ * A third blindness sits alongside the two above and for the same reason as
+ * both: every player in every fixture here is age twenty five, the default
+ * playAt never overrides. Nothing that reads age can move a figure in this
+ * file. The post thirty five permanent strength loss, its floor at one, and
+ * the duration of nought that only a player of twenty or under can draw are
+ * all unreachable here regardless of what else changes; so is every one of
+ * the five age brackets injuryOutcome's ageTerms and energyBase read. A later
+ * task touching any age gated rule should expect this file to stay perfectly
+ * still and read that as confirming this blindness, not as evidence the
+ * change did nothing; DisciplineChainTest and InjuryTest are where an age
+ * gated rule is actually pinned.
  */
 class MatchGoldenVectorTest {
 

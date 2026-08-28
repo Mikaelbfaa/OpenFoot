@@ -60,6 +60,18 @@ data class DisciplineRates(
      * like RuleSet.markingBonus, so the table stays data rather than a when
      * chain. The red and injury thresholds take no relief at all; section 3.8
      * applies this only to the yellow row.
+     *
+     * Section 3.8 also says a marking value outside 0 to 2 falls back to the
+     * relief of 30, the LIGHT row. That branch has no code here and needs
+     * none: Marking is a three member enum, LIGHT, HEAVY and VERY_HEAVY, whose
+     * ordinal can only ever be nought, one or two, and yellowMarkingRelief is
+     * built with exactly three entries in RuleSets.kt, so this index can never
+     * fall outside the list. A guard here would be dead code defending against
+     * a value the type system already makes unreachable, which is worse than
+     * stating so in a docstring. Marking.ofOrdinal is the one place an out of
+     * range ordinal could ever be produced, from data read off the outside
+     * world, and it already throws rather than falling back to LIGHT; this
+     * function is never reached with a value that call rejected.
      */
     fun markingRelief(marking: Marking): Int = yellowMarkingRelief[marking.ordinal]
 }
@@ -92,6 +104,12 @@ data class InjuryTerm(
  * before <4 before <10, and draw nought falls through the first test and
  * lands on the second. That overlap is the spec's own and the band order is
  * load bearing; do not tidy it into a disjoint table.
+ *
+ * permanentLossFloor is what the post thirty five strength loss clamps to
+ * when subtracting permanentLossAmount would carry the player below nought,
+ * and only then: a strength that lands exactly on nought after the
+ * subtraction is left there rather than raised to the floor. The engine's own
+ * injuryOutcome is the reader; see its docstring for the arithmetic.
  */
 @SpecRef("3.8")
 data class InjuryRules(
@@ -103,6 +121,7 @@ data class InjuryRules(
     @property:SpecRef("3.8") val severity: List<Band<Int>>,
     @property:SpecRef("3.8") val permanentLossAge: Int,
     @property:SpecRef("3.8") val permanentLossAmount: Int,
+    @property:SpecRef("3.8") val permanentLossFloor: Int,
 )
 
 /**

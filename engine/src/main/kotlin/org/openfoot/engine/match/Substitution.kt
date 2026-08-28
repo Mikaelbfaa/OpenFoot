@@ -200,7 +200,7 @@ internal fun sacrificeTarget(side: MatchSide, rules: RuleSet, dismissedWasKeeper
  * one thing that makes a scripted test able to say which draw produced which
  * minute.
  *
- * halfTimeSwap is the interval's fifty per cent coin, drawn here with the rest
+ * halfTimeSwap is the interval's forty nine per cent coin, drawn here with the rest
  * of the plan rather than at the interval itself. It depends on nothing the
  * interval knows, so drawing it up front keeps a conditional draw out of the
  * per minute stream.
@@ -282,7 +282,7 @@ data class MatchSubstitutionPlans(
  *    position of its late slice below 79
  * 7. the home side's second late coin, rand(100), which takes the second
  *    position below 49
- * 8. the home side's interval coin, rand(100), which swaps below 50
+ * 8. the home side's interval coin, rand(100), which swaps below 49
  * 9. the same five coins for the away side, in the same order
  *
  * Every pool is drawn whether or not a coin later reads it, which is what
@@ -490,6 +490,13 @@ private fun deficitOf(state: MatchState, team: TeamSide): Int =
  * stands in, the same way section 3.9's drain exempts him, so a keeper
  * improvised into a line cell is scanned like anybody else and an outfielder
  * improvised into goal is skipped like a keeper.
+ *
+ * The late scan does not wrap. It walks from the drawn start to the end of
+ * the lineup and stops there, so a tired man sitting before the start index
+ * is never reached and the scan can finish having found nobody even though
+ * somebody on the pitch qualifies. Section 3.8 states this outright, and it
+ * is the original's own shortfall rather than an oversight here: a scan
+ * written to wrap would find that same man and change him instead.
  */
 @SpecRef("3.8")
 internal fun tirednessTarget(
@@ -509,8 +516,8 @@ internal fun tirednessTarget(
     val start = if (late) rng.rand(lineup.size) else 0
     val energy = state.of(team).energy
 
-    for (step in lineup.indices) {
-        val player = lineup[(start + step) % lineup.size]
+    for (index in start until lineup.size) {
+        val player = lineup[index]
         if (player.slot.value == rules.keeperSlot) {
             continue
         }

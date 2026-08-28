@@ -162,27 +162,29 @@ class SubstitutionWindowTest {
 
     /**
      * The late scan starts where the draw says and walks forward from there,
-     * wrapping past the end of the lineup. Cell twenty two is the second man
-     * in the list and the only tired one, so a start of nought reaches him at
-     * once and a start of three has to walk the other eight, pass the keeper
-     * and come back round to him.
+     * to the end of the lineup and no further. Cell twenty two is the second
+     * man in the list and the only tired one, so a start of nought reaches him
+     * at once; a start of three walks the remaining seven, never reaches back
+     * to him, and finds nobody.
      *
      * A start of two, with cells twenty two and two both tired, proves the
      * walk goes forward rather than back: it skips the twenty two behind it
-     * and takes the two ahead of it.
+     * and still reaches the two ahead of it, which a version that stopped
+     * scanning at the first miss rather than continuing to the end would also
+     * fail.
      */
     @Test
-    fun `the late scan starts at the drawn index and wraps`() {
+    fun `the late scan walks forward to the end and stops`() {
         val oneTired = withEnergy(mapOf(22 to 85))
         assertEquals(
             22,
             tirednessTarget(oneTired, TeamSide.HOME, intoHalf = 41, rng = ScriptedInts(0))!!
                 .slot.value,
+            "a start at the front reaches him without needing to wrap",
         )
-        assertEquals(
-            22,
-            tirednessTarget(oneTired, TeamSide.HOME, intoHalf = 41, rng = ScriptedInts(3))!!
-                .slot.value,
+        assertNull(
+            tirednessTarget(oneTired, TeamSide.HOME, intoHalf = 41, rng = ScriptedInts(3)),
+            "a start past him walks only to the end of the lineup and never circles back",
         )
 
         val twoTired = withEnergy(mapOf(22 to 85, 2 to 85))
@@ -190,6 +192,29 @@ class SubstitutionWindowTest {
             2,
             tirednessTarget(twoTired, TeamSide.HOME, intoHalf = 41, rng = ScriptedInts(2))!!
                 .slot.value,
+        )
+    }
+
+    /**
+     * The exact shape the missing wrap costs a match: a tired man stands at
+     * list index nought, and a start drawn anywhere after him leaves him
+     * unreached. The formation's own list puts the keeper at index nought,
+     * whom the scan would skip regardless of his energy, so this uses
+     * FRONT_LOADED_CELLS to put a fullback there instead, with the keeper one
+     * place behind him rather than absent.
+     */
+    @Test
+    fun `a tired man at the front of the list is missed once the start is past him`() {
+        val state = withEnergy(mapOf(2 to 85), homeCells = FRONT_LOADED_CELLS)
+
+        assertEquals(
+            2,
+            tirednessTarget(state, TeamSide.HOME, intoHalf = 41, rng = ScriptedInts(0))!!.slot.value,
+            "a start at index nought reaches the tired man standing there",
+        )
+        assertNull(
+            tirednessTarget(state, TeamSide.HOME, intoHalf = 41, rng = ScriptedInts(5)),
+            "a start drawn after him walks only to the end and never circles back to index nought",
         )
     }
 
@@ -886,9 +911,10 @@ class SubstitutionWindowTest {
             awayBench: List<MatchPlayer> = emptyList(),
             humanHome: Boolean = false,
             rules: RuleSet = RULES,
+            homeCells: List<Int> = Lineups.FORMATION_4_4_2,
         ): MatchState {
             val home = Lineups.side(
-                Lineups.FORMATION_4_4_2.map { Lineups.player(it, strength = 50) },
+                homeCells.map { Lineups.player(it, strength = 50) },
                 humanManaged = humanHome,
             )
             val away = Lineups.sideOfSlots(Lineups.FORMATION_4_4_2, strength = 50)
@@ -930,7 +956,17 @@ class SubstitutionWindowTest {
             byCell: Map<Int, Int>,
             bench: List<MatchPlayer> = bench(),
             humanHome: Boolean = false,
-        ): MatchState = state(energyByCell = byCell, bench = bench, humanHome = humanHome)
+            homeCells: List<Int> = Lineups.FORMATION_4_4_2,
+        ): MatchState = state(energyByCell = byCell, bench = bench, humanHome = humanHome, homeCells = homeCells)
+
+        /**
+         * Formation four's own eleven cells, reordered so a fullback rather
+         * than the keeper stands at list index nought. Section 3.8's tiredness
+         * scan skips the keeper by his cell rather than by his position in the
+         * list, so this shape is what lets a test put a tired non keeper at
+         * the very front of the lineup.
+         */
+        val FRONT_LOADED_CELLS = listOf(2, 1, 22, 24, 11, 13, 14, 16, 9, 3, 5)
 
         fun planOf(
             chasing: List<Int> = emptyList(),

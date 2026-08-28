@@ -38,7 +38,7 @@ import kotlin.test.assertTrue
  *     late block under seventy nine
  * 26. the home side's second late coin, which takes the second position under
  *     forty nine
- * 27. the home side's interval coin, which swaps under fifty
+ * 27. the home side's interval coin, which swaps under forty nine
  * 28 to 32. the same five coins for the away side, in the same order
  *
  * The three routine pools are all shuffled whether or not a selector later
@@ -265,11 +265,12 @@ class SubstitutionPlanTest {
 
     /**
      * The interval's coin is the last draw of a side's block and swaps under
-     * fifty, so forty nine swaps and fifty does not. Each side has its own.
+     * forty nine, so forty eight swaps and forty nine does not. Each side has
+     * its own.
      */
     @Test
-    fun `the interval coin swaps under fifty`() {
-        val plans = plans(*POOLS, *coins(interval = 49), *coins(interval = 50))
+    fun `the interval coin swaps under forty nine`() {
+        val plans = plans(*POOLS, *coins(interval = 48), *coins(interval = 49))
         assertTrue(plans.home.halfTimeSwap)
         assertFalse(plans.away.halfTimeSwap)
     }
@@ -292,8 +293,8 @@ class SubstitutionPlanTest {
 
         val full = ScriptedInts(
             *POOLS,
-            *coins(extra = 68, late = LATE_BOTH, interval = 49),
-            *coins(extra = 68, late = LATE_BOTH, interval = 49),
+            *coins(extra = 68, late = LATE_BOTH, interval = 48),
+            *coins(extra = 68, late = LATE_BOTH, interval = 48),
         )
         matchSubstitutionPlans(full, RULES)
         assertEquals(TOTAL_DRAWS, full.draws)
@@ -401,16 +402,16 @@ class SubstitutionPlanTest {
     }
 
     /**
-     * The interval coin comes up heads about half the time over five hundred
-     * matches, which is the fifty per cent of section 3.8 read back out of the
-     * stream rather than off its boundary. The away side's coin is counted
-     * with the home side's, since it is a draw of its own.
+     * The interval coin comes up heads about forty nine per cent of the time
+     * over five hundred matches, which is the figure section 3.8 prints read
+     * back out of the stream rather than off its boundary. The away side's
+     * coin is counted with the home side's, since it is a draw of its own.
      */
     @Test
-    fun `the interval coin is close to even over many plans`() {
+    fun `the interval coin is close to forty nine per cent over many plans`() {
         val plans = (1L..500L).flatMap { bothPlans(it) }
         val heads = plans.count { it.halfTimeSwap }
-        assertTrue(heads in 400..600, "the fifty per cent coin came up $heads times in ${plans.size}")
+        assertTrue(heads in 400..580, "the forty nine per cent coin came up $heads times in ${plans.size}")
     }
 
     private companion object {
