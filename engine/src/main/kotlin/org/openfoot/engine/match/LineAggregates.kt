@@ -89,6 +89,23 @@ internal fun attackAggregate(side: MatchSide, rules: RuleSet): Double {
  * and rounded to a whole number on the zero to ten scale. A strength seventy
  * outfielder ends at one against a real keeper's seven, and a weaker one can
  * legitimately reach zero, which the shot resolution floor then absorbs.
+ *
+ * rules.missingKeeperRating is what a lineup with nobody at all in the keeper's
+ * cell is rated with, and Substitution.kt's chooseReplacement no longer has any
+ * path that leaves that cell empty on its own: the section 5.4 cascade fills it
+ * with no exception, taking a centre back, then a fullback, a midfielder or a
+ * forward before ever giving up, and it only comes back with nothing when the
+ * whole bench is empty. The figure is still reachable, though, and by two
+ * routes that have nothing to do with a missing reserve keeper. Discipline.kt's
+ * sacrificeFor never replaces the man sent off, only sacrifices a forward to
+ * keep shape, so a keeper's dismissal leaves the cell empty whenever the side
+ * cannot substitute at all: an empty bench, all five substitutions already
+ * spent, or a human managed side, which section 3.8 says is never substituted
+ * automatically. Discipline.kt's injure leaves the cell empty the same way for
+ * an injured keeper under the same three conditions, since canSubstitute is
+ * checked before chooseReplacement is ever asked. Both are ordinary match
+ * states rather than edge cases: a human managed side that loses its keeper to
+ * a card or a knock plays the rest of the match exactly like this.
  */
 @SpecRef("3.4")
 internal fun keeperAggregate(side: MatchSide, rules: RuleSet): Double {

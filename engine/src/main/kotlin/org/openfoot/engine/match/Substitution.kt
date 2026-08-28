@@ -1,7 +1,6 @@
 package org.openfoot.engine.match
 
 import org.openfoot.model.Half
-import org.openfoot.model.Position
 import org.openfoot.model.Rng
 import org.openfoot.model.RuleSet
 import org.openfoot.model.Slot
@@ -48,11 +47,20 @@ fun MatchPlayer.movedTo(slot: Slot): MatchPlayer = MatchPlayer(
  * the cell beats a stronger one who does not, and two who both suit it are
  * separated by strength.
  *
- * The keeper's cell is the exception section 3.8 spells out, and it is a
- * filter rather than a preference: with no keeper on the bench the cell stays
- * empty and section 3.4's missing keeper rating is what the side then plays
- * with. Every other cell falls back on the search's own catch all and is
- * always filled. See OPEN-QUESTIONS item 41.
+ * The keeper's cell carries no exception here. Section 3.8 is explicit that
+ * the section 5.4 cascade is applied to it exactly as to any other cell: with
+ * no keeper on the bench the cascade descends to a centre back, then a
+ * fullback, a midfielder and a forward, and one of them plays in goal with
+ * section 5.3's halving and section 3.4's round(GK x 0.2) on top of it. The
+ * cell stays empty only when the bench itself is empty, the same as any other
+ * cell. See OPEN-QUESTIONS item 41.
+ *
+ * The rule that used to live here, restricting the keeper's cell to a keeper
+ * reserve, does exist in section 3.8 but runs the other way and belongs to a
+ * different call site: it forbids a reserve keeper from replacing an injured
+ * outfielder, not the cascade from filling the keeper's cell with an
+ * outfielder. That refusal is applied in Discipline.kt's injure, after this
+ * function has already answered which reserve fits.
  *
  * No draw is made here at all. Which reserve comes on is decided entirely by
  * the ordering and the fit.
@@ -61,12 +69,7 @@ fun MatchPlayer.movedTo(slot: Slot): MatchPlayer = MatchPlayer(
 internal fun chooseReplacement(state: MatchState, team: TeamSide, cell: Slot): MatchPlayer? {
     val rules = state.setup.rules
     val side = state.of(team)
-    val eligible = if (cell.value == rules.keeperSlot) {
-        side.bench.filter { it.position == Position.GOALKEEPER }
-    } else {
-        side.bench
-    }
-    val ordered = eligible.sortedWith(
+    val ordered = side.bench.sortedWith(
         compareByDescending<MatchPlayer> { it.strength }
             .thenByDescending { side.energy.getValue(it.id) },
     )
@@ -149,19 +152,28 @@ internal fun MatchState.substitute(
  * the rule set lists them, which is the order the spec writes them in, and a
  * side with nobody in either range has nobody to sacrifice.
  *
+ * dismissedWasKeeper opens a third range, keeperSacrificeFallbackCells, tried
+ * only after the first two have both come up empty and only when the man sent
+ * off was himself the keeper. A dismissed outfielder in the same shape leaves
+ * the AI with nobody to sacrifice at all; the wider search is section 3.8's
+ * own exception for the one dismissal that costs a side its goalkeeper.
+ *
  * No draw is made. Section 3.8 says which cells to look in and says nothing
  * about choosing between two players who both stand in them, so the lineup's
  * own order decides, the same order every aggregate of section 3.4 reads.
  */
 @SpecRef("3.8")
-internal fun sacrificeTarget(side: MatchSide, rules: RuleSet): MatchPlayer? {
+internal fun sacrificeTarget(side: MatchSide, rules: RuleSet, dismissedWasKeeper: Boolean): MatchPlayer? {
     for (cells in rules.substitutions.sacrificeCells) {
         val found = side.lineup.firstOrNull { it.slot.value in cells }
         if (found != null) {
             return found
         }
     }
-    return null
+    if (!dismissedWasKeeper) {
+        return null
+    }
+    return side.lineup.firstOrNull { it.slot.value in rules.substitutions.keeperSacrificeFallbackCells }
 }
 
 /**
@@ -433,16 +445,19 @@ internal fun randomOutfielder(side: MatchSide, rules: RuleSet, rng: Rng): MatchP
  * draw. A window that opens but finds the score wrong makes no draw either.
  *
  * The null branch on chooseReplacement below cannot be reached from here and
- * is kept as a guard rather than removed. Both of the two ways a man is chosen
- * to come off skip whoever stands in the keeper's cell, so this caller never
- * asks for the one cell chooseReplacement can refuse, and for every other cell
- * the search of section 5.4 ends in a catch all that returns somebody whenever
- * the bench is not empty, which this function has already checked. Removing
- * the branch would mean asserting all of that with a not null assertion two
- * files away from the code that makes it true, turning a case that cannot
- * happen into a crash instead of a minute in which nothing happens. The forced
- * changes of the sending off and the injury call chooseReplacement without
- * that guarantee, and there the null is live.
+ * is kept as a guard rather than removed. The cascade of section 5.4 carries
+ * no exception for the keeper's cell any more, so it ends in a catch all that
+ * returns somebody for any cell whenever the bench is not empty, which
+ * canSubstitute has already checked above. Removing the branch would mean
+ * asserting that with a not null assertion two files away from the code that
+ * makes it true, turning a case that cannot happen into a crash instead of a
+ * minute in which nothing happens. The same guarantee now holds at every call
+ * site chooseReplacement has, including the sending off's sacrifice and the
+ * injury's forced change, both of which check canSubstitute first as well;
+ * the one way a call to chooseReplacement can still come back empty handed is
+ * the injury's own refusal in Discipline.kt's injure, which walks away from a
+ * reserve keeper chooseReplacement already found rather than ever seeing it
+ * return null.
  */
 @SpecRef("3.8")
 internal fun MatchState.runSubstitutionWindow(

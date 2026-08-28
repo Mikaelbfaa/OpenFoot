@@ -126,6 +126,13 @@ data class InjuryRules(
  * part of the pitch closes the gap by taking a forward off. It is a boundary
  * rather than a range because everything above it is left alone.
  *
+ * keeperSacrificeFallbackCells is the third range sacrificeTarget tries, and it
+ * is reachable only when the man sent off is the keeper himself. Section 3.8
+ * names it as the exception to the ordinary two range search: with nobody in
+ * sacrificeCells' two ranges, a dismissed keeper still costs the side a man
+ * from anywhere in this range, cells two to twenty five, while a dismissed
+ * outfielder in the same shape leaves the AI with nobody to sacrifice.
+ *
  * routinePools is a genuine rand(100) draw table and is read with pick()
  * against bound(). Section 3.8 writes it as a descending if chain, greater
  * than ninety first, and it is transcribed here in ascending order instead.
@@ -140,6 +147,7 @@ data class SubstitutionRules(
     @property:SpecRef("3.8") val maxPerSide: Int,
     @property:SpecRef("3.8") val windowOpensFrom: Int,
     @property:SpecRef("3.8") val sacrificeCells: List<IntRange>,
+    @property:SpecRef("3.8") val keeperSacrificeFallbackCells: IntRange,
     @property:SpecRef("3.8") val sendingOffSacrificeMaxSlot: Int,
     @property:SpecRef("3.8") val chasingWindow: IntRange,
     @property:SpecRef("3.8") val chasingCount: Int,

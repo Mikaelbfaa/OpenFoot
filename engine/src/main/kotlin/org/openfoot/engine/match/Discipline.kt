@@ -1,5 +1,6 @@
 package org.openfoot.engine.match
 
+import org.openfoot.model.Position
 import org.openfoot.model.Rng
 import org.openfoot.model.RuleSet
 import org.openfoot.model.Slot
@@ -276,10 +277,16 @@ private fun MatchState.dismiss(
  * Nothing here draws. Section 3.8 names the cells to look in and the search of
  * section 5.4 decides who comes on, so the lineup's own order settles both.
  *
- * The forward is only taken off once somebody has been found to come on. A
- * cell nobody on the bench may fill, which under section 3.8's keeper rule is
- * the keeper's and only the keeper's, would otherwise cost the side a forward
- * and give it nothing back. See OPEN-QUESTIONS item 41.
+ * The forward is only taken off once somebody has been found to come on. With
+ * the cascade of section 5.4 carrying no exception for the keeper's cell any
+ * more, the only way that search comes back empty is an empty bench, which
+ * canSubstitute has already ruled out above, so the guard below is defensive
+ * rather than live. See OPEN-QUESTIONS item 41.
+ *
+ * cell is the dismissed man's own vacated cell, not the sacrificed forward's,
+ * so cell.value == keeperSlot is exactly the case the dismissed man was the
+ * keeper. That is what tells sacrificeTarget whether the third, wider range
+ * of section 3.8's exception is open to it.
  */
 @SpecRef("3.8")
 private fun MatchState.sacrificeFor(team: TeamSide, cell: Slot, minute: Int): MatchState {
@@ -292,7 +299,8 @@ private fun MatchState.sacrificeFor(team: TeamSide, cell: Slot, minute: Int): Ma
     if (!canSubstitute(side, sideState.bench, sideState.substitutionsUsed, subs.maxPerSide)) {
         return this
     }
-    val off = sacrificeTarget(side, setup.rules) ?: return this
+    val dismissedWasKeeper = cell.value == setup.rules.keeperSlot
+    val off = sacrificeTarget(side, setup.rules, dismissedWasKeeper) ?: return this
     val on = chooseReplacement(this, team, cell) ?: return this
     return substitute(team, off, on, cell, minute, SubstitutionReason.SENDING_OFF)
 }
@@ -306,9 +314,27 @@ private fun MatchState.sacrificeFor(team: TeamSide, cell: Slot, minute: Int): Ma
  *
  * Unlike a dismissal, an injury is replaced rather than absorbed, and the
  * replacement takes the injured man's own cell. A side with nobody to bring
- * on, a side that has spent its five and a human managed side all play on with
- * ten instead, and the keeper's cell may still end up empty, which is the one
- * case chooseReplacement can refuse. See OPEN-QUESTIONS item 41.
+ * on, a side that has spent its five and a human managed side all play on
+ * with ten instead. So does a side whose bench holds only a reserve keeper
+ * and whose injured man is not the keeper: section 3.8's own restriction on
+ * a reserve keeper is the inverse of what the old spec text read here, and it
+ * bites at exactly this call site rather than at chooseReplacement.
+ *
+ * The swap is allowed only when the man leaving is the keeper or the man
+ * coming on is not, which is section 3.8's own wording read straight: the one
+ * thing it forbids is a reserve keeper taking an outfielder's cell. Read the
+ * other way round, what is never refused is a keeper replacing a keeper, an
+ * outfielder replacing a keeper, which is the cascade case chooseReplacement
+ * itself now handles with no exception, or an outfielder replacing an
+ * outfielder. A later reader who remembers the old spec text should read this
+ * as the correction confirmed against the original, not as a typo: section
+ * 3.8, the paragraph beginning "A restricao de goleiro e o inverso do que se
+ * poderia esperar", and OPEN-QUESTIONS item 41.
+ *
+ * Both leaving and entering are read off naturalPosition, the position a
+ * player was born to rather than the cell he happens to stand in, matching
+ * what chooseReplacement's own ordering and SlotCandidate.position already
+ * read everywhere else in section 3.8's substitution code.
  *
  * The injuries counter is not touched here: disciplineMinute's countedInjury
  * already moved it the moment the injury roll matched, so it counts the
@@ -348,6 +374,11 @@ private fun MatchState.injure(team: TeamSide, minute: Int, rng: Rng): MatchState
         return hurt.leavePitch(team, player)
     }
     val on = chooseReplacement(hurt, team, player.slot) ?: return hurt.leavePitch(team, player)
+    val leavingIsKeeper = player.naturalPosition == Position.GOALKEEPER
+    val enteringIsKeeper = on.naturalPosition == Position.GOALKEEPER
+    if (!leavingIsKeeper && enteringIsKeeper) {
+        return hurt.leavePitch(team, player)
+    }
     return hurt.substitute(team, player, on, player.slot, minute, SubstitutionReason.INJURY)
 }
 

@@ -989,9 +989,11 @@ alternativa, ou se algum jogador de linha é promovido ao gol.
 A aritmética das duas leituras não é próxima. Pela 3.4, um time sem ninguém na célula 1 joga com o
 agregado de goleiro fixado em **0,1**. Pela 5.3, um jogador de linha no gol sofre o x0,5 da nota
 inteira **e** tem o agregado reduzido a `round(GK x 0,2)`: um jogador de 70 de força vale 7,0, cai
-para 3,5 pelo x0,5 e para **0,7** pelo x0,2. Ou seja, a leitura que promove um jogador de linha dá ao
-time um goleiro **sete vezes** melhor que a leitura que deixa a célula vazia, e as duas produzem
-partidas visivelmente diferentes sempre que um goleiro se machuca com o banco já sem goleiro.
+para 3,5 pelo x0,5 e, arredondando `round(3,5 x 0,2) = round(0,7)`, para **1,0** pelo x0,2 - a própria
+5.3 já registra esse exemplo ("rende 1,0 contra 7,0 de um goleiro de 70"). Ou seja, a leitura que
+promove um jogador de linha dá ao time um goleiro **dez vezes** melhor que a leitura que deixa a
+célula vazia, e as duas produzem partidas visivelmente diferentes sempre que um goleiro se machuca com
+o banco já sem goleiro.
 
 **Resolução (INFERIDO):** a vaga fica vazia. O filtro de `chooseReplacement` é aplicado antes da
 busca da 5.4 e não depois: quando a célula é a do goleiro, só goleiros são oferecidos, e um banco sem
@@ -999,7 +1001,10 @@ goleiro oferece uma lista vazia, que não chega nem ao preenchimento final do it
 jogar com dez e com o `missingKeeperRating` de 0,1 da 3.4. É a leitura literal do texto, que escreve
 a regra como uma proibição sem exceção, e é a única que mantém a proibição com algum efeito: se ela
 caísse por falta de alternativa, ela nunca mudaria nada, porque só existe para o caso em que não há
-goleiro sobrando. Testado em `SubstitutionTest`, teste "only a keeper may take the keeper's cell".
+goleiro sobrando. Era testado em `SubstitutionTest`, no teste "only a keeper may take the keeper's
+cell", removido quando a resolução abaixo substituiu essa leitura; os testes atuais que pinam a
+leitura correta são "the cascade fills the keeper's cell with no exception" e "an outfielder in goal
+is rated, not the missing keeper figure", ambos em `SubstitutionTest`.
 
 **Leitura alternativa, rejeitada.** A regra proíbe apenas o preenchimento **automático**, e um
 treinador humano poria um jogador de linha no gol; o motor faria o mesmo por ele, aplicando o x0,5 e
@@ -1028,6 +1033,32 @@ descreve a regra ao contrário.** Duas correções:
    goleiro reserva pode acabar em campo como jogador de linha.
 
 A 3.8 foi corrigida nos dois pontos.
+
+**A trava do ponto 2 lê "goleiro" como posição natural, não como célula ocupada (CONFIRMADO).** A
+trava fala de "quem sai" e "quem entra". Quem entra é sempre um reserva do banco, e um reserva carrega
+`Slot.UNUSED_SUBSTITUTE` - ele não ocupa célula nenhuma até a troca ser efetivada. Logo "o que entra
+não é goleiro" só pode se referir à posição natural do reserva, nunca a uma célula que ele ainda não
+ocupa; e a mesma palavra "goleiro" na cláusula irmã, "o que sai é goleiro", tem de significar a mesma
+coisa - as duas metades de uma regra escrita em uma frase só não trocam de sentido no meio dela. As
+outras construções da 3.8 que falam de célula - os seis grupos de risco mais o goleiro, as duas faixas
+de sacrifício - são todas escritas como faixas numéricas explícitas de slot; esta regra não é, o que é
+o indício textual de que ela não fala de célula.
+
+O caso que distingue as duas leituras é alcançável, e não é exótico: um goleiro nato entra numa célula
+de linha através do sacrifício da expulsão ou de uma das três janelas voluntárias, nenhuma das quais
+tem trava (ponto 2 acima); ele se machuca ali, jogando fora de posição; a cascata da 5.4 oferece um
+segundo goleiro reserva para a célula que ele deixa. Pela leitura de posição natural a troca é
+permitida, porque quem sai é goleiro por posição, apesar de estar jogando fora dela; pela leitura de
+célula ela seria recusada, porque a célula que ele deixa não é a do goleiro. O banco fixo da 5.4 abre
+com duas células de goleiro (`{1,1,...}` no item 4 da 5.4), então esse segundo goleiro reserva existe
+rotineiramente num banco cheio.
+
+O caso simétrico - um jogador de linha promovido ao gol pela cascata por falta de goleiro no banco,
+lesionado depois, com um goleiro reserva agora disponível - **não é alcançável**. Um jogador de linha
+só chega à célula 1 quando o banco não tinha goleiro naquele instante, porque a cascata tenta GOLEIRO
+antes de qualquer outra posição; e o banco só encolhe a cada troca, nunca ganha jogador de volta, então
+nenhum goleiro pode aparecer nele depois de já ter faltado. As duas leituras concordam nesse caso, e
+ele não serve para distingui-las.
 
 ### 42. Os pools de minutos estáticos e compartilhados do item 8 da 3.15
 

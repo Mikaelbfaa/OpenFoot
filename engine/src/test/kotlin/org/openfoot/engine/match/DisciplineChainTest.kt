@@ -209,6 +209,92 @@ class DisciplineChainTest {
     }
 
     /**
+     * The third sacrifice range, wired end to end: a dismissed keeper on a
+     * side with nobody in eighteen to twenty five or in fourteen to seventeen
+     * still costs the side a man, from cells two to twenty five.
+     *
+     * Formation four cannot show this, since it occupies every one of section
+     * 3.8's seven risk groups, so the lineup here is built by hand: cells 1,
+     * 2, 9, 3, 4, 5, 6, 7, 8, 11 and 13, which is the same shape
+     * SubstitutionTest's sacrificeTarget cases use directly. It carries the
+     * keeper, six defenders and two holding midfielders, and nothing at all
+     * from fourteen up.
+     *
+     * Five draws:
+     *
+     * 1. 56 for the victim side, so the home side
+     * 2. 0 against the yellow threshold of 70, a miss
+     * 3. 1 against the red threshold of 900, so a direct red fires
+     * 4. 0 for the risk group, which is the red table's own band of nought to
+     *    nought, the keeper
+     * 5. 0 for the player, the only candidate the keeper's group ever offers,
+     *    cell 1
+     *
+     * Nothing after that draws. Cell one is at or below
+     * sendingOffSacrificeMaxSlot, so the shape keeping rule applies; the two
+     * ordinary ranges hold nobody, and only because the dismissed man was the
+     * keeper does the search fall back to the third range, cells two to
+     * twenty five, and take cell two, the first man standing there. The
+     * reserve who fills the keeper's own vacated cell is the bench centre
+     * back, because the cascade of section 5.4 tries goalkeeper first, finds
+     * none, and takes the centre back over the bench's midfielder and
+     * forward.
+     */
+    @Test
+    fun `a dismissed keeper reaches the third sacrifice range`() {
+        val ints = ScriptedInts(56, 0, 1, 0, 0)
+        val cells = listOf(1, 2, 9, 3, 4, 5, 6, 7, 8, 11, 13)
+        val after = state(homeCells = cells).disciplineMinute(FIRST_HALF_MINUTE, CLOCK, disciplineOnly(ints))
+
+        assertEquals(5, ints.draws, "the sacrifice itself draws nothing")
+        assertEquals(DisciplineCounts(sendingsOff = 1), after.counts, "counts")
+
+        val dismissal = after.log[0] as MatchEvent.SendingOff
+        assertEquals(1, dismissal.player.slot.value, "the keeper's own cell")
+
+        val swap = after.log[1] as MatchEvent.Substitution
+        assertEquals(SubstitutionReason.SENDING_OFF, swap.reason, "the reason logged")
+        assertEquals(2, swap.off.slot.value, "the first man in the third range, cell two, is sacrificed")
+        assertEquals(DEFENCE_RESERVE, swap.on.id, "the reserve who suits the vacated cell comes on")
+        assertEquals(1, swap.on.slot.value, "he takes the cell the dismissed keeper left")
+        assertEquals(2, after.log.size, "a dismissal and a substitution and nothing else")
+
+        assertEquals(10, after.setup.home.lineup.size, "the side is down to ten")
+        assertEquals(1, after.home.substitutionsUsed, "the sacrifice spends a substitution")
+        assertNull(
+            after.setup.home.lineup.firstOrNull { it.slot.value == 2 },
+            "the sacrificed cell two player must be off the pitch",
+        )
+    }
+
+    /**
+     * The mirror of the case above, on the very same lineup: an outfielder's
+     * dismissal never reaches the third range, so a side with nobody in the
+     * two ordinary ranges sacrifices nobody at all.
+     *
+     * The same five draws except the risk group, which is 1 here and
+     * therefore the red table's g0 band of 1 to 79, cells 10 to 13, and the
+     * player draw, which takes the first of the lineup's two cells in that
+     * range, cell 11.
+     */
+    @Test
+    fun `an outfielder dismissed on the same lineup sacrifices nobody`() {
+        val ints = ScriptedInts(56, 0, 1, 1, 0)
+        val cells = listOf(1, 2, 9, 3, 4, 5, 6, 7, 8, 11, 13)
+        val after = state(homeCells = cells).disciplineMinute(FIRST_HALF_MINUTE, CLOCK, disciplineOnly(ints))
+
+        assertEquals(5, ints.draws, "no draw is made once the search runs out of ranges")
+        assertEquals(DisciplineCounts(sendingsOff = 1), after.counts, "counts")
+
+        val dismissal = after.log.single() as MatchEvent.SendingOff
+        assertEquals(11, dismissal.player.slot.value, "the cell the dismissed player stands in")
+
+        assertEquals(10, after.setup.home.lineup.size, "the side is down to ten")
+        assertEquals(0, after.home.substitutionsUsed, "an outfielder's dismissal reaches no third range")
+        assertEquals(3, after.home.bench.size, "the bench is untouched")
+    }
+
+    /**
      * An injury is replaced, and its length costs the three duration draws
      * section 3.8 names, made before anything about the bench is decided.
      *
@@ -256,6 +342,90 @@ class DisciplineChainTest {
 
         assertEquals(11, after.setup.home.lineup.size, "an injury is replaced, so the side keeps eleven")
         assertEquals(1, after.home.substitutionsUsed, "the replacement spends a substitution")
+    }
+
+    /**
+     * Section 3.8's real keeper restriction, confirmed against the original to
+     * run the opposite way from what the old spec text said: a reserve keeper
+     * may not come on for an injured outfielder. The old text read as a filter
+     * on the keeper's own cell instead, which SubstitutionTest's cascade test
+     * now disproves directly; this is the refusal that actually exists, and it
+     * lives in injure rather than in chooseReplacement. See section 3.8, the
+     * paragraph beginning "A restricao de goleiro e o inverso do que se
+     * poderia esperar", and OPEN-QUESTIONS item 41.
+     *
+     * The home bench holds nothing but a reserve keeper. Nine draws, the same
+     * shape as the injury above:
+     *
+     * 1. 56 for the victim side, so the home side
+     * 2. 0 against the yellow threshold of 70, a miss
+     * 3. 0 against the red threshold of 900, a miss
+     * 4. 1 against the injury threshold of 1000, so an injury fires
+     * 5. 250 for the risk group, the injury table's g2 band of 250 to 319,
+     *    cells 3 to 8
+     * 6. 0 for the player, the first of the home side's two cells in that
+     *    range, which is cell 3
+     * 7. 3 for the short term x
+     * 8. 0 for the long term draw, which a twenty five year old does not use
+     * 9. 50 for the severity, inside the band that adds nothing
+     *
+     * The injury itself is logged exactly as it would be with any other
+     * bench. What does not happen is the swap: the reserve keeper is not a
+     * keeper leaving and is a keeper entering, which is exactly the shape
+     * section 3.8 forbids, so the side plays on with ten and the reserve
+     * keeper stays exactly where he was.
+     */
+    @Test
+    fun `an injured outfielder is not replaced by a bench that holds only a reserve keeper`() {
+        val ints = ScriptedInts(56, 0, 0, 1, 250, 0, 3, 0, 50)
+        val before = state(homeBench = listOf(reserveKeeper()))
+        val after = before.disciplineMinute(FIRST_HALF_MINUTE, CLOCK, disciplineOnly(ints))
+
+        assertEquals(9, ints.draws, "an injury costs six chain draws and three duration draws")
+        assertEquals(DisciplineCounts(injuries = 1), after.counts, "counts")
+
+        val injury = after.log.single() as MatchEvent.Injury
+        assertEquals(3, injury.player.slot.value, "the cell the injured player stands in")
+
+        assertTrue(
+            after.log.none { it is MatchEvent.Substitution },
+            "a reserve keeper must not replace an injured outfielder: ${after.log}",
+        )
+        assertEquals(10, after.setup.home.lineup.size, "the side plays on a man short")
+        assertEquals(0, after.home.substitutionsUsed, "the refusal spends no substitution")
+        assertEquals(1, after.home.bench.size, "the reserve keeper is still on the bench, unused")
+    }
+
+    /**
+     * The case the rule allows, on the very same bench: a reserve keeper
+     * replacing an injured keeper is a keeper leaving, which satisfies section
+     * 3.8's refusal on its first branch regardless of who comes on.
+     *
+     * The same nine draws as above except the risk group, which is 0 here and
+     * therefore the injury table's own goleiro band, and the player draw,
+     * which is 0 for the only candidate the keeper's group ever offers, cell
+     * 1.
+     */
+    @Test
+    fun `the same bench does replace an injured keeper`() {
+        val ints = ScriptedInts(56, 0, 0, 1, 0, 0, 3, 0, 50)
+        val before = state(homeBench = listOf(reserveKeeper()))
+        val after = before.disciplineMinute(FIRST_HALF_MINUTE, CLOCK, disciplineOnly(ints))
+
+        assertEquals(9, ints.draws, "an injury costs six chain draws and three duration draws")
+        assertEquals(DisciplineCounts(injuries = 1), after.counts, "counts")
+
+        val injury = after.log[0] as MatchEvent.Injury
+        assertEquals(1, injury.player.slot.value, "the keeper's own cell")
+
+        val swap = after.log[1] as MatchEvent.Substitution
+        assertEquals(SubstitutionReason.INJURY, swap.reason, "the reason logged")
+        assertEquals(RESERVE_KEEPER, swap.on.id, "the reserve keeper comes on")
+        assertEquals(1, swap.on.slot.value, "he takes the injured keeper's own cell")
+
+        assertEquals(11, after.setup.home.lineup.size, "an injury to the keeper is still replaced")
+        assertEquals(1, after.home.substitutionsUsed, "the replacement spends a substitution")
+        assertEquals(0, after.home.bench.size, "the reserve keeper leaves the bench")
     }
 
     /**
@@ -633,6 +803,7 @@ class DisciplineChainTest {
         val DEFENCE_RESERVE = PlayerId(31)
         val ATTACK_RESERVE = PlayerId(32)
         val AWAY_ATTACK_RESERVE = PlayerId(42)
+        val RESERVE_KEEPER = PlayerId(90)
 
         /**
          * A bench of three, strongest first, each a natural fit for a
@@ -646,6 +817,9 @@ class DisciplineChainTest {
             reserve(DEFENCE_RESERVE, 65, Position.CENTREBACK, PlayerStyle.DEFENSIVE),
             reserve(ATTACK_RESERVE, 60, Position.FORWARD, PlayerStyle.OFFENSIVE),
         )
+
+        /** A bench of exactly one, the shape the keeper refusal tests need. */
+        fun reserveKeeper(): MatchPlayer = reserve(RESERVE_KEEPER, 40, Position.GOALKEEPER, PlayerStyle.DEFENSIVE)
 
         /** The same three for the away side, on identities of their own. */
         fun awayBench(): List<MatchPlayer> = listOf(
