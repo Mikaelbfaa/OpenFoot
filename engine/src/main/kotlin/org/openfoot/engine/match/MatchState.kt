@@ -142,7 +142,17 @@ private fun sideState(
  * Match wide rather than per side, because section 3.8's own gloss on the
  * overwrites names the match: after the first injury of the match the card
  * rate collapses for both sides at once. A sending off for a second yellow
- * counts in both columns; see OPEN-QUESTIONS item 39.
+ * counts in the yellows column and not in sendingsOff, since only a direct
+ * red feeds the overwrite that reads sendingsOff; see OPEN-QUESTIONS item 39.
+ *
+ * Each of the three counts an attempt, not an event: it moves the instant its
+ * own roll matches, before the risk group is even drawn, and it stays moved
+ * even when that group's cells hold nobody and nothing at all reaches the
+ * log. This is confirmed original behaviour, not a bug in this engine, so a
+ * match's counters can legitimately run ahead of what its log shows, and a
+ * reader who finds one of these three larger than the matching count of log
+ * entries should look here before suspecting a double count. See section 3.8,
+ * the paragraph beginning "Os tres contadores que essas sobrescritas leem".
  *
  * Carried on MatchState rather than counted back out of the log, for the same
  * reason goalsBy is: minuteThresholds reads all three every minute, and
@@ -150,10 +160,12 @@ private fun sideState(
  * It stays a value of its own rather than three fields on MatchState so that
  * minuteThresholds can still be tested without building a whole match state.
  *
- * The three counters must agree with the log at the final whistle, and one
- * test plays whole matches to check exactly that: a card or an injury that
- * reaches the log without reaching a counter would quietly leave every later
- * minute's thresholds wrong.
+ * The three counters can therefore only be checked against the log as a lower
+ * bound, not an equality: a fold of the log's own events undercounts exactly
+ * where an attempt found an empty risk group. DisciplineChainTest's whole
+ * match test folds the log and asserts the two agree at fixed seeds precisely
+ * because none of those seeds' attempts happens to land on an empty group;
+ * the empty group case is instead pinned on its own with a scripted draw.
  */
 @SpecRef("3.8")
 data class DisciplineCounts(

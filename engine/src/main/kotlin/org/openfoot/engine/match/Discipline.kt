@@ -126,10 +126,11 @@ internal fun minuteThresholds(
  *
  * The chain resolves at the first roll that matches, not at the first event
  * that reaches the log. A roll that matches and then draws a risk group whose
- * cells nobody stands in produces nothing at all, and the minute still ends
- * there rather than falling through to the next roll or to the window. That
- * is the spec's own wording, and it is only reachable at all on a side already
- * short of players.
+ * cells nobody stands in logs nothing at all, and the minute still ends there
+ * rather than falling through to the next roll or to the window. That is the
+ * spec's own wording, and it is only reachable at all on a side already short
+ * of players. The matching roll still counts as an attempt in DisciplineCounts
+ * even then; see that type's own docstring for why.
  *
  * The window opens for both sides independently rather than only for the side
  * this minute's victim draw landed on. Section 3.8 writes it as the fourth
@@ -148,9 +149,12 @@ internal fun MatchState.disciplineMinute(minute: Int, clock: MatchClock, rng: Rn
     val thresholds = minuteThresholds(minute, clock, setup.side(team), counts, setup.rules)
 
     val resolved = when {
-        chain.rand(thresholds.yellow) == EVENT_FIRES -> book(team, minute, chain)
-        chain.rand(thresholds.red) == EVENT_FIRES -> sendOff(team, minute, chain)
-        chain.rand(thresholds.injury) == EVENT_FIRES -> injure(team, minute, chain)
+        chain.rand(thresholds.yellow) == EVENT_FIRES ->
+            countedYellow().book(team, minute, chain)
+        chain.rand(thresholds.red) == EVENT_FIRES ->
+            countedSendingOff().sendOff(team, minute, chain)
+        chain.rand(thresholds.injury) == EVENT_FIRES ->
+            countedInjury().injure(team, minute, chain)
         else -> null
     }
 
@@ -161,15 +165,42 @@ internal fun MatchState.disciplineMinute(minute: Int, clock: MatchClock, rng: Rn
 }
 
 /**
+ * The three counters below move the moment their own roll matches, not the
+ * moment an event reaches the log.
+ *
+ * Section 3.8 says outright that they are incremented even when the risk
+ * group drawn afterwards holds nobody and no card or injury happens. book,
+ * sendOff and injure therefore never touch DisciplineCounts themselves; the
+ * increment always happens here, on the state the chain hands them, before
+ * drawRiskGroup is ever called. See DisciplineCounts's own docstring.
+ */
+@SpecRef("3.8")
+private fun MatchState.countedYellow(): MatchState = copy(counts = counts.copy(yellows = counts.yellows + 1))
+
+/** See countedYellow. Only a direct red reaches this branch of the chain. */
+@SpecRef("3.8")
+private fun MatchState.countedSendingOff(): MatchState =
+    copy(counts = counts.copy(sendingsOff = counts.sendingsOff + 1))
+
+/** See countedYellow. */
+@SpecRef("3.8")
+private fun MatchState.countedInjury(): MatchState = copy(counts = counts.copy(injuries = counts.injuries + 1))
+
+/**
  * A booking, and the dismissal it becomes when it is the player's second.
  *
- * Both events are logged for a second yellow, and both counters move, because
- * section 3.8's suspension rule counts a sending off for a second yellow as a
- * yellow as well. See OPEN-QUESTIONS item 39.
+ * Both events are logged for a second yellow, but only the yellow counter
+ * moves for it: section 3.8's suspension rule counts a sending off for a
+ * second yellow as a yellow as well, but the three threshold overwrites read
+ * a sendingsOff counter that only a direct red feeds. See OPEN-QUESTIONS item
+ * 39. The yellow counter itself is not touched here at all; it was already
+ * moved by disciplineMinute's countedYellow the moment the roll matched, which
+ * is what makes it count the attempt rather than the card.
  *
- * A group whose cells nobody stands in produces no card at all and no counter
- * moves. drawVictim skips its own draw in that case rather than making it and
- * throwing it away, so an unusual shape does not shift the rest of the stream.
+ * A group whose cells nobody stands in logs no card at all, but the attempt
+ * already counted. drawVictim skips its own draw in that case rather than
+ * making it and throwing it away, so an unusual shape does not shift the rest
+ * of the stream.
  */
 @SpecRef("3.8")
 private fun MatchState.book(team: TeamSide, minute: Int, rng: Rng): MatchState {
@@ -180,7 +211,6 @@ private fun MatchState.book(team: TeamSide, minute: Int, rng: Rng): MatchState {
     val booked = (side.bookings[player.id] ?: 0) + 1
     val carded = with(team, side.copy(bookings = side.bookings + (player.id to booked))).copy(
         log = log + MatchEvent.Booking(minute, team, player),
-        counts = counts.copy(yellows = counts.yellows + 1),
     )
 
     return if (booked < BOOKINGS_BEFORE_DISMISSAL) {
@@ -190,7 +220,14 @@ private fun MatchState.book(team: TeamSide, minute: Int, rng: Rng): MatchState {
     }
 }
 
-/** A direct red, which section 3.8 draws from a table of its own. */
+/**
+ * A direct red, which section 3.8 draws from a table of its own.
+ *
+ * The sendingsOff counter is not touched here: disciplineMinute's
+ * countedSendingOff already moved it the moment the red roll matched, so it
+ * counts the attempt rather than the card, and a group whose cells nobody
+ * stands in still leaves it moved even though dismiss never runs.
+ */
 @SpecRef("3.8")
 private fun MatchState.sendOff(team: TeamSide, minute: Int, rng: Rng): MatchState {
     val group = drawRiskGroup(setup.rules.discipline.redRisk, rng)
@@ -204,6 +241,12 @@ private fun MatchState.sendOff(team: TeamSide, minute: Int, rng: Rng): MatchStat
  * The player leaves and is not replaced: a side reduced to ten stays at ten
  * for the rest of the match, which is what makes section 3.4's fixed divisors
  * bite. What follows is the shape keeping rule and not a replacement for him.
+ *
+ * Neither counter is touched here. A second yellow's yellow was already moved
+ * by book's caller when the yellow roll matched, and a direct red's sendingsOff
+ * was already moved by sendOff's caller when the red roll matched; a second
+ * yellow never moves sendingsOff at all, by design, since only a direct red
+ * feeds the overwrite that counter drives.
  */
 @SpecRef("3.8")
 private fun MatchState.dismiss(
@@ -213,7 +256,6 @@ private fun MatchState.dismiss(
     secondYellow: Boolean,
 ): MatchState = copy(
     log = log + MatchEvent.SendingOff(minute, team, player, secondYellow),
-    counts = counts.copy(sendingsOff = counts.sendingsOff + 1),
 ).leavePitch(team, player).sacrificeFor(team, player.slot, minute)
 
 /**
@@ -267,6 +309,11 @@ private fun MatchState.sacrificeFor(team: TeamSide, cell: Slot, minute: Int): Ma
  * on, a side that has spent its five and a human managed side all play on with
  * ten instead, and the keeper's cell may still end up empty, which is the one
  * case chooseReplacement can refuse. See OPEN-QUESTIONS item 41.
+ *
+ * The injuries counter is not touched here: disciplineMinute's countedInjury
+ * already moved it the moment the injury roll matched, so it counts the
+ * attempt rather than the injury, and a group whose cells nobody stands in
+ * still leaves it moved even though nobody is ever hurt.
  */
 @SpecRef("3.8")
 private fun MatchState.injure(team: TeamSide, minute: Int, rng: Rng): MatchState {
@@ -289,7 +336,6 @@ private fun MatchState.injure(team: TeamSide, minute: Int, rng: Rng): MatchState
             days = outcome.days,
             permanentStrengthLoss = outcome.permanentStrengthLoss,
         ),
-        counts = counts.copy(injuries = counts.injuries + 1),
     )
 
     if (!canSubstitute(

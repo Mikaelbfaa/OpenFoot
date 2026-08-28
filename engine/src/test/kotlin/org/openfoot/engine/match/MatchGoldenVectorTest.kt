@@ -37,6 +37,23 @@ import kotlin.test.assertTrue
  * the match. That is the harder case for section 3.4's fixed divisors and is
  * the one worth pinning; the substitution wiring is pinned by
  * DisciplineChainTest, which plays whole matches with a bench.
+ *
+ * These four seeds cannot tell attempt-counting apart from event-counting in
+ * DisciplineCounts, and never could: formation 4, the four four two every
+ * fixture here uses, occupies cells 1, 22, 24, 11, 13, 14, 16, 2, 9, 3 and 5,
+ * which is at least one cell in every one of section 3.8's seven risk groups.
+ * Seed ten's own two departures, the away side's cells 13 and 16, still leave
+ * g0 holding cell 11 and g1 holding cell 14, so no risk group ever empties out
+ * across these four matches and a matching roll always finds somebody. The
+ * sendingsOff counter never reaches manyRedsAtLeast either, since seed ten's
+ * one dismissal is the only one any of the four seeds produces. Neither of
+ * the two behaviours a second yellow being read as a red, and a counter
+ * moving on an empty group has anything here to act on, so a version that
+ * still had both defects would replay this file exactly and pass it. The
+ * guarantee that they are fixed lives in DisciplineChainTest's scripted
+ * cases instead, which assert the counters and a computed threshold directly
+ * rather than a match's recorded figures, and so cannot be rebaselined out
+ * from under a regression the way a figure in this file could be.
  */
 class MatchGoldenVectorTest {
 

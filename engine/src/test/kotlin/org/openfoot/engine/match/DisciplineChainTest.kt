@@ -81,7 +81,12 @@ class DisciplineChainTest {
     /**
      * A player already booked is sent off rather than booked again, and both
      * events reach the log, because section 3.8's suspension rule counts a
-     * sending off for a second yellow as a yellow as well.
+     * sending off for a second yellow as a yellow as well. The sendingsOff
+     * counter itself does not move, because only a direct red feeds the
+     * overwrite that counter drives; the log is unchanged from before this
+     * fix, only the counter feeding the threshold overwrite changes. See
+     * section 3.8, the paragraph beginning "Os tres contadores que essas
+     * sobrescritas leem", and OPEN-QUESTIONS item 39.
      *
      * The same four draws as the booking above, against a home side whose cell
      * 11 already carries one booking and a match that already carries one
@@ -101,9 +106,9 @@ class DisciplineChainTest {
 
         assertEquals(4, ints.draws, "a dismissal for a second yellow draws no more than a booking")
         assertEquals(
-            DisciplineCounts(yellows = 2, sendingsOff = 1),
+            DisciplineCounts(yellows = 2, sendingsOff = 0),
             after.counts,
-            "a second yellow moves both counters",
+            "a second yellow moves the yellow counter and leaves sendingsOff untouched",
         )
 
         val booking = after.log[0] as MatchEvent.Booking
@@ -358,7 +363,12 @@ class DisciplineChainTest {
 
     /**
      * A roll that matches ends the minute even when it turns out to hit
-     * nobody, rather than falling through to the roll below it.
+     * nobody, rather than falling through to the roll below it, and the
+     * yellow counter still moves for that empty attempt: section 3.8 says the
+     * three counters are incremented even when the risk group drawn holds
+     * nobody, so a match's counters can run ahead of what its log shows. See
+     * the paragraph beginning "Os tres contadores que essas sobrescritas
+     * leem" and OPEN-QUESTIONS item 39.
      *
      * Section 3.8 resolves at the first thing that casa, and what matches is
      * the roll, not the event. The home side here stands in cells 1, 22, 24,
@@ -371,7 +381,7 @@ class DisciplineChainTest {
      *
      * The player draw is skipped rather than made and thrown away, so an
      * unusual shape does not shift the rest of the stream. Nothing at all is
-     * logged and no counter moves, because no card happened.
+     * logged, because no card happened, but the yellow attempt still counts.
      *
      * Exactly three draws are scripted, so a chain that fell through to the
      * red roll would run the stream out and fail rather than pass quietly.
@@ -387,9 +397,67 @@ class DisciplineChainTest {
 
         assertEquals(3, ints.draws, "the chain must stop at the roll that matched")
         assertTrue(after.log.isEmpty(), "no card happened, so nothing is logged: ${after.log}")
-        assertEquals(DisciplineCounts(), after.counts, "no counter moves for a card nobody got")
+        assertEquals(DisciplineCounts(yellows = 1), after.counts, "the matched attempt still counts")
         assertSame(before.setup, after.setup, "nobody left the pitch")
-        assertEquals(before, after, "the whole state is untouched")
+        assertEquals(
+            before.copy(counts = DisciplineCounts(yellows = 1)),
+            after,
+            "nothing but the counter changed",
+        )
+    }
+
+    /**
+     * What the two changes above are for together: an injury attempt that
+     * finds an empty risk group still feeds the more than or equal to one
+     * lesao overwrite on the very next threshold read, even though no injury
+     * was ever logged.
+     * anyInjuryAtLeast is 1 under the classic rules, so a single such attempt
+     * already satisfies it; a match whose log carries no injury at all can
+     * still have its card rate collapse the way section 3.8 says happens
+     * "depois da primeira lesao da partida". A version that counted events
+     * rather than attempts would never move injuries here and this assertion
+     * would catch it.
+     *
+     * The home side stands in cells 1, 2, 3, 4, 5, 6, 7, 8, 9, 11 and 12,
+     * the same lineup RiskGroupTest uses to leave risk group g5, cells 19 to
+     * 24, with nobody in it. Five draws:
+     *
+     * 1. 56 for the victim side, so the home side
+     * 2. 0 against the yellow threshold of 70, a miss
+     * 3. 0 against the red threshold of 900, a miss
+     * 4. 1 against the injury threshold of 1000, so the injury roll matches
+     * 5. 450 for the risk group, which is inside the injury table's g5 band
+     *    of 420 to 499, and nobody stands there
+     *
+     * The player draw is skipped, nothing is logged, and the minute ends
+     * there with the injuries counter moved to one. Feeding that counter into
+     * minuteThresholds for the tenth minute of the second half, whose own
+     * injury base is 800, returns a yellow threshold of injuryOverwriteFactor
+     * times 800 rather than the plain table cell an unmoved counter would
+     * have produced.
+     */
+    @Test
+    fun `an empty injury attempt still fires the overwrite on the next minute`() {
+        val ints = ScriptedInts(56, 0, 0, 1, 450)
+        val before = state(homeCells = listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12))
+        val after = before.disciplineMinute(FIRST_HALF_MINUTE, CLOCK, disciplineOnly(ints))
+
+        assertEquals(5, ints.draws, "the chain must stop at the roll that matched")
+        assertTrue(after.log.isEmpty(), "no injury happened, so nothing is logged: ${after.log}")
+        assertEquals(DisciplineCounts(injuries = 1), after.counts, "the matched attempt still counts")
+
+        val nextThresholds = minuteThresholds(
+            SECOND_HALF_MINUTE,
+            CLOCK,
+            after.setup.home,
+            after.counts,
+            after.setup.rules,
+        )
+        assertEquals(
+            after.setup.rules.injuryOverwriteFactor * 800,
+            nextThresholds.yellow,
+            "the overwrite must fire even though the log carries no injury at all",
+        )
     }
 
     /**
@@ -486,13 +554,23 @@ class DisciplineChainTest {
     }
 
     /**
-     * The counters at the final whistle are exactly what the log says.
+     * The counters at the final whistle are never behind what the log says,
+     * and agree with it exactly at every one of these sixty seeds, though
+     * DisciplineCounts's own docstring explains why that need not always hold:
+     * an attempt that lands on an empty risk group moves a counter without
+     * logging anything, so a counter can in general run ahead of the fold
+     * below it. None of these sixty seeds happens to draw that way; the case
+     * where it does is pinned on its own by a scripted draw rather than by
+     * chance here.
      *
      * Sixty whole matches at fixed seeds, both sides carrying a bench, folded
-     * event by event: a booking is a yellow, a dismissal of either kind is a
-     * sending off, an injury is an injury. A sending off for a second yellow
-     * logs both events and therefore counts in both columns, which is the case
-     * a fold and a running counter are most likely to disagree on.
+     * event by event: a booking is a yellow, a direct red dismissal is a
+     * sending off, an injury is an injury. A dismissal for a second yellow is
+     * excluded from the sendingsOff fold on purpose: it logs a SendingOff
+     * event, since the log is unchanged by this fix, but it does not move the
+     * sendingsOff counter, since only a direct red feeds the overwrite that
+     * counter drives. This is the case a fold and a running counter are most
+     * likely to disagree on if the exclusion above is ever lost.
      *
      * The three totals over the sample are asserted to be positive as well, so
      * that the invariant cannot be satisfied by a chain that never fires: a
@@ -512,10 +590,15 @@ class DisciplineChainTest {
             val log = played.state.log
             val fold = DisciplineCounts(
                 yellows = log.count { it is MatchEvent.Booking },
-                sendingsOff = log.count { it is MatchEvent.SendingOff },
+                sendingsOff = log.count { it is MatchEvent.SendingOff && !it.secondYellow },
                 injuries = log.count { it is MatchEvent.Injury },
             )
-            assertEquals(fold, played.state.counts, "seed $seed disagreed with its own log")
+            assertEquals(
+                fold,
+                played.state.counts,
+                "seed $seed drew an attempt that landed on an empty risk group, so the " +
+                    "counter ran ahead of the log fold",
+            )
 
             yellows += fold.yellows
             sendingsOff += fold.sendingsOff
