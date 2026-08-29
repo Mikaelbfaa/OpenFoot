@@ -21,6 +21,10 @@ class ParseOptionsTest {
         assertFailsWith<CliError> { parseOptions(listOf("--seed")) }
     }
 
+    /**
+     * Last wins is behavior nobody chose on purpose. The test pins it so a
+     * change to it is loud rather than silent, not because it is endorsed.
+     */
     @Test
     fun `a repeated flag keeps the last value`() {
         val options = parseOptions(listOf("--seed", "1", "--seed", "2"))
