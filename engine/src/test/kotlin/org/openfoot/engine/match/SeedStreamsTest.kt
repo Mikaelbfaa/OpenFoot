@@ -6,9 +6,10 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 /**
- * Finding 6. simulateMatch derives one stream per minute by tag, plus five
- * fixed streams: SETUP_STREAM and SUBSTITUTION_PLAN_STREAM under the match,
- * and PLAY_STREAM, DISCIPLINE_STREAM and SUBSTITUTION_STREAM under a minute.
+ * Finding 6. simulateMatch derives one stream per minute by tag, plus seven
+ * fixed streams: SETUP_STREAM, SUBSTITUTION_PLAN_STREAM and RATING_STREAM
+ * under the match, and PLAY_STREAM, DISCIPLINE_STREAM, SUBSTITUTION_STREAM
+ * and GOAL_STREAM under a minute.
  * Nothing in the type system stops a future edit from picking a fixed stream
  * tag that collides with a minute index or with one of the other fixed
  * streams, which would make two draws that are supposed to be independent
@@ -16,8 +17,8 @@ import kotlin.test.assertTrue
  * collision fails loudly here instead of silently making two minutes, or a
  * minute and the discipline draws, play identically.
  *
- * All five are checked against all five and against the minute range, rather
- * than only the pairs that share a fork level today. Which tags share a level
+ * All seven are checked against all seven and against the minute range,
+ * rather than only the pairs that share a fork level today. Which tags share a level
  * is a fact about the current wiring and has already changed once, so the
  * cheaper assertion would have to be revisited every time it moves.
  *
@@ -30,11 +31,17 @@ import kotlin.test.assertTrue
  * feeding one generator produces both plans, so nothing can be forking per
  * side behind it. There is nothing to add to the list below, since the freed
  * tags were never fixed streams of their own.
+ *
+ * RATING_STREAM is the newest of the seven and is the only one no minute of
+ * play reads: section 3.14 runs once the whistle has gone. It is listed here
+ * all the same, because what this file guards is the tag space and not who
+ * spends it, and a rating drawn from a tag a minute could also reach would
+ * make two independent things move together.
  */
 class SeedStreamsTest {
 
     @Test
-    fun `the five fixed streams are pairwise distinct`() {
+    fun `the seven fixed streams are pairwise distinct`() {
         val streams = FIXED_STREAMS.map { it.second }
         assertEquals(streams.size, streams.toSet().size, "the fixed streams must not collide: $streams")
 
@@ -85,6 +92,8 @@ class SeedStreamsTest {
             "DISCIPLINE_STREAM" to DISCIPLINE_STREAM,
             "SUBSTITUTION_PLAN_STREAM" to SUBSTITUTION_PLAN_STREAM,
             "SUBSTITUTION_STREAM" to SUBSTITUTION_STREAM,
+            "GOAL_STREAM" to GOAL_STREAM,
+            "RATING_STREAM" to RATING_STREAM,
         )
     }
 }

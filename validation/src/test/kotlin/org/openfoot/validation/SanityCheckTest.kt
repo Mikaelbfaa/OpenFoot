@@ -1,9 +1,13 @@
 package org.openfoot.validation
 
 import org.openfoot.engine.match.MatchEvent
+import org.openfoot.engine.match.MatchRatings
 import org.openfoot.engine.match.MatchReport
 import org.openfoot.engine.match.MatchSetup
+import org.openfoot.engine.match.playerRatings
 import org.openfoot.engine.match.simulateMatch
+import org.openfoot.model.GoalType
+import org.openfoot.model.RuleSets
 import org.openfoot.model.SpecRef
 import org.openfoot.model.SplitMix64Rng
 import kotlin.math.abs
@@ -78,6 +82,17 @@ import kotlin.test.assertTrue
  * way that implies: the home shot volume, the home goals, the home conversion
  * and the home possession share all rise slightly, and the away figures all
  * fall slightly.
+ *
+ * Section 3.7's goal typing then landed on top of all of that and moved
+ * nothing at all, to the last digit of every figure below, which is the
+ * outcome it had to have. The typing draws from a stream of its own, a
+ * sibling of the tick's under the same minute, so it cannot move a draw the
+ * tick makes; and it only decides who a goal is credited to, never whether
+ * one was scored. Neither side here is human managed either, so section
+ * 3.7's one path that can take a goal off the scoreboard, the penalty handed
+ * to section 3.10, is out of reach. A goal count or a shot count moving with
+ * that change would have been a wiring fault rather than a figure to
+ * re-measure, and none did.
  *
  * The last three tests pin the discipline bullet of section 3.16 itself, and
  * they are the one part of this class that now agrees with it. They used to
@@ -237,6 +252,86 @@ class SanityCheckTest {
         assertTrue(away in FULL_LINE_AWAY_SHOTS, "away shots averaged $away")
         assertTrue(homeGoals in FULL_LINE_GOALS, "home goals averaged $homeGoals")
         assertTrue(awayGoals in FULL_LINE_GOALS, "away goals averaged $awayGoals")
+    }
+
+    /**
+     * Section 3.7's own table, transcribed rather than derived: every drawn
+     * type should land within a few tenths of a point of the percentage its
+     * row names, open play's tail included in the open play share.
+     */
+    @Test
+    fun `every goal type lands at about the share section 3 7 s table gives it`() {
+        for ((type, band) in TYPE_SHARE) {
+            val share = GOAL_EVENTS.count { it.type == type }.toDouble() / GOAL_EVENTS.size
+            assertTrue(share in band, "$type was $share of ${GOAL_EVENTS.size} goals")
+        }
+    }
+
+    /**
+     * Section 3.6's coin is rand(100) > 80, so 81 per cent of the goals that
+     * end up typed as open play should carry an assister.
+     *
+     * The population is the FINAL type, not the drawn one, because that is
+     * what a reader of the log can see. The two can disagree in one direction
+     * only: an own goal whose blamed defender draw comes back empty falls
+     * back to open play by section 3.7's own patch, and that happens after
+     * the assist coin was already skipped for it, so such a goal can never
+     * carry an assister. DOWNGRADED_OWN_GOALS below counts exactly that case,
+     * by the one mark it leaves on the event: a final open play goal is
+     * ordinarily worth two match goal credits, and a goal that was drawn as
+     * an own goal and only fell back to open play afterwards is worth one,
+     * since the own goal's own typing credit is nought.
+     */
+    @Test
+    fun `about eighty one per cent of open play goals carry an assister`() {
+        val openPlay = GOAL_EVENTS.filter { it.type == GoalType.OPEN_PLAY }
+        val share = openPlay.count { it.assister != null }.toDouble() / openPlay.size
+        assertTrue(share in ASSIST_SHARE, "$share of ${openPlay.size} open play goals had an assister")
+        assertEquals(
+            DOWNGRADED_OWN_GOALS,
+            openPlay.count { it.matchGoalCredits == 1 },
+            "an open play goal worth one match goal credit is a downgraded own goal, and never has an " +
+                "assister of its own",
+        )
+    }
+
+    /**
+     * The mean rating over every player section 3.14 rates, starters and
+     * arrivals of both sides across the whole sample.
+     */
+    @Test
+    fun `the mean rating sits where section 3 14 s base table and its adjustments put it`() {
+        val mean = RATED_VALUES.sum() / RATED_VALUES.size
+        assertTrue(mean in RATING_MEAN, "mean rating was $mean over ${RATED_VALUES.size} ratings")
+    }
+
+    /**
+     * The share of ratings that come to rest exactly on the floor of 2,0.
+     * Step 11's floor clamp runs before its zeroing clause, so a rating that
+     * lands on the floor and also cleared the twenty minute mark stays
+     * published at 2,0; one that lands on the floor without clearing it is
+     * overwritten to nought and leaves this count. Every rating counted here
+     * therefore cleared the twenty minute mark. This is distinct from the
+     * exact nought share below: a rating can land on the floor from playing
+     * the whole match badly, not only from a short appearance.
+     */
+    @Test
+    fun `a share of ratings land exactly on the floor`() {
+        val share = RATED_VALUES.count { it == RuleSets.CLASSIC.ratings.limits.floor }.toDouble() / RATED_VALUES.size
+        assertTrue(share in RATING_FLOOR_SHARE, "$share of ${RATED_VALUES.size} ratings sat on the floor")
+    }
+
+    /**
+     * The share of ratings that are a genuine nought: a player under twenty
+     * minutes whose rating landed exactly on the floor, which section 3.14
+     * step 11 turns into "no rating" rather than 2,0. Kept apart from a
+     * benched reserve, who is not in RATED_VALUES at all because he is never
+     * a key of MatchRatings; this share counts only players who did appear.
+     */
+    @Test
+    fun `a share of ratings are a genuine nought for a short appearance on the floor`() {
+        val share = RATED_VALUES.count { it == 0.0 }.toDouble() / RATED_VALUES.size
+        assertTrue(share in RATING_ZERO_SHARE, "$share of ${RATED_VALUES.size} ratings were a genuine nought")
     }
 
     private companion object {
@@ -497,6 +592,157 @@ class SanityCheckTest {
          */
         @SpecRef("3.4")
         val LINES_AT_DIVISOR: List<MatchReport> by lazy { play(EqualSides.linesAtDivisorSetup()) }
+
+        /**
+         * Every Goal event of the MATCHES sample, home and away goals of both
+         * sides folded together. About 1.3 goals a side a match over twenty
+         * thousand matches puts this in the tens of thousands, which is what
+         * makes even OLYMPIC's half a per cent band readable.
+         */
+        @SpecRef("3.7")
+        val GOAL_EVENTS: List<MatchEvent.Goal> by lazy {
+            MATCHES.flatMap { it.log }.filterIsInstance<MatchEvent.Goal>()
+        }
+
+        /**
+         * Measured over 53199 goals: OPEN_PLAY 0.9079493975450666, PENALTY
+         * 0.04791443448185116, FREE_KICK 0.029023101938006352, OWN_GOAL
+         * 0.009793417169495668, OLYMPIC 0.00531964886558018.
+         *
+         * OPEN_PLAY's own band covers section 3.7's table read as 90 plus the
+         * 0.5 tail, 90.5 per cent, and every other band covers its own row
+         * exactly: 5, 3, 1 and 0.5. Every one of the five measured values sits
+         * within about a tenth of its nominal figure, well inside a band set
+         * at ten standard errors, so this is agreement rather than a finding:
+         * the engine transcribes the table faithfully. Each band would fail
+         * with the type's share collapsed to whatever the other bands
+         * absorbed if that type's branch of typeOf stopped firing.
+         */
+        @SpecRef("3.7")
+        val TYPE_SHARE: Map<GoalType, ClosedFloatingPointRange<Double>> = mapOf(
+            GoalType.OPEN_PLAY to 0.895..0.920,
+            GoalType.PENALTY to 0.038..0.058,
+            GoalType.FREE_KICK to 0.021..0.037,
+            GoalType.OWN_GOAL to 0.005..0.014,
+            GoalType.OLYMPIC to 0.002..0.009,
+        )
+
+        /**
+         * Measured 0.8107945840751936 of 48302 open play goals, against
+         * section 3.6's rand(100) > 80, which is 81 per cent. Ten standard
+         * errors wide is about plus or minus 0,018, so this band corroborates
+         * the coin firing rather than pinning the exact threshold: flipping
+         * the comparison from draw > 80 to draw >= 80 would measure about
+         * 0,800, still inside this band, and the test would still pass. What
+         * it does catch is the coin never being tossed at all, which would
+         * collapse the measured share to nought. The threshold itself, that
+         * rand(100) > 80 is the draws 81 to 99 and not 80 to 99, is pinned
+         * exactly by AssistSelectionTest, which walks every one of the 100
+         * possible coin draws from both directions rather than sampling any
+         * of them.
+         */
+        @SpecRef("3.6")
+        val ASSIST_SHARE = 0.792..0.830
+
+        /**
+         * Measured nought of the 48302 open play goals: every final open
+         * play goal in this sample was worth two match goal credits, none
+         * worth one. Section 3.7's own goal patch falls back to open play
+         * only when the conceding side has nobody left at all to blame, on
+         * ownGoalEligibleSlots = 1..25, which needs the whole eleven man
+         * side gone from the pitch with nobody to replace them on this
+         * fixture's empty bench. That is reachable in principle and
+         * unreachable in practice over twenty thousand matches, and the
+         * sample bears that out exactly: not one of the 521 own goals drawn
+         * in this sample found an empty side to blame. This constant cannot
+         * exercise the fallback branch itself, since a measured nought here
+         * reads the same whether the branch is merely unreached or was
+         * deleted outright; that branch, and its interaction with the
+         * assist coin, is what GoalTypingTest's own scripted draws pin
+         * directly, in its test an own goal that falls back to open play
+         * has no assister, because the assist came first, the way
+         * DisciplineChainTest covers BenchedSanityCheckTest's own rare edge.
+         */
+        @SpecRef("3.7")
+        const val DOWNGRADED_OWN_GOALS = 0
+
+        /**
+         * Section 3.14's ratings for the whole MATCHES sample, one entry per
+         * match, from the same seeds MATCHES itself was played at.
+         *
+         * playerRatings forks from the origin seed and never from a stream's
+         * consumed state, so a fresh SplitMix64Rng of the same seed reproduces
+         * the same ratings whether or not that seed's own generator already
+         * played the match; MatchRatingsTest pins that directly.
+         */
+        @SpecRef("3.14")
+        val RATINGS: List<MatchRatings> by lazy {
+            MATCHES.mapIndexed { index, report ->
+                report.playerRatings(RuleSets.CLASSIC, SplitMix64Rng(index + 1L))
+            }
+        }
+
+        /**
+         * Every individual rating of RATINGS, both sides of every match,
+         * flattened for a mean and for the two share tests. Ordering carries
+         * no meaning here, only the multiset of values.
+         */
+        @SpecRef("3.14")
+        val RATED_VALUES: List<Double> by lazy {
+            RATINGS.flatMap { it.home.values.map { rating -> rating.value } + it.away.values.map { rating -> rating.value } }
+        }
+
+        /**
+         * Measured 6.100144090908976 over 440000 ratings, twenty two rated
+         * players of both starting elevens across twenty thousand matches,
+         * nobody arriving on this fixture's empty bench. The base table
+         * alone puts a strength fifty player at 5.5 to 6.8 depending on
+         * result and side, and every adjustment above and below that base
+         * both raises and lowers it in roughly equal measure across the
+         * whole squad, which is why the mean settles close to the middle of
+         * the base table rather than drifting toward either clamp. The band
+         * is a flat two tenths either side, an order of magnitude over what
+         * a population of 440000 individually noisy ratings needs for its
+         * mean to move at all.
+         */
+        @SpecRef("3.14")
+        val RATING_MEAN = 6.0..6.2
+
+        /**
+         * Measured 7.795454545454545E-4 of 440000 ratings, 343 of them,
+         * sitting exactly on the floor of 2,0. That is a player whose whole
+         * eleven step sum landed at or below two before the floor caught it,
+         * and who also cleared the twenty minute mark, since step 11's
+         * zeroing clause overwrites every floor rating that stayed under it
+         * and this count is read after that clause has already run.
+         * SanityCheckTest's fixture has no bench, so an early event that
+         * still leaves a player short of a full appearance can come from an
+         * early sending off, an early own goal blamed on its author, or an
+         * ordinary booking, since toPlayerTallies writes the same
+         * protagonist minute for all three; bookings, at roughly 1,3 a
+         * match, are the largest of the three sources in this fixture. It
+         * can never come from a substitution, since this fixture plays with
+         * no bench. Ten standard errors wide around the measured share, and
+         * it would collapse to nought if step 11's floor clamp were removed,
+         * since nothing below it could then survive without being lifted.
+         */
+        @SpecRef("3.14")
+        val RATING_FLOOR_SHARE = 0.00035..0.00120
+
+        /**
+         * Measured 0.001884090909090909 of 440000 ratings, 829 of them, a
+         * genuine nought: a player under twenty minutes whose rating came to
+         * rest exactly on the floor. Step 11's zeroing clause runs after the
+         * floor clamp and overwrites the floor value with nought, so every
+         * one of these players is absent from the floor share above rather
+         * than counted in it; the two shares are disjoint populations, which
+         * is exactly why this one can be larger than the floor share despite
+         * neither containing the other. Ten standard errors wide, and it
+         * would collapse to nought if step 11's zeroing clause were removed,
+         * leaving every one of these players published at 2,0 instead.
+         */
+        @SpecRef("3.14")
+        val RATING_ZERO_SHARE = 0.0012..0.0026
 
         /**
          * One sample. The setup is immutable and carries no state, so building

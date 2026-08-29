@@ -4,6 +4,7 @@ import org.openfoot.engine.lineup.Formations
 import org.openfoot.model.Attr
 import org.openfoot.model.CompetitionKind
 import org.openfoot.model.Country
+import org.openfoot.model.Designated
 import org.openfoot.model.Marking
 import org.openfoot.model.PlayerId
 import org.openfoot.model.PlayerStyle
@@ -65,6 +66,8 @@ object Lineups {
         style: PlayerStyle = PlayerStyle.OFFENSIVE,
         firstTrait: Trait = NEUTRAL_TRAITS.first,
         secondTrait: Trait = NEUTRAL_TRAITS.second,
+        star: Boolean = false,
+        topWorld: Boolean = false,
         abilities: IntArray = IntArray(Attr.COUNT),
         representsSideCountry: Boolean = false,
     ): MatchPlayer {
@@ -78,6 +81,8 @@ object Lineups {
             abilities = abilities,
             firstTrait = firstTrait,
             secondTrait = secondTrait,
+            star = star,
+            topWorld = topWorld,
             side = side,
             style = style,
             representsSideCountry = representsSideCountry,
@@ -89,10 +94,12 @@ object Lineups {
         marking: Marking = Marking.LIGHT,
         context: StrengthContext = context(),
         humanManaged: Boolean = false,
+        designated: Designated = Designated.NONE,
     ) = MatchSide(
         lineup = players,
         marking = marking,
         context = context,
+        designated = designated,
         isHumanManaged = humanManaged,
     )
 
@@ -102,7 +109,8 @@ object Lineups {
         strength: Int,
         marking: Marking = Marking.LIGHT,
         context: StrengthContext = context(),
-    ) = side(slots.map { player(it, strength) }, marking, context)
+        designated: Designated = Designated.NONE,
+    ) = side(slots.map { player(it, strength) }, marking, context, designated = designated)
 
     /** Slot list of formation 4, the four four two the AI picks most often. */
     val FORMATION_4_4_2 = Formations.byId(4).slots.map { it.value }

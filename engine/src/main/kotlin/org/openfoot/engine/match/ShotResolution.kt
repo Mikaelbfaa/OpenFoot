@@ -114,6 +114,18 @@ internal fun shotBaseWeights(
 
 /**
  * Shot resolution for a real pairing.
+ *
+ * The elvis branch below, substituting rules.missingShooterRating for a null
+ * shooter, is unreachable today. Section 3.6's finisher draw, corrected
+ * against the original, now falls back to the last player of the pitch
+ * lineup whenever it finds nobody eligible, so selectShooter only ever hands
+ * back null when a side has no player on the pitch at all, a case nothing in
+ * this engine constructs. The branch and rules.missingShooterRating stay
+ * regardless, because this figure's own text in section 3.6c, "sh =
+ * B(finalizador), 0.1 se nenhum", has not itself been verified against the
+ * original the way section 3.6's finisher draw has. Dropping the constant
+ * now would be changing behaviour nobody has confirmed yet rather than
+ * reading it off a settled spec.
  */
 @SpecRef("3.6c")
 fun shotOutcome(

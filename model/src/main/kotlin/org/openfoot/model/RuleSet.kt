@@ -17,6 +17,122 @@ data class AntiBlowoutStep(val goalsAtLeast: Int, val weights: ShotBaseWeights)
 data class ShotMultipliers(val saved: Double, val wide: Double)
 
 /**
+ * Every number the assist draw of section 3.6 reads, gathered in one value
+ * object rather than left flat on RuleSet, which is already near its own
+ * guidance of about sixty properties.
+ *
+ * eligibleSlots and slotWeights cover the pitch cells one to twenty five, the
+ * same one to one indexing shooterSlotWeights above uses: slotWeights is read
+ * by slot number directly, with index zero a padding entry that is never
+ * reached because eligibleSlots excludes it.
+ *
+ * fullbackSlots names the two cells the spec calls laterais for this draw,
+ * slots two and nine, and only those two. This is not the same set as
+ * Position.FULLBACK's natural position, and it is not the same set as the
+ * slot range that asks for a fullback in Slot.requiredPosition, which also
+ * includes the wing back cells ten and seventeen. Those two wing back cells
+ * take the plain seventeen to twenty five weight of ten in slotWeights and
+ * none of the lateral bonuses below; the spec's own weight table marks only
+ * two and nine as laterais and gives ten its own separate table entry.
+ *
+ * passingBonus through crossingFullbackBonus are read in a fixed order by a
+ * chain that stops at its first match, exactly mirroring the finisher bonus
+ * chain of shooterWeight above: Passing first, then Playmaking, then
+ * Dribbling, then Pace, then Crossing. paceTotalBonus and paceWalkBonus are
+ * the one pair in the whole table that can disagree, and under the classic
+ * rules they do, at one and at two, which is section 3.15 item 4's Velocidade
+ * defect reproduced through asymmetricWeightedPick: the trait pays the walk
+ * more than the sum the walk is scaled against ever accounted for. Every
+ * other bonus here applies identically to the total pass and the walk pass,
+ * and under the modern rules this one does too, both at one.
+ *
+ * heavyMarkingFullbackBonus applies on top of whichever branch above fired,
+ * to any of the two lateral slots, only when the side's own marking equals
+ * Marking.HEAVY. Marking's three values are LIGHT, HEAVY, VERY_HEAVY in that
+ * ordinal order, so Pesada is the middle one and not the hardest setting;
+ * VERY_HEAVY earns no bonus here at all.
+ */
+@SpecRef("3.6")
+data class AssistRules(
+    @property:SpecRef("3.6") val noAssistThreshold: Int,
+    @property:SpecRef("3.6") val eligibleSlots: IntRange,
+    @property:SpecRef("3.6") val slotWeights: List<Int>,
+    @property:SpecRef("3.6") val fullbackSlots: List<Int>,
+    @property:SpecRef("3.6") val passingBonus: Int,
+    @property:SpecRef("3.6") val passingPlaymakingBonus: Int,
+    @property:SpecRef("3.6") val playmakingBonus: Int,
+    @property:SpecRef("3.6") val playmakingDribblingBonus: Int,
+    @property:SpecRef("3.6") val dribblingBonus: Int,
+    @property:SpecRef("3.6") val dribblingPaceBonus: Int,
+    @property:SpecRef("3.15") val paceTotalBonus: Int,
+    @property:SpecRef("3.15") val paceWalkBonus: Int,
+    @property:SpecRef("3.6") val paceFullbackBonus: Int,
+    @property:SpecRef("3.6") val crossingBonus: Int,
+    @property:SpecRef("3.6") val crossingFullbackBonus: Int,
+    @property:SpecRef("3.12") val heavyMarkingFullbackBonus: Int,
+)
+
+/**
+ * Every number section 3.7's goal typing reads, gathered in one value object
+ * for the reason AssistRules and PenaltyRules already are: RuleSet is at its
+ * own guidance of about sixty properties and a divergence here would be one
+ * named argument either way.
+ *
+ * drawBound is the bound of the single rand(1000) the type comes out of, and
+ * the five From thresholds are the lower edge of each band above the opening
+ * one, read in ascending order by typeOf below. Open play owns two bands, the
+ * whole run under penaltyFrom and the short tail from openPlayTailFrom to the
+ * bound, which is why there are six bands and five thresholds rather than six
+ * of each.
+ *
+ * ownGoalEligibleSlots and ownGoalSlotWeights describe the draw that replaces
+ * the displayed author of an own goal with a player of the side that
+ * conceded. slotWeights is read by cell number directly, with index nought a
+ * padding entry the eligible range never reaches, the same one to one indexing
+ * shooterSlotWeights and AssistRules.slotWeights use. The weights are not the
+ * shooter's or the assister's: they put nearly all of the weight on the six
+ * centre back cells, at eighteen each against one for a forward, which is what
+ * makes an own goal look like a defender's mistake.
+ *
+ * There is deliberately no second table here. Section 3.15 item 17 records a
+ * second, more generous typing table in the original, eighty per cent open
+ * play and thirteen per cent free kick, wired to a card for the side that gave
+ * the penalty away; nothing in the original calls it, and the spec says not to
+ * port it, so it exists in neither rule set and has no field to be switched
+ * on by.
+ */
+@SpecRef("3.7")
+data class GoalTypeRules(
+    @property:SpecRef("3.7") val drawBound: Int,
+    @property:SpecRef("3.7") val penaltyFrom: Int,
+    @property:SpecRef("3.7") val freeKickFrom: Int,
+    @property:SpecRef("3.7") val ownGoalFrom: Int,
+    @property:SpecRef("3.7") val olympicFrom: Int,
+    @property:SpecRef("3.7") val openPlayTailFrom: Int,
+    @property:SpecRef("3.7") val ownGoalEligibleSlots: IntRange,
+    @property:SpecRef("3.7") val ownGoalSlotWeights: List<Int>,
+) {
+    /**
+     * The band one draw of rand(drawBound) falls in.
+     *
+     * Every edge is a lower bound reached from below, so a draw exactly on a
+     * threshold belongs to the band that threshold names and never to the one
+     * beneath it. Keeping the whole chain here rather than in the engine is
+     * what stops the boundary convention being restated, and possibly
+     * restated differently, at a second site.
+     */
+    @SpecRef("3.7")
+    fun typeOf(draw: Int): GoalType = when {
+        draw < penaltyFrom -> GoalType.OPEN_PLAY
+        draw < freeKickFrom -> GoalType.PENALTY
+        draw < ownGoalFrom -> GoalType.FREE_KICK
+        draw < olympicFrom -> GoalType.OWN_GOAL
+        draw < openPlayTailFrom -> GoalType.OLYMPIC
+        else -> GoalType.OPEN_PLAY
+    }
+}
+
+/**
  * How home advantage reaches the two non goal weights of a shot.
  *
  * This is the one place in the engine that needs a strategy object rather than
@@ -29,6 +145,50 @@ data class ShotMultipliers(val saved: Double, val wide: Double)
 @SpecRef("3.6c")
 fun interface ShotHomeRule {
     fun adjust(multipliers: ShotMultipliers, advantage: HomeAdvantage, delta: Double): ShotMultipliers
+}
+
+/**
+ * How section 3.14 step 3 reads the two counters of its missed penalty term.
+ *
+ * A strategy object rather than a constant for the reason ShotHomeRule above
+ * is one: the classic and the modern readings differ in shape and not only in
+ * value. The classic reading is section 3.15 item 15's defect verbatim, a term
+ * switched on by a missed penalty that then multiplies the OWN GOAL counter,
+ * so a player who missed a penalty and scored no own goal loses nothing at all
+ * and a player who did both in one match is charged twice over for the own
+ * goal. The modern reading multiplies the counter the term is named for, once
+ * per penalty missed and never for an own goal.
+ *
+ * Both counters are handed over on every call, and the charge with them, so
+ * that neither reading has to reach for the engine's own tally type: a
+ * strategy declared here may name only model types and primitives, and these
+ * three numbers are the whole of what either reading needs.
+ */
+@SpecRef("3.15")
+fun interface MissedPenaltyRule {
+    fun adjust(missedPenalties: Int, ownGoals: Int, penalty: Double): Double
+}
+
+/**
+ * Which of the two minute figures section 3.14 step 10 charges its penalty on.
+ *
+ * A strategy object for the same reason the two above are: section 3.15 item
+ * 14 is not a number read wrongly but a counter that measures the wrong
+ * thing, and the two readings cannot be told apart by any constant. The
+ * classic figure is the one the original keeps, the minute of the player's own
+ * last qualifying event worked through section 3.14's protagonist or
+ * supporting formula, which is why a starter booked in the fifth minute is
+ * charged as though he had barely played. The modern figure is the time he was
+ * actually on the pitch, from kick off or from the minute he came on to the
+ * minute he left or to the final whistle.
+ *
+ * Both figures are computed for every player whatever the rule set, and this
+ * chooses between them afterwards, so the fold that produces them never
+ * branches on which rules are running.
+ */
+@SpecRef("3.15")
+fun interface MinutesPlayedRule {
+    fun minutes(eventDerived: Int, actual: Int): Int
 }
 
 /**
@@ -103,6 +263,10 @@ data class RuleSet(
     @property:SpecRef("3.6") val shooterHeadingBonus: Int,
     @property:SpecRef("3.6") val shooterHeadingDefenderBonus: Int,
 
+    @property:SpecRef("3.6") val assist: AssistRules,
+
+    @property:SpecRef("3.7") val goalTypes: GoalTypeRules,
+
     @property:SpecRef("3.9") val energyDrainInterval: Int,
     @property:SpecRef("3.9") val energyCostByAge: List<Pair<Int, Int>>,
     @property:SpecRef("3.9") val keeperExemptHalf: Half,
@@ -118,6 +282,12 @@ data class RuleSet(
     @property:SpecRef("3.15") val injuryOverwriteFactor: Int,
     @property:SpecRef("3.15") val substitutingSidesPerPass: Int,
     @property:SpecRef("3.15") val scoreWindowArrivalsSide: List<TeamSide>,
+
+    @property:SpecRef("3.10") val penalties: PenaltyRules,
+
+    @property:SpecRef("3.14") val ratings: RatingRules,
+    @property:SpecRef("3.15") val missedPenaltyRule: MissedPenaltyRule,
+    @property:SpecRef("3.15") val minutesPlayedRule: MinutesPlayedRule,
 
     @property:SpecRef("3.15") val lineupRelaxationPasses: Int,
     @property:SpecRef("5.4") val benchTemplate: List<Int>,

@@ -26,6 +26,10 @@ Motor de partida:
 - Disciplina, lesões e substituições da seção 3.8: cartões, expulsões, o sorteio de risco por grupo
   de slots e as janelas de troca da IA
 - O log de eventos da partida, de onde as estatísticas e o placar são lidos, não acumulados à parte
+- Tipos de gol da seção 3.7, com autor e marcador podendo ser pessoas diferentes, e os cobradores
+  designados da seção 5.6
+- Assistências, e as duas formas de disputa de pênaltis da seção 3.10
+- Notas pós jogo da seção 3.14, com os onze passos na ordem em que o original os aplica
 
 Criação de mundo:
 
@@ -46,7 +50,8 @@ Infraestrutura:
 - Testes de arquitetura que impedem I/O, relógio, aleatoriedade de plataforma e não determinismo
 - Verificadores de estilo de comentário e de documento
 
-Ainda falta, para uma partida completa: tipos de gol, assistências e notas.
+A partida está completa, do apito inicial às notas. O que ainda não existe é o que vem depois dela:
+temporada, carreira, evolução de jogador entre um ano e outro e transferências.
 
 ## Como compilar
 

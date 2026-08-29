@@ -46,6 +46,23 @@ mesma coisa.
 Spec: seção 3.6b, com a resolução registrada em `spec/OPEN-QUESTIONS.md`. Mantido como está: sem o
 piso, um zagueiro sofreria **mais** que nenhum, o que é pior.
 
+### O bônus de Velocidade no sorteio de assistência vale mais na caminhada que no total
+
+O sorteio de assistência da seção 3.6 soma um peso por candidato e depois **caminha** um segundo
+peso até passar do alvo sorteado. Os dois passes leem a mesma tabela, com uma única exceção: o ramo
+de Velocidade da cadeia de características vale **1** no total e **2** na caminhada. Quem tem
+Velocidade fica com uma fatia do sorteio que a soma nunca contabilizou, e todo mundo listado depois
+dele fica com menos do que o próprio peso diz. Não é só o total que muda: o defeito muda **quem
+recebe a assistência**.
+
+`assistWeight`, em `AssistSelection.kt`, é onde os dois números divergem - `paceWalkBonus` na
+caminhada contra `paceTotalBonus` no total. Nenhum outro bônus da tabela distingue os dois passes.
+
+Spec: seção 3.6, defeito 4 da seção 3.15. Em `MODERN` a caminhada passa a valer 1, igual ao total.
+É a caminhada que se move e não o total, porque o total é o que todas as outras características da
+cadeia já pagam e porque deixar o total quieto mantém a soma contra a qual o sorteio é escalado
+exatamente onde estava.
+
 ### Depois da primeira lesão, a taxa de cartões despenca
 
 O limiar de amarelo é sobrescrito ao longo da partida, e cada sobrescrita **apaga** a anterior em
@@ -109,7 +126,135 @@ As regras anti-exploit acima só valem quando há clube humano na partida.
 
 Spec: seções 3.6b e 3.6c. Mantido.
 
+### Um gol de bola rolando, de falta ou olímpico conta duas vezes
+
+O contador de gols **da partida** do finalizador sorteado sobe uma vez logo depois do sorteio de tipo,
+para todo tipo que não seja pênalti nem gol contra, e sobe de novo quando o gol é somado ao placar.
+Bola rolando, falta e olímpico contam duas vezes; pênalti em IAxIA e gol contra contam uma. Como é
+esse contador que a nota da seção 3.14 lê, um gol de bola rolando vale **+1,8** de nota e não +0,9.
+
+A artilharia da temporada não é afetada: ela é montada a partir dos eventos, e o evento continua
+sendo um só.
+
+Spec: seção 3.7, defeito 13 da seção 3.15, item 51 de `spec/OPEN-QUESTIONS.md`. Mantido nos dois
+conjuntos de regras: a contagem dobrada é o comportamento do original, e deduplicar mudaria a
+distribuição de notas de todo jogo de ataque.
+
+### O autor do evento e o dono do gol da partida são dois créditos diferentes
+
+Num gol de pênalti, falta ou olímpico em que o designado da seção 5.6 está em campo, ele aparece como
+autor no relato e na artilharia da temporada, mas o **+0,9 de nota fica com o finalizador sorteado**.
+Num gol contra, o autor exibido vira um jogador do time que defende e leva o -1,5, enquanto o
+finalizador sorteado do time atacante ganha um gol na contagem da partida que **não aparece em lugar
+nenhum**.
+
+O motor guarda os dois lados no mesmo evento, `author` e `scorer`, justamente porque eles podem
+divergir; unificar os dois moveria 0,9 de nota entre dois jogadores em cerca de 8,5% dos gols.
+
+Spec: seção 3.7, item 57 de `spec/OPEN-QUESTIONS.md`. Mantido nos dois conjuntos de regras.
+
+### Gol de pênalti em partida com time humano não é somado direto
+
+Quando o sorteio da seção 3.7 devolve pênalti e **qualquer um dos dois times** é humano, o gol não vai
+para o placar: ele é entregue ao pênalti interativo da seção 3.10, que decide. Nada se perde, porque a
+condição do visualizador é a mesma, e o pênalti convertido ali vale **+0,9** de nota para o batedor, e
+não +1,8, porque quem soma é o visualizador e ele incrementa uma vez só.
+
+Spec: seções 3.7 e 3.10, item 51 de `spec/OPEN-QUESTIONS.md`. Mantido nos dois conjuntos de regras.
+
+### Os minutos jogados são o minuto do último evento, não tempo em campo
+
+O desconto de minutos do passo 10 da seção 3.14 não mede quanto tempo um jogador ficou em campo: cada
+evento que a seção 3.14 lista como protagonista ou como coadjuvante sobrescreve `minutesPlayed` para o
+minuto daquele evento, e o valor que sobra depois do último evento do jogador é o que a nota usa.
+Marcar cedo no 1º tempo aplica ao autor o desconto de "entrou faltando pouco" - -1,5 ou -2,5 antes do
+minuto 15; assistir depois do minuto 35 do 2º tempo aplica -2,5 ao assistente.
+
+`toPlayerTallies`, em `PlayerTally.kt`, é o fold inteiro: `protagonistMinute` e `supportingMinute`
+calculam o minuto guardado a cada gol, cartão, substituição e pênalti interativo defendido, e o campo
+fica exatamente como o último desses eventos o deixou.
+
+Spec: seção 3.14, defeito 14 da seção 3.15. Em `MODERN` o campo passa a medir tempo em campo de
+verdade: o relógio de cada jogador abre no apito inicial, ou no minuto em que o reserva entrou, e
+fecha na substituição, na expulsão, na lesão ou no apito final - e o apito final é o total do
+relógio daquela partida, com acréscimos, e não noventa fixo. Os dois números são calculados sempre,
+nos dois conjuntos de regras, e `RuleSet.minutesPlayedRule` escolhe qual deles a nota lê; o fold não
+pergunta em momento nenhum qual conjunto está rodando.
+
+Uma saída de campo o log não mostra, e fica registrada aqui em vez de aproximada: a lesão
+cujo sorteio de duração dá **zero dia**, que só um jogador de 20 anos ou menos consegue
+tirar, não gera evento nenhum e ainda assim tira o jogador. A partir daí, `injure`, em
+`Discipline.kt`, ainda pode deixar de trazer um substituto por três caminhos silenciosos:
+`canSubstitute` recusa a troca por completo, seja porque o time é controlado por um humano, o
+banco está vazio ou a cota de trocas já foi usada; `chooseReplacement` não encontra ninguém
+que sirva na vaga; ou o único que serve é um goleiro reserva, recusado como substituto de
+um jogador de linha. Em qualquer um dos três casos não há nada no log que feche o relógio
+dele e ele conta até o apito final. Inventar uma regra no fold sobre um evento que não está
+lá seria pior que registrar o caso.
+
+### O desconto de pênalti perdido da nota multiplica o contador errado
+
+O passo 3 da seção 3.14 liga o termo pelo contador de pênaltis perdidos, mas o valor que ele de fato
+multiplica por -1,2 é o de gols contra, e não o de pênaltis perdidos. Quem perdeu um pênalti e não fez
+gol contra nenhum não perde nada; quem fez as duas coisas na mesma partida é punido duas vezes pelo gol
+contra, uma pelo termo comum de -1,5 e outra por este.
+
+`ClassicMissedPenaltyRule`, em `RuleSets.kt`, é onde isso vive desde que virou delta: o termo é
+ligado por `missedPenalties > 0` e o corpo multiplica `ownGoals`, não `missedPenalties`.
+`eventAdjustment`, em `PlayerRating.kt`, apenas entrega os dois contadores e o valor à regra.
+
+Spec: seção 3.14, defeito 15 da seção 3.15. Em `MODERN` o termo multiplica o contador que dá nome a
+ele: quem perdeu um pênalti e não fez gol contra paga -1,2 uma vez, e quem fez as duas coisas paga
+-1,5 pelo gol contra e -1,2 pelo pênalti, cada coisa uma vez só. O valor em si,
+`missedPenaltyCharge`, continua sendo o mesmo -1,2 nos dois conjuntos; só o que ele multiplica muda,
+e por isso a divergência é um objeto de estratégia e não um número.
+
+### Cinco dos sete desfechos de pênalti interativo perdido contam como chute no alvo
+
+Os sete desfechos do sorteio de erro da seção 3.10 não são uma partição em três: são duas leituras
+independentes do mesmo sorteio. Cinco dos sete contam como chute no alvo, e só três deles - os mesmos
+que creditam a defesa ao goleiro - de fato tocaram na bola. Os outros dois, a bola na trave e o batedor
+que escorrega, contam como chute no alvo sem que o goleiro tenha feito nada. A linha "no alvo" da
+súmula, então, não é exatamente "gols + defesas" numa partida com pênalti interativo.
+
+`interactivePenalty`, em `PenaltyResolution.kt`, é onde os dois contadores nascem: `onTarget` fica
+`true` para a conversão e para cinco dos sete desfechos de erro, e `keeperCreditedWithSave` fica `true`
+para só três deles.
+
+Spec: seções 3.10 e 3.13, item 58 de `spec/OPEN-QUESTIONS.md`. Mantido nos dois conjuntos de regras:
+não é um número mal lido a corrigir, é a leitura confirmada do original.
+
+### O degrau de goleiro "chutou mais de dez" lê chutes totais, e os dois de cima estão mortos
+
+O passo 6 da seção 3.14 dá ao goleiro +0,2 por chute no alvo sofrido e, na mesma frase, mais três
+degraus por volume de jogo: +0,2 se o adversário chutou mais de dez, +0,2 se chutou mais de quinze e
++0,3 se chutou mais de vinte. Os dois últimos estão atrás do primeiro numa cadeia de senão e nenhuma
+contagem os alcança. O único que sobra troca "chute no alvo" por "chutou": ele lê o total de chutes do
+adversário, e não o total no alvo, e como um lado bate uns dezesseis chutes totais por partida ele é
+pago em quase todo jogo, virando um bônus quase fixo em vez de um prêmio por partida movimentada.
+
+`keeperAdjustment`, em `PlayerRating.kt`, lê `context.opponentShots`, o total de chutes do lado
+adversário, contra `keeper.busyShotsAbove`; não há ramo nenhum para os dois degraus de cima.
+
+Spec: seção 3.14, defeito 16 da seção 3.15, item 61 de `spec/OPEN-QUESTIONS.md`. Mantido nos dois
+conjuntos de regras: a 3.15 manda não portar os dois ramos mortos, e o contador que o degrau restante
+lê é o comportamento confirmado do original.
+
 ## Nunca reproduzido, em nenhum conjunto de regras
+
+### Os dois caminhos mortos do sorteio de tipo de gol
+
+A seção 3.7 tem um ramo que transformaria um gol olímpico em gol de bola rolando quando o jogador
+sorteado fosse goleiro. Ele é **inalcançável**: o sorteio de finalizador da seção 3.6 já exclui todo
+goleiro de posição natural, então nunca há um goleiro para o ramo testar. O item 16 da seção 3.15
+manda não portar, e ele não foi portado.
+
+O item 17 da mesma seção registra uma **segunda tabela de tipo de gol**, mais generosa com faltas
+(80% bola rolando, 5% pênalti, 13% falta) e acoplada a um sorteio de cartão para o time que cometeu o
+pênalti. Nada no original a chama: é código morto de outra versão do motor. Ela também não foi
+portada, e por isso não existe campo nenhum de `RuleSet` que pudesse ligá-la.
+
+Spec: seção 3.7, itens 16 e 17 da seção 3.15.
 
 ### Pools de minutos de substituição estáticos entre partidas
 
@@ -153,6 +298,19 @@ Ficam registrados aqui para quando o código chegar nessas partes.
 - Prorrogação nunca é simulada. Empate em mata-mata vai direto para uma fórmula abstrata de
   pênaltis (seção 3.10).
 - Clubes da IA não têm dinheiro (seção 6.0). Esse é o mais estrutural de todos.
+- A estrela vermelha implica a estrela comum ao criar o mundo e ao ler o `.ban`, e os dois bônus de
+  nota associados às marcas já são cumulativos no motor (`starAdjustment`, em `PlayerRating.kt`). O
+  que falta é a outra ponta: a **promoção a estrela vermelha ao fim de temporada não liga a estrela
+  comum**, e como o motor ainda não tem virada de temporada nenhuma, não há onde essa metade viver
+  ainda. Quando existir, um jogador promovido sem a estrela comum deve somar +0,6 por partida, e não
+  o +1,0 de um jogador idêntico vindo do arquivo com as duas marcas (seção 3.15, item 18).
+- O capitão e o "falso 9" da seção 5.6 são derivados pelo original e guardados no time, mas nada os
+  lê: a própria seção marca o efeito real dos dois como nenhum, display no caso do capitão, manual e
+  sem efeito nenhum no caso do falso 9. O motor não deriva nem guarda os dois por isso, e só o
+  batedor de falta/pênalti e o cobrador de escanteio existem no código (seção 5.6).
+- Existe no original um caminho que recalcularia o batedor designado a partir de uma lista dada, a
+  escalação da partida por exemplo, só quando o designado não estivesse nela. Nada no original chama
+  esse caminho, e por isso ele não foi portado (seção 5.6, item 56 de `OPEN-QUESTIONS.md`).
 
 ## Não são defeitos
 

@@ -1,8 +1,10 @@
 package org.openfoot.validation
 
 import org.openfoot.engine.match.MatchEvent
+import org.openfoot.engine.match.MatchRatings
 import org.openfoot.engine.match.MatchReport
 import org.openfoot.engine.match.SubstitutionReason
+import org.openfoot.engine.match.playerRatings
 import org.openfoot.engine.match.simulateMatch
 import org.openfoot.model.RuleSets
 import org.openfoot.model.SpecRef
@@ -37,6 +39,14 @@ import kotlin.test.assertTrue
  * matters here is section 3.8's duration of nought, which registers no injury
  * at all and is drawable only at twenty or under.
  *
+ * Section 3.7's goal typing moved nothing here either, and could not have.
+ * It draws from a stream of its own, a sibling of the tick's under the same
+ * minute, so it cannot move a draw a tick makes, and neither side here is
+ * human managed, so no goal can be taken off the scoreboard by section
+ * 3.10. What did change is the replay rendering below, which now prints the
+ * two new events as well, so a typing that started crediting a different
+ * player would break the replay assertion rather than pass unnoticed.
+ *
  * The two sides are equivalent in everything except the ground, so the gap
  * between the home and the away figures below is section 3.8's own doing and
  * measures two defects at once. Section 3.15 item 11 has a home side that
@@ -46,6 +56,21 @@ import kotlin.test.assertTrue
  * and chasing a draw where the visitor settles for it. Both push the same way,
  * and the home side makes about six tenths of a change a match more than the
  * away side does.
+ *
+ * Section 3.14's minutesPlayed formula has a protagonist branch and a
+ * supporting one, and toPlayerTallies reads the supporting branch at three
+ * call sites: a Goal's assister, the goalkeeper of a saved interactive
+ * penalty, and the arriving half of a Substitution. Only the last of the
+ * three needs a bench, so SanityCheckTest already reaches the supporting
+ * formula through the assister, and neither fixture ever reaches the
+ * interactive penalty site at all, since section 3.10's path needs a human
+ * managed side and neither pairing has one. What only this class reaches is
+ * the arrival itself: a substitute has no earlier event of his own to have
+ * set his minutes, so his first entry in the tally is the one the
+ * Substitution branch writes, and SanityCheckTest's empty bench means that
+ * branch is never exercised there at all. The ratings measured below are
+ * exactly what tells the two apart, since the arrival's own share of the
+ * floor and of the genuine nought is what an empty bench cannot produce.
  */
 class BenchedSanityCheckTest {
 
@@ -142,6 +167,62 @@ class BenchedSanityCheckTest {
         assertEquals(0, instant, "injuries of no duration reached the log")
         val share = young.toDouble() / logged
         assertTrue(share in YOUNG_INJURY_SHARE, "$young of $logged logged injuries were young, $share")
+    }
+
+    /**
+     * The mean rating over every player this fixture rates, starters and
+     * arrivals of both sides. RATED_VALUES has about seven more entries a
+     * match than SanityCheckTest's own population of the same size sample,
+     * one for every substitution BenchedSanityCheckTest measures elsewhere in
+     * this file, and every one of those entries pulls the mean down: a
+     * substitute's own minutesPlayed comes from the supporting formula, which
+     * only SanityCheckTest's assister call site can also reach, and an
+     * arrival late in a half lands under the short and the partial minutes
+     * thresholds far more often than a man who started the match ever does.
+     * That is the whole of why this mean sits visibly under
+     * SanityCheckTest's 6.100144090908976: nothing about strength, form or
+     * result differs between the two fixtures, only how many of the rated
+     * players are arrivals at all.
+     */
+    @Test
+    fun `the mean rating sits lower here than with an empty bench, because arrivals pull it down`() {
+        val mean = RATED_VALUES.sum() / RATED_VALUES.size
+        assertTrue(mean in RATING_MEAN, "mean rating was $mean over ${RATED_VALUES.size} ratings")
+    }
+
+    /**
+     * The share of ratings landing exactly on the floor of 2,0, five times
+     * SanityCheckTest's own share of 7.795454545454545E-4. Step 11's
+     * zeroing clause overwrites the floor value for anybody still under
+     * twenty minutes, so an arrival whose supporting minutes formula, 98
+     * minus the minute or 50 minus it, lands under twenty is zeroed rather
+     * than counted here; this share is driven instead by arrivals whose
+     * supporting minutes land in roughly the twenty to forty five minute
+     * range, high enough to clear the zeroing clause but still low enough
+     * to draw minutesAdjustment's smaller rung, the partial penalty of
+     * -1,5 rather than the short penalty of -2,5, which section 3.8's own
+     * tiredness and chasing windows hand out constantly by bringing men on
+     * late.
+     */
+    @Test
+    fun `a larger share of ratings land exactly on the floor here than with an empty bench`() {
+        val share = RATED_VALUES.count { it == BENCHED.setup.rules.ratings.limits.floor }.toDouble() / RATED_VALUES.size
+        assertTrue(share in RATING_FLOOR_SHARE, "$share of ${RATED_VALUES.size} ratings sat on the floor")
+    }
+
+    /**
+     * The share of ratings that are a genuine nought, a player under twenty
+     * minutes whose rating landed exactly on the floor, thirteen times
+     * SanityCheckTest's own share of 0.001884090909090909. Reaching a
+     * genuine nought needs both the floor and fewer than twenty minutes
+     * together, and a late arrival gets both from the one event that brought
+     * him on, where SanityCheckTest's fixture can only reach it through an
+     * early sending off, an early own goal or a very late assist.
+     */
+    @Test
+    fun `a larger share of ratings are a genuine nought here than with an empty bench`() {
+        val share = RATED_VALUES.count { it == 0.0 }.toDouble() / RATED_VALUES.size
+        assertTrue(share in RATING_ZERO_SHARE, "$share of ${RATED_VALUES.size} ratings were a genuine nought")
     }
 
     /**
@@ -291,6 +372,56 @@ class BenchedSanityCheckTest {
         @SpecRef("3.8")
         val MATCHES: List<MatchReport> by lazy { play() }
 
+        /**
+         * Section 3.14's ratings for the whole MATCHES sample, one entry per
+         * match, from the same seeds MATCHES itself was played at. See
+         * SanityCheckTest.RATINGS on why a fresh SplitMix64Rng of the same
+         * seed reproduces the same ratings regardless of what that seed's own
+         * generator already produced for the match.
+         */
+        @SpecRef("3.14")
+        val RATINGS: List<MatchRatings> by lazy {
+            MATCHES.mapIndexed { index, report ->
+                report.playerRatings(BENCHED.setup.rules, SplitMix64Rng(index + 1L))
+            }
+        }
+
+        /** Every individual rating of RATINGS, both sides of every match, flattened. */
+        @SpecRef("3.14")
+        val RATED_VALUES: List<Double> by lazy {
+            RATINGS.flatMap { it.home.values.map { rating -> rating.value } + it.away.values.map { rating -> rating.value } }
+        }
+
+        /**
+         * Measured 5.512039651804188 over 583580 ratings. See the test above
+         * for why this sits visibly under SanityCheckTest's own 6.1: the
+         * comparison is the point of the figure, so the band is set at ten
+         * standard errors of this population's own size rather than at
+         * however far it happens to sit from the other fixture's mean.
+         */
+        @SpecRef("3.14")
+        val RATING_MEAN = 5.45..5.60
+
+        /**
+         * Measured 0.003954899071249872 of 583580 ratings, 2308 of them. Ten
+         * standard errors wide, and it would fall back to SanityCheckTest's
+         * own narrower band if substitutions stopped reaching the floor at
+         * their present rate, which is exactly the regression this test and
+         * that one together are able to catch that neither could alone.
+         */
+        @SpecRef("3.14")
+        val RATING_FLOOR_SHARE = 0.0031..0.0048
+
+        /**
+         * Measured 0.025105384009047604 of 583580 ratings, 14652 of them.
+         * Ten standard errors wide, and it would collapse toward
+         * SanityCheckTest's own much smaller share if the arriving half of a
+         * Substitution stopped writing the supporting minutes formula at
+         * all, which is exactly the wiring fault this test exists to catch.
+         */
+        @SpecRef("3.14")
+        val RATING_ZERO_SHARE = 0.0230..0.0272
+
         fun play(): List<MatchReport> = (1L..SAMPLE).map {
             simulateMatch(BENCHED.setup, SplitMix64Rng(it), BENCHED.homeBench, BENCHED.awayBench)
         }
@@ -332,6 +463,15 @@ class BenchedSanityCheckTest {
                     is MatchEvent.Substitution ->
                         "sub ${event.minute} ${event.side} ${event.off.id.value} " +
                             "${event.on.id.value} ${event.on.slot.value} ${event.reason}"
+
+                    is MatchEvent.Goal ->
+                        "goal ${event.minute} ${event.side} ${event.type} " +
+                            "${event.author?.id?.value} ${event.scorer?.id?.value} " +
+                            "${event.matchGoalCredits} ${event.assister?.id?.value}"
+
+                    is MatchEvent.InteractivePenalty ->
+                        "pen ${event.minute} ${event.side} ${event.taker?.id?.value} " +
+                            "${event.keeper?.id?.value} ${event.scored} ${event.keeperSaved}"
                 }
             }
             return "$startingPossessor ${clock.firstHalfMinutes} ${clock.secondHalfMinutes} " +

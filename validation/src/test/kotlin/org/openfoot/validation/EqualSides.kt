@@ -7,6 +7,7 @@ import org.openfoot.engine.match.StrengthContext
 import org.openfoot.model.Attr
 import org.openfoot.model.CompetitionKind
 import org.openfoot.model.Country
+import org.openfoot.model.Designated
 import org.openfoot.model.Marking
 import org.openfoot.model.PlayerId
 import org.openfoot.model.PlayerStyle
@@ -68,6 +69,16 @@ object EqualSides {
      * property, so a constant that says nothing about the individual player is
      * an honest stand in here, unlike Lineups.player's defaults, which a
      * caller can override per player.
+     *
+     * Section 4.10's two badges are off for the same reason and the side
+     * carries no designation at all. Neither reaches a figure of section 3.16:
+     * the badges are read only by section 3.10's interactive penalty, which
+     * needs a human managed club, and by the ratings of section 3.14, which
+     * this class does not measure; and a designation only ever moves the
+     * author of a goal that section 3.7 has already decided is a goal, never
+     * whether it was scored. Both are stated here rather than defaulted, so
+     * that the day one of them does reach a figure it is visible at the
+     * fixture.
      */
     fun side(
         strength: Int,
@@ -99,11 +110,18 @@ object EqualSides {
                 abilities = IntArray(Attr.COUNT),
                 firstTrait = Trait.STAMINA,
                 secondTrait = Trait.CROSSING,
+                star = false,
+                topWorld = false,
                 side = Side.RIGHT,
                 style = PlayerStyle.OFFENSIVE,
             )
         }
-        return MatchSide(lineup = lineup, marking = Marking.LIGHT, context = context)
+        return MatchSide(
+            lineup = lineup,
+            marking = Marking.LIGHT,
+            context = context,
+            designated = Designated.NONE,
+        )
     }
 
     fun setup(
@@ -278,6 +296,8 @@ object EqualSides {
                 abilities = IntArray(Attr.COUNT),
                 firstTrait = Trait.STAMINA,
                 secondTrait = Trait.CROSSING,
+                star = false,
+                topWorld = false,
                 side = model.requiredSide ?: Side.RIGHT,
                 style = model.requiredStyle ?: PlayerStyle.OFFENSIVE,
             )

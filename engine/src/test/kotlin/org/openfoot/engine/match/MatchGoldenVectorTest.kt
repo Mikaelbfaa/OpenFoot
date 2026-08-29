@@ -84,8 +84,68 @@ import kotlin.test.assertTrue
  * still and read that as confirming this blindness, not as evidence the
  * change did nothing; DisciplineChainTest and InjuryTest are where an age
  * gated rule is actually pinned.
+ *
+ * Section 3.7's goal typing landed without moving a single figure either,
+ * and unlike section 3.8 it could not have moved one. The typing draws from
+ * GOAL_STREAM, a sibling of the tick's own stream under the same minute, so
+ * a minute that typed a goal leaves the tick's draws exactly where a minute
+ * that did not would; and the typing changes only who a goal is credited to,
+ * never whether one was scored. Every clock, possessor, goal and statistic
+ * below is the figure it was before section 3.7, to the last digit. What is
+ * new is the goals block each seed now asserts, which is a fresh recording
+ * rather than a moved one.
+ *
+ * A fourth blindness, different in mechanism from the three above, sits
+ * alongside them since section 3.6's finisher draw was corrected.
+ * Lineups.sideOfSlots never passes a position, so every player's natural
+ * position is exactly his cell's own: slot 1 is the only natural keeper here,
+ * and the draw's natural-position exclusion can never diverge from the older
+ * slot based one on these fixtures. Formation 4 also never drops to zero
+ * eligible candidates, not even after seed ten's two mid-match departures, so
+ * the fallback to the last pitch player is never reached either. A later
+ * task touching either the natural-position exclusion or the fallback should
+ * expect this file to stay perfectly still and read that as confirming this
+ * blindness, not as evidence the change did nothing; ShooterSelectionTest is
+ * where both are pinned directly.
+ *
+ * A fifth arrives with section 3.7 and is again structural rather than a
+ * matter of these seeds. Neither side is human managed, so no penalty can be
+ * handed to section 3.10's interactive path and no goal here can fail to
+ * reach the scoreboard. Neither side carries a designation either, since
+ * Lineups.side defaults to Designated.NONE, so section 3.7's olympic,
+ * penalty and free kick patches have nobody to redirect a goal to and the
+ * author of every goal below is the finisher that was drawn for it. The one
+ * blindness that is a matter of these seeds rather than of the fixtures is
+ * that thirteen goals across four matches produce no own goal and no olympic
+ * goal at all, which one per cent and a half per cent of goals predicts.
+ * GoalTypingTest is where the redirections, the own goal draw and the
+ * interactive path are pinned directly.
+ *
+ * Section 3.14's rating is invisible here and could not have been anything
+ * else. It is computed once the whistle has gone, from a stream of its own
+ * under the match, and it feeds nothing back into the match it describes, so
+ * no figure below can move because of it and none did. What it added to
+ * MatchReport is the two starting lineups, which this file does not print
+ * either. MatchRatingsTest is where those are pinned and PlayerRatingTest is
+ * where the eleven steps are; a later task touching section 3.14 should
+ * expect every figure below to stay perfectly still and read that as the
+ * separation holding rather than as evidence the change did nothing.
  */
 class MatchGoldenVectorTest {
+
+    /**
+     * Every goal of a match rendered as one line each, in log order.
+     *
+     * Both credits are printed side by side on purpose. They are equal in
+     * every line below, because no fixture here carries a designation, and
+     * printing only one of them would hide the day that stops being true.
+     */
+    private fun MatchReport.goals(): List<String> =
+        log.filterIsInstance<MatchEvent.Goal>().map {
+            "${it.minute} ${it.side} ${it.type} author ${it.author?.slot?.value} " +
+                "scorer ${it.scorer?.slot?.value} credits ${it.matchGoalCredits} " +
+                "assist ${it.assister?.slot?.value}"
+        }
 
     private fun playAt(seed: Long): MatchReport {
         val home = Lineups.sideOfSlots(
@@ -111,6 +171,15 @@ class MatchGoldenVectorTest {
         assertEquals(TeamSide.AWAY, result.startingPossessor, "starting possessor")
         assertEquals(1, result.homeGoals, "home goals")
         assertEquals(2, result.awayGoals, "away goals")
+        assertEquals(
+            listOf(
+                "22 AWAY OPEN_PLAY author 22 scorer 22 credits 2 assist 5",
+                "56 AWAY OPEN_PLAY author 24 scorer 24 credits 2 assist 22",
+                "77 HOME OPEN_PLAY author 16 scorer 16 credits 2 assist 14",
+            ),
+            result.goals(),
+            "goals",
+        )
         assertEquals(
             SideStats(
                 goals = 1,
@@ -150,6 +219,14 @@ class MatchGoldenVectorTest {
         assertEquals(TeamSide.AWAY, result.startingPossessor, "starting possessor")
         assertEquals(1, result.homeGoals, "home goals")
         assertEquals(1, result.awayGoals, "away goals")
+        assertEquals(
+            listOf(
+                "15 HOME PENALTY author 14 scorer 14 credits 1 assist null",
+                "18 AWAY OPEN_PLAY author 22 scorer 22 credits 2 assist 16",
+            ),
+            result.goals(),
+            "goals",
+        )
         assertEquals(
             SideStats(
                 goals = 1,
@@ -229,6 +306,16 @@ class MatchGoldenVectorTest {
         )
 
         assertEquals(
+            listOf(
+                "0 AWAY PENALTY author 24 scorer 24 credits 1 assist null",
+                "63 HOME OPEN_PLAY author 16 scorer 16 credits 2 assist 5",
+                "69 HOME FREE_KICK author 16 scorer 16 credits 2 assist null",
+            ),
+            result.goals(),
+            "goals",
+        )
+
+        assertEquals(
             SideStats(
                 goals = 2,
                 shots = 21,
@@ -267,6 +354,16 @@ class MatchGoldenVectorTest {
         assertEquals(TeamSide.AWAY, result.startingPossessor, "starting possessor")
         assertEquals(2, result.homeGoals, "home goals")
         assertEquals(2, result.awayGoals, "away goals")
+        assertEquals(
+            listOf(
+                "7 HOME OPEN_PLAY author 14 scorer 14 credits 2 assist 16",
+                "11 HOME OPEN_PLAY author 24 scorer 24 credits 2 assist 5",
+                "38 AWAY OPEN_PLAY author 24 scorer 24 credits 2 assist 5",
+                "80 AWAY OPEN_PLAY author 24 scorer 24 credits 2 assist null",
+            ),
+            result.goals(),
+            "goals",
+        )
         assertEquals(
             SideStats(
                 goals = 2,

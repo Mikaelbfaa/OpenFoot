@@ -2,15 +2,20 @@ package org.openfoot.engine.world
 
 import org.openfoot.dataset.ClubEntry
 import org.openfoot.dataset.WorldDataset
+import org.openfoot.model.Designated
 import org.openfoot.model.Rng
 import org.openfoot.model.SeedDomain
 import org.openfoot.model.SpecRef
 import org.openfoot.model.SplitMix64Rng
 
-/** A club and the squad generated for it. */
+/**
+ * A club, the squad generated for it, and the designations of section 5.6
+ * that club stores alongside it.
+ */
 data class GeneratedClub(
     val entry: ClubEntry,
     val squad: List<Player>,
+    @property:SpecRef("5.6") val designated: Designated,
 )
 
 /**
@@ -46,9 +51,12 @@ fun generateWorld(dataset: WorldDataset, seed: Long): World {
     val worldRng: Rng = SplitMix64Rng(seed).fork(SeedDomain.WORLDGEN)
 
     val clubs = dataset.clubs.map { club ->
+        val clubRng = worldRng.fork(clubKey(club.ref))
+        val squad = generateSquad(club, dataset, dataset.options, clubRng)
         GeneratedClub(
             entry = club,
-            squad = generateSquad(club, dataset, dataset.options, worldRng.fork(clubKey(club.ref))),
+            squad = squad,
+            designated = deriveDesignated(squad, DesignationEnergy.FULL_SQUAD),
         )
     }
     return World(seed = seed, clubs = clubs)

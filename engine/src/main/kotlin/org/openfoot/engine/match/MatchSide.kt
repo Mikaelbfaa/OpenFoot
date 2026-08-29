@@ -1,5 +1,6 @@
 package org.openfoot.engine.match
 
+import org.openfoot.model.Designated
 import org.openfoot.model.HomeAdvantage
 import org.openfoot.model.Marking
 import org.openfoot.model.PlayerId
@@ -26,6 +27,17 @@ import org.openfoot.model.Trait
  * than by any of those formulas, and identity is what energy and bookings are
  * kept by.
  *
+ * Star and topWorld are section 4.10's two badges, and they are here because
+ * two later sections read them off a player who is on the pitch: section
+ * 3.10's interactive penalty, which moves the conversion threshold for both
+ * the taker and the goalkeeper facing him, and section 3.14 step 8, which
+ * adds 0,4 for a star and 0,6 for a red star to every rating. topWorld is the
+ * estrela vermelha and section 4.10 makes it imply star, so Player.star is
+ * already true for a red star player; topWorld must therefore be carried
+ * across from Player.topWorld and can never be derived from Player.star.
+ * Neither has a default, so a new way of building a MatchPlayer cannot lose
+ * them silently.
+ *
  * Side and style are read by no formula of sections 3.3, 3.4 or 3.6 at all.
  * They are here for section 3.8, whose substitution asks the table of section
  * 3.2 which reserve suits a vacated cell, the same question section 5.4's
@@ -44,6 +56,8 @@ class MatchPlayer(
     val abilities: IntArray,
     val firstTrait: Trait,
     val secondTrait: Trait,
+    @property:SpecRef("4.10") val star: Boolean,
+    @property:SpecRef("4.10") val topWorld: Boolean,
     @property:SpecRef("3.8") override val side: Side,
     @property:SpecRef("3.8") override val style: PlayerStyle,
     val representsSideCountry: Boolean = false,
@@ -70,12 +84,20 @@ class MatchPlayer(
  * Bench entries may sit in the same list. Slots twenty six to thirty six fall
  * outside every line range, so the aggregates ignore them without special
  * handling, and shooter selection filters them explicitly.
+ *
+ * The designations of section 5.6 travel with the side because section 3.7
+ * reads them at the moment of a goal. They are a fact about the club and not
+ * about the eleven, derived once when the squad was built, so a side can name
+ * a taker who never made the lineup; section 3.7 is what refuses him the
+ * credit for not being on the pitch, and this type does no such filtering of
+ * its own.
  */
 @SpecRef("3.4")
 class MatchSide(
     val lineup: List<MatchPlayer>,
     val marking: Marking,
     val context: StrengthContext,
+    @property:SpecRef("5.6") val designated: Designated,
     val isHumanManaged: Boolean = false,
 ) {
     val reputation: Int get() = context.sideReputation
@@ -117,6 +139,7 @@ fun MatchSide.withLineup(lineup: List<MatchPlayer>): MatchSide = MatchSide(
     lineup = lineup,
     marking = marking,
     context = context,
+    designated = designated,
     isHumanManaged = isHumanManaged,
 )
 

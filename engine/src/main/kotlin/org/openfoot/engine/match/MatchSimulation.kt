@@ -18,6 +18,24 @@ import org.openfoot.model.randRange
  * statistics needs to know what they are out of. The starting possessor is
  * carried because possession alternates from it deterministically, so it is
  * the only extra fact needed to say whose tick any minute was.
+ *
+ * The two lineups are the elevens the match kicked off with and are carried
+ * for section 3.14, which cannot be produced from a log alone: the rating
+ * covers both starting elevens and every substitute who came on, and only the
+ * first half of that is knowable from the log. MatchSetup's own two lineups
+ * are no substitute for these, because they are the elevens at the final
+ * whistle rather than at kick off. leavePitch drops a departed man from a
+ * lineup outright, so a caller handing the post match setup to section 3.14
+ * would drop every man who was substituted or sent off and would label every
+ * arrival a starter. That miswiring produces wrong ratings rather than an
+ * exception, which is why the report carries the right lists itself instead
+ * of asking a caller to remember which of the two it holds. They are taken
+ * from the setup before the first minute is played, at the one moment the two
+ * readings agree.
+ *
+ * Neither list is a defensive copy. MatchPlayer is immutable and simulateMatch
+ * takes the list the caller built, so the two share a reference, exactly as
+ * MatchSide.lineup already does.
  */
 @SpecRef("3.1")
 data class MatchReport(
@@ -26,6 +44,8 @@ data class MatchReport(
     val homeGoals: Int,
     val awayGoals: Int,
     val startingPossessor: TeamSide,
+    @property:SpecRef("3.14") val homeLineup: List<MatchPlayer>,
+    @property:SpecRef("3.14") val awayLineup: List<MatchPlayer>,
 ) {
     /**
      * Computed once here rather than on every read, because a caller that
@@ -87,6 +107,8 @@ fun simulateMatch(
     homeBench: List<MatchPlayer> = emptyList(),
     awayBench: List<MatchPlayer> = emptyList(),
 ): MatchReport {
+    val homeLineup = setup.home.lineup
+    val awayLineup = setup.away.lineup
     val played = playMatch(setup, rng, homeBench, awayBench)
     return MatchReport(
         clock = played.clock,
@@ -94,6 +116,8 @@ fun simulateMatch(
         homeGoals = played.state.homeGoals,
         awayGoals = played.state.awayGoals,
         startingPossessor = played.startingPossessor,
+        homeLineup = homeLineup,
+        awayLineup = awayLineup,
     )
 }
 
@@ -217,12 +241,18 @@ private fun plansFor(
  * happened in it, so the alternation is unconditional and lives here rather
  * than inside the tick, which reports the duel winner instead.
  *
- * A minute is the drain, then section 3.8's roll, then the tick, which is the
- * order section 3.8 states: it runs once per minute, before the tick of play.
- * The drain comes first of the three because the roll reads energy, both for
- * the tiredness scan that picks who a routine substitution takes off and for
- * the injury duration, and section 3.9 drains the minute before either is
- * decided.
+ * A minute is the drain, then section 3.8's roll, then the tick, and finally
+ * section 3.7's typing of whatever goal the tick produced. The first three
+ * are the order section 3.8 states: it runs once per minute, before the tick
+ * of play. The drain comes first of those three because the roll reads
+ * energy, both for the tiredness scan that picks who a routine substitution
+ * takes off and for the injury duration, and section 3.9 drains the minute
+ * before either is decided.
+ *
+ * The typing comes last because section 3.7 is explicit that it happens once
+ * the shot has already been resolved as a goal and the finisher already
+ * drawn, and because it is the typing that decides whether the goal reaches
+ * the scoreboard at all.
  *
  * The order of the roll and the tick is what makes a card bite in the same
  * minute it was shown: a player sent off at minute sixty is already off the
@@ -250,9 +280,21 @@ internal fun playMinute(
         rng = rng.fork(PLAY_STREAM),
     )
 
-    val scored = outcome.event == TickEvent.GOAL
+    val goal = if (outcome.event == TickEvent.GOAL) {
+        resolveGoal(
+            setup = rolled.setup,
+            scoringSide = possessor,
+            finisher = outcome.shooter,
+            minute = minute,
+            rng = rng.fork(GOAL_STREAM),
+        )
+    } else {
+        null
+    }
+
+    val scored = goal != null && goal.scored
     return rolled.copy(
-        log = rolled.log + outcome.events(minute),
+        log = rolled.log + outcome.events(minute, goal),
         possessor = possessor.opponent,
         homeGoals = rolled.homeGoals + if (scored && possessor == TeamSide.HOME) 1 else 0,
         awayGoals = rolled.awayGoals + if (scored && possessor == TeamSide.AWAY) 1 else 0,
@@ -267,28 +309,54 @@ internal fun playMinute(
  * tackle belongs to the side that did not have the ball; everything else
  * belongs to the side that did.
  *
+ * A goal tick carries section 3.7's resolution alongside it, because the
+ * shot's own two flags are no longer the tick's to decide: a penalty in a
+ * human sided match can come back missed, and then the same attempt is a shot
+ * that did not score and may not even have been on target. The resolution's
+ * own events, the goal and any interactive penalty, follow the shot in the
+ * same minute.
+ *
+ * A goal tick handed no resolution is a wiring fault and is refused here
+ * rather than absorbed. There is no sensible fallback: guessing the shot
+ * scored on target would log a goal on the scoreboard with no goal event
+ * behind it and no author credited to anybody, which is the one shape a
+ * reader of the log can neither detect nor act on. The resolution is null
+ * for every tick that produced no goal and only for those.
+ *
  * Internal rather than private so a test can hand it built TickOutcome values
  * and pin the crediting rules without needing a whole match to reach every
  * combination of event and possessor.
  */
 @SpecRef("3.13")
-internal fun TickOutcome.events(minute: Int): List<MatchEvent> {
+internal fun TickOutcome.events(minute: Int, goal: ResolvedGoal?): List<MatchEvent> {
     val duel = MatchEvent.PossessionWon(minute, possessionWinner)
     val rest = when (event) {
-        TickEvent.GOAL ->
-            MatchEvent.Shot(minute, possessor, shooter, onTarget = true, scored = true)
+        TickEvent.GOAL -> {
+            val resolved = requireNotNull(goal) {
+                "a goal tick must carry section 3.7's resolution of the goal it produced"
+            }
+            listOf(
+                MatchEvent.Shot(
+                    minute,
+                    possessor,
+                    shooter,
+                    onTarget = resolved.onTarget,
+                    scored = resolved.scored,
+                ),
+            ) + resolved.events
+        }
 
         TickEvent.SAVE ->
-            MatchEvent.Shot(minute, possessor, shooter, onTarget = true, scored = false)
+            listOf(MatchEvent.Shot(minute, possessor, shooter, onTarget = true, scored = false))
 
         TickEvent.WIDE ->
-            MatchEvent.Shot(minute, possessor, shooter, onTarget = false, scored = false)
+            listOf(MatchEvent.Shot(minute, possessor, shooter, onTarget = false, scored = false))
 
-        TickEvent.TACKLE -> MatchEvent.Tackle(minute, possessor.opponent)
+        TickEvent.TACKLE -> listOf(MatchEvent.Tackle(minute, possessor.opponent))
 
-        TickEvent.MISPLACED_PASS -> MatchEvent.MisplacedPass(minute, possessor)
+        TickEvent.MISPLACED_PASS -> listOf(MatchEvent.MisplacedPass(minute, possessor))
     }
-    return listOf(duel, rest)
+    return listOf(duel) + rest
 }
 
 /**
@@ -356,3 +424,42 @@ internal const val SUBSTITUTION_STREAM = 0x5BEDL
  */
 @SpecRef("3.5")
 internal const val PLAY_STREAM = 0x71CBL
+
+/**
+ * The stream section 3.7's goal typing draws from: the type itself, the
+ * assist, the own goal author and, in a human sided match, section 3.10's
+ * interactive penalty.
+ *
+ * A sibling of PLAY_STREAM under the same minute rather than a child of it,
+ * for the reason SUBSTITUTION_STREAM is a sibling of DISCIPLINE_STREAM: a
+ * minute in which a goal was typed and a minute in which none was leave the
+ * tick's own draws in exactly the same place. That is what let section 3.7
+ * land without moving a single figure of a match recorded before it, even
+ * though it adds draws inside the minute.
+ */
+@SpecRef("3.7")
+internal const val GOAL_STREAM = 0x60A1L
+
+/**
+ * The stream section 3.14's post match rating draws from: the reduced
+ * possession term of step 2, the raised tackle term and the four banded terms
+ * of step 4, and both of step 7's chances.
+ *
+ * A child of the match rather than of a minute, because a rating is computed
+ * once the whistle has gone and belongs to no minute at all. Borrowing the
+ * last minute's stream would have tied every rating in the match to how long
+ * that match happened to run, and reusing GOAL_STREAM would have made a
+ * rating move whenever a goal in that minute drew one value more or fewer.
+ *
+ * It is reserved here, beside the six streams that came before it, for the
+ * reason SETUP_STREAM and GOAL_STREAM are: SeedStreamsTest reads every one of
+ * them and asserts they stay pairwise distinct and outside the range a minute
+ * index can reach, so a future tag that collided would fail there rather than
+ * silently make two independent draws identical.
+ *
+ * Nothing that happens in a match reads it, because a rating feeds nothing
+ * back into the match it describes. Adding it therefore cannot move a goal, a
+ * shot or a clock, which is what lets the golden vectors stay still.
+ */
+@SpecRef("3.14")
+internal const val RATING_STREAM = 0x2A7EL

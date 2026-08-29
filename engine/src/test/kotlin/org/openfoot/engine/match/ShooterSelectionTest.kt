@@ -1,12 +1,13 @@
 package org.openfoot.engine.match
 
+import org.openfoot.model.Position
 import org.openfoot.model.RuleSets
 import org.openfoot.model.SplitMix64Rng
 import org.openfoot.model.Trait
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class ShooterSelectionTest {
@@ -19,6 +20,8 @@ class ShooterSelectionTest {
         assertEquals(1, shooterWeight(Lineups.player(9, 50), rules))
         assertEquals(8, shooterWeight(Lineups.player(10, 50), rules))
         assertEquals(4, shooterWeight(Lineups.player(11, 50), rules))
+        assertEquals(4, shooterWeight(Lineups.player(12, 50), rules))
+        assertEquals(4, shooterWeight(Lineups.player(13, 50), rules))
         assertEquals(8, shooterWeight(Lineups.player(14, 50), rules))
         assertEquals(8, shooterWeight(Lineups.player(17, 50), rules))
         assertEquals(22, shooterWeight(Lineups.player(18, 50), rules))
@@ -134,8 +137,107 @@ class ShooterSelectionTest {
     }
 
     @Test
-    fun `a side of only a keeper has nobody to shoot`() {
+    fun `a side of only a keeper falls back to him`() {
         val side = Lineups.sideOfSlots(listOf(1), strength = 50)
-        assertNull(selectShooter(side, rules, SplitMix64Rng(1)))
+        val shooter = assertNotNull(
+            selectShooter(side, rules, ScriptedRng()),
+            "the fallback should still have named the only man on the pitch",
+        )
+        assertEquals(1, shooter.slot.value)
+    }
+
+    @Test
+    fun `a natural keeper fielded outfield is never drawn`() {
+        val pitch = Lineups.FORMATION_4_4_2.map { slot ->
+            if (slot == 22) {
+                Lineups.player(
+                    slot = slot,
+                    strength = 99,
+                    position = Position.GOALKEEPER,
+                    firstTrait = Trait.FINISHING,
+                    secondTrait = Trait.PACE,
+                )
+            } else {
+                Lineups.player(slot, 50)
+            }
+        }
+        val side = Lineups.side(pitch)
+        val rng = SplitMix64Rng(23)
+        repeat(20_000) {
+            assertTrue(
+                selectShooter(side, rules, rng)?.slot?.value != 22,
+                "a keeper fielded outfield was drawn to shoot",
+            )
+        }
+    }
+
+    @Test
+    fun `a non keeper occupant of slot one is never drawn`() {
+        val pitch = listOf(
+            Lineups.player(
+                slot = 1,
+                strength = 99,
+                position = Position.MIDFIELDER,
+                firstTrait = Trait.FINISHING,
+                secondTrait = Trait.PACE,
+            ),
+        ) + Lineups.FORMATION_4_4_2.drop(1).map { Lineups.player(it, 50) }
+        val side = Lineups.side(pitch)
+        val rng = SplitMix64Rng(29)
+        repeat(20_000) {
+            assertTrue(
+                selectShooter(side, rules, rng)?.slot?.value != 1,
+                "the slot one occupant was drawn despite not being a keeper",
+            )
+        }
+    }
+
+    /**
+     * ScriptedRng carries no scripted doubles at all, so any attempt to draw
+     * fails the test outright rather than by chance: with three natural
+     * keepers on the pitch the candidate list must be empty and the fallback
+     * must return the last player without ever consuming the generator.
+     *
+     * The three are deliberately arranged so that list order, slot order and
+     * strength order disagree. lastInList sits neither at the highest slot
+     * (that is highestSlot, 20) nor at the highest strength (that is
+     * strongest, 90), so a fallback wrongly written as maxByOrNull on either
+     * of those would still pick the wrong man, and only a true walk of the
+     * list in its own order lands on lastInList.
+     */
+    @Test
+    fun `the draw falls back to the last player of the lineup when nobody is eligible`() {
+        val highestSlot = Lineups.player(slot = 20, strength = 50, position = Position.GOALKEEPER)
+        val strongest = Lineups.player(slot = 5, strength = 90, position = Position.GOALKEEPER)
+        val lastInList = Lineups.player(slot = 10, strength = 60, position = Position.GOALKEEPER)
+        val side = Lineups.side(listOf(highestSlot, strongest, lastInList))
+        val shooter = assertNotNull(selectShooter(side, rules, ScriptedRng()))
+        assertEquals(
+            lastInList.id,
+            shooter.id,
+            "the fallback should have picked the last player in list order, not the highest slot or the strongest",
+        )
+    }
+
+    /**
+     * ScriptedRng again rules out a lucky draw. The pitch holds nothing but
+     * natural keepers, so the candidate list is empty and the fallback must
+     * walk to the last pitch player; the benched man sits after him in list
+     * order and would be handed back instead if the fallback's isPitch guard
+     * were ever dropped.
+     */
+    @Test
+    fun `the fallback never returns a benched player even when he is last in the list`() {
+        val keeperA = Lineups.player(slot = 3, strength = 80, position = Position.GOALKEEPER)
+        val keeperB = Lineups.player(slot = 20, strength = 55, position = Position.GOALKEEPER)
+        val lastOnPitch = Lineups.player(slot = 10, strength = 65, position = Position.GOALKEEPER)
+        val benched = Lineups.player(slot = 30, strength = 99)
+        val side = Lineups.side(listOf(keeperA, keeperB, lastOnPitch, benched))
+        val shooter = assertNotNull(selectShooter(side, rules, ScriptedRng()))
+        assertEquals(
+            lastOnPitch.id,
+            shooter.id,
+            "the fallback should have named the last pitch player, not the benched one",
+        )
     }
 }
