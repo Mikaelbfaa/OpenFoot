@@ -281,6 +281,20 @@ object RuleSets {
         substitutingSidesPerPass = 1,
         scoreWindowArrivalsSide = listOf(TeamSide.HOME, TeamSide.HOME),
 
+        penalties = PenaltyRules(
+            shootoutRollMin = 2,
+            shootoutRollMax = 8,
+            interactiveBaseThreshold = 70,
+            takerFinishingOrTopWorldBonus = 10,
+            takerStarBonus = 5,
+            keeperPenaltySavingPenalty = 10,
+            keeperTopWorldPenalty = 10,
+            keeperStarPenalty = 5,
+            missSavedOutcomes = 3,
+            missWideOutcomes = 2,
+            missOnTargetOutcomes = 2,
+        ),
+
         lineupRelaxationPasses = 2,
         benchTemplate = listOf(1, 1, 2, 4, 4, 12, 15, 15, 20, 20, 23),
     )
