@@ -19,6 +19,11 @@ class MatchReportPrinterTest {
      * A match of four minutes: the home side wins three possession duels and
      * scores once, the away side wins one and shoots wide. Small enough that
      * every number in the output can be checked by hand.
+     *
+     * Both starting lineups are empty. They are what section 3.14's rating
+     * reads and the printed report is section 3.13's statistics and the log,
+     * neither of which names a player at all here, so there is nothing for a
+     * lineup to change in this output.
      */
     private fun report(): MatchReport {
         val log = listOf(
@@ -37,6 +42,8 @@ class MatchReportPrinterTest {
             homeGoals = 1,
             awayGoals = 0,
             startingPossessor = TeamSide.HOME,
+            homeLineup = emptyList(),
+            awayLineup = emptyList(),
         )
     }
 

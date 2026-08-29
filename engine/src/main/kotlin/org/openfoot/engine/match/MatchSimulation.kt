@@ -18,6 +18,24 @@ import org.openfoot.model.randRange
  * statistics needs to know what they are out of. The starting possessor is
  * carried because possession alternates from it deterministically, so it is
  * the only extra fact needed to say whose tick any minute was.
+ *
+ * The two lineups are the elevens the match kicked off with and are carried
+ * for section 3.14, which cannot be produced from a log alone: the rating
+ * covers both starting elevens and every substitute who came on, and only the
+ * first half of that is knowable from the log. MatchSetup's own two lineups
+ * are no substitute for these, because they are the elevens at the final
+ * whistle rather than at kick off. leavePitch drops a departed man from a
+ * lineup outright, so a caller handing the post match setup to section 3.14
+ * would drop every man who was substituted or sent off and would label every
+ * arrival a starter. That miswiring produces wrong ratings rather than an
+ * exception, which is why the report carries the right lists itself instead
+ * of asking a caller to remember which of the two it holds. They are taken
+ * from the setup before the first minute is played, at the one moment the two
+ * readings agree.
+ *
+ * Neither list is a defensive copy. MatchPlayer is immutable and simulateMatch
+ * takes the list the caller built, so the two share a reference, exactly as
+ * MatchSide.lineup already does.
  */
 @SpecRef("3.1")
 data class MatchReport(
@@ -26,6 +44,8 @@ data class MatchReport(
     val homeGoals: Int,
     val awayGoals: Int,
     val startingPossessor: TeamSide,
+    @property:SpecRef("3.14") val homeLineup: List<MatchPlayer>,
+    @property:SpecRef("3.14") val awayLineup: List<MatchPlayer>,
 ) {
     /**
      * Computed once here rather than on every read, because a caller that
@@ -87,6 +107,8 @@ fun simulateMatch(
     homeBench: List<MatchPlayer> = emptyList(),
     awayBench: List<MatchPlayer> = emptyList(),
 ): MatchReport {
+    val homeLineup = setup.home.lineup
+    val awayLineup = setup.away.lineup
     val played = playMatch(setup, rng, homeBench, awayBench)
     return MatchReport(
         clock = played.clock,
@@ -94,6 +116,8 @@ fun simulateMatch(
         homeGoals = played.state.homeGoals,
         awayGoals = played.state.awayGoals,
         startingPossessor = played.startingPossessor,
+        homeLineup = homeLineup,
+        awayLineup = awayLineup,
     )
 }
 
@@ -415,3 +439,27 @@ internal const val PLAY_STREAM = 0x71CBL
  */
 @SpecRef("3.7")
 internal const val GOAL_STREAM = 0x60A1L
+
+/**
+ * The stream section 3.14's post match rating draws from: the reduced
+ * possession term of step 2, the raised tackle term and the four banded terms
+ * of step 4, and both of step 7's chances.
+ *
+ * A child of the match rather than of a minute, because a rating is computed
+ * once the whistle has gone and belongs to no minute at all. Borrowing the
+ * last minute's stream would have tied every rating in the match to how long
+ * that match happened to run, and reusing GOAL_STREAM would have made a
+ * rating move whenever a goal in that minute drew one value more or fewer.
+ *
+ * It is reserved here, beside the six streams that came before it, for the
+ * reason SETUP_STREAM and GOAL_STREAM are: SeedStreamsTest reads every one of
+ * them and asserts they stay pairwise distinct and outside the range a minute
+ * index can reach, so a future tag that collided would fail there rather than
+ * silently make two independent draws identical.
+ *
+ * Nothing that happens in a match reads it, because a rating feeds nothing
+ * back into the match it describes. Adding it therefore cannot move a goal, a
+ * shot or a clock, which is what lets the golden vectors stay still.
+ */
+@SpecRef("3.14")
+internal const val RATING_STREAM = 0x2A7EL

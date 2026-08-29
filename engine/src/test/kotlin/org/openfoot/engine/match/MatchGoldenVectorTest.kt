@@ -120,6 +120,16 @@ import kotlin.test.assertTrue
  * goal at all, which one per cent and a half per cent of goals predicts.
  * GoalTypingTest is where the redirections, the own goal draw and the
  * interactive path are pinned directly.
+ *
+ * Section 3.14's rating is invisible here and could not have been anything
+ * else. It is computed once the whistle has gone, from a stream of its own
+ * under the match, and it feeds nothing back into the match it describes, so
+ * no figure below can move because of it and none did. What it added to
+ * MatchReport is the two starting lineups, which this file does not print
+ * either. MatchRatingsTest is where those are pinned and PlayerRatingTest is
+ * where the eleven steps are; a later task touching section 3.14 should
+ * expect every figure below to stay perfectly still and read that as the
+ * separation holding rather than as evidence the change did nothing.
  */
 class MatchGoldenVectorTest {
 

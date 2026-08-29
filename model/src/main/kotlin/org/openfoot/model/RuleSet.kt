@@ -238,6 +238,8 @@ data class RuleSet(
 
     @property:SpecRef("3.10") val penalties: PenaltyRules,
 
+    @property:SpecRef("3.14") val ratings: RatingRules,
+
     @property:SpecRef("3.15") val lineupRelaxationPasses: Int,
     @property:SpecRef("5.4") val benchTemplate: List<Int>,
 ) {
