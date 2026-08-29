@@ -84,6 +84,19 @@ import kotlin.test.assertTrue
  * still and read that as confirming this blindness, not as evidence the
  * change did nothing; DisciplineChainTest and InjuryTest are where an age
  * gated rule is actually pinned.
+ *
+ * A fourth blindness, different in mechanism from the three above, sits
+ * alongside them since section 3.6's finisher draw was corrected.
+ * Lineups.sideOfSlots never passes a position, so every player's natural
+ * position is exactly his cell's own: slot 1 is the only natural keeper here,
+ * and the draw's natural-position exclusion can never diverge from the older
+ * slot based one on these fixtures. Formation 4 also never drops to zero
+ * eligible candidates, not even after seed ten's two mid-match departures, so
+ * the fallback to the last pitch player is never reached either. A later
+ * task touching either the natural-position exclusion or the fallback should
+ * expect this file to stay perfectly still and read that as confirming this
+ * blindness, not as evidence the change did nothing; ShooterSelectionTest is
+ * where both are pinned directly.
  */
 class MatchGoldenVectorTest {
 

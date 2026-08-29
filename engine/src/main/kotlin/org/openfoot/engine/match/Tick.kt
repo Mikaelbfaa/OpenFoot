@@ -31,11 +31,12 @@ enum class TickEvent {
  * field to get wrong.
  *
  * The shooter is null exactly when the tick produced no shot: a lost
- * possession duel, or a chance duel that did not come off. A shot may still
- * carry a null shooter when the possessing side had nobody eligible to take
- * it, which section 3.6c already handles on its own by falling back to the
- * missing shooter rating, so isShot does not imply a non null shooter, only
- * the other direction holds.
+ * possession duel, or a chance duel that did not come off. Section 3.6's own
+ * draw falls back to the last player of the pitch lineup whenever it finds
+ * nobody eligible, so a shot only ever carries a null shooter when the
+ * possessing side has no player on the pitch at all, which the engine never
+ * actually reaches; isShot does not imply a non null shooter, only the other
+ * direction holds.
  */
 @SpecRef("3.5")
 data class TickOutcome(

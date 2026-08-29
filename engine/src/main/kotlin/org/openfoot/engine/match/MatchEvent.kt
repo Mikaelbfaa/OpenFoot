@@ -28,9 +28,10 @@ sealed interface MatchEvent {
     /**
      * An attempt on goal.
      *
-     * The shooter is null when the side had nobody eligible to shoot, which
-     * section 3.6c handles with its missing shooter rating rather than by
-     * cancelling the attempt.
+     * The shooter is null only when the side has no player on the pitch at
+     * all, which the engine never actually reaches. Section 3.6's draw falls
+     * back to the last player of the pitch lineup whenever the exclusions
+     * leave nobody eligible, so a shot is never cancelled either.
      *
      * A scored shot must be on target. toStats reads a side's goals as a
      * subset of its shots on target, so an off target goal would let goals
