@@ -162,6 +162,15 @@ class InstallationImporterTest {
     }
 
     @Test
+    fun `the no-division note states generation, growth and decline`() {
+        val result = InstallationImporter.importFrom(installation(root(), listOf(team())))
+        val note = result.notes.single { it.contains("no division") }
+        assertTrue(note.contains("one against twenty"), note)
+        assertTrue(note.contains("ceiling of 30"), note)
+        assertTrue(note.contains("floor of 1"), note)
+    }
+
+    @Test
     fun `a directory that is not an installation is refused`() {
         assertFailsWith<IllegalArgumentException> { InstallationImporter.importFrom(root()) }
     }

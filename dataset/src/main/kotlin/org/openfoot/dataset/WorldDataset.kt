@@ -46,8 +46,15 @@ data class WorldDataset(
         }
     }
 
-    /** The country entry for an index, or null when the dataset omits it. */
-    fun country(index: Int): CountryEntry? = countries.firstOrNull { it.index == index }
+    /**
+     * The country entry for an index, or null when the dataset omits it.
+     * Backed by a map built once, because world generation asks once per
+     * player. Lazy and delegated, so nothing here reaches the serialized
+     * form of a dataset.
+     */
+    fun country(index: Int): CountryEntry? = countriesByIndex[index]
+
+    private val countriesByIndex by lazy { countries.associateBy { it.index } }
 
     companion object {
         /**
