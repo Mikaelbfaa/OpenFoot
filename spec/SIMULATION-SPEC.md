@@ -85,6 +85,54 @@ Além de cartões, existe um evento disciplinar de tribunal com **4 níveis de p
 (2 jogos: 3 variantes, 3 jogos: 5, 5 jogos: 3, 10 jogos: 2), sorteadas por gravidade da
 infração narrada (falta dura -> 2; carrinho por trás -> 3 ou 5; agressão/ofensa ao árbitro -> 5 ou 10).
 
+### 1.9 Ligas nacionais: pirâmide gerada por país e papel dos `.cfg` CONFIRMADO
+
+**Não existe tabela estática de pirâmides no jogo.** A pirâmide de cada país é **gerada na criação
+do mundo** a partir da contagem de arquivos de time, e os `.cfg` de `conf_ligas_nacionais/` são
+**sobrescritas por divisão** colocadas por cima desse gerador - exatamente a hipótese do item 27 de
+OPEN-QUESTIONS. O mecanismo completo:
+
+**Elegibilidade.** Um país é candidato a ter liga nacional se tem **pelo menos 10 arquivos de time**
+válidos; para os cinco países `{ALE 3, ARG 11, ING 97, ITA 104, FRA 72}` o limiar é **16**. (Note:
+esta lista de cinco inclui a Argentina e não inclui a Espanha - é uma lista diferente da dos "cinco
+grandes" do salário da 4.8.)
+
+**Ativação pelo usuário.** A lista de países candidatos é oferecida na criação do jogo e o usuário
+marca quais ligas serão disputadas; o Brasil vem pré-marcado. Um `.cfg` **não cria nem ativa** uma
+liga: ele só configura as divisões de um país que já é candidato e foi ativado.
+
+**Instanciação de clubes.** Para um país com liga ativa, **todos** os clubes do país entram no
+mundo. Para um país sem liga ativa, só os **15 primeiros** arquivos na ordenação por nível
+decrescente entram; os demais nem existem na carreira.
+
+**Divisões.** Para cada país ativo, até **4 divisões**, montadas nesta ordem para div = 1..4:
+
+1. Procura-se um registro de configuração para o par (país, divisão) na união de **todos** os
+   `.cfg` carregados.
+2. Se existe e o `nTimes` dele cabe nos clubes restantes, a divisão usa a configuração do arquivo
+   (times, turnos, grupos, mata-mata, rebaixados; `nRebaixados > 2` com `nTimes <= 10` é
+   **grampeado para 2**).
+3. Senão, vale o **padrão embutido**: o tamanho é o maior degrau da lista `20, 18, 16, 14, 12, 10`
+   que cabe nos clubes restantes, com **4 rebaixados quando o degrau é 20 e 2 nos demais**, pontos
+   corridos sem grupos nem mata-mata, e turnos pelo padrão de tamanho da 1.3 (20 times -> 2
+   turnos; 10 times -> 4).
+4. Com menos de 10 clubes restantes, a divisão não é criada e a pirâmide para ali.
+
+**Atribuição de clube a divisão.** Os clubes do país são ordenados por **nível decrescente**, com
+empate desfeito por um **número aleatório sorteado na criação de cada clube** (1..1000) - ou seja, o
+desempate muda a cada mundo gerado. Cada divisão toma os primeiros `nTimes` da fila, na ordem. Quem
+sobra depois da última divisão fica **sem divisão** (divisão 0), mesmo em país com liga ativa.
+
+**Caso especial do Brasil.** Com os estaduais ligados, a 4a divisão brasileira não é preenchida por
+nível: as vagas dela vêm da classificação nos estaduais.
+
+**Por que país sem liga não desaba.** Os clubes de país cuja liga não é disputada usam o caminho de
+**reputação** tanto na força de criação da 4.4 quanto no teto de crescimento da 4.5 (reputação
+5/4 -> teto 100, 3 -> 70, 2 -> 40, 1 -> 30, 0 -> 20, limitado pelo teto de país), e não a linha
+"sem divisão" da tabela de divisões. Um clube grande de país não configurado nasce e evolui pela
+reputação 5, não pela base 1. A linha "sem divisão" (teto 30, base 1) só atinge clube de país com
+liga **ativa** que sobrou fora das divisões.
+
 ---
 
 ## 2. Formato de save (fecha a última lacuna de formato) CONFIRMADO
@@ -815,8 +863,8 @@ ATA -> 0 se Desarme/Marcação; **2 (ponta)** se Drible/Velocidade/Cruzamento; s
 ## 4.4 Força inicial na criação do mundo
 
 ```
-clube em liga: div1 -> base=20, faixa=7 ; div2 -> 15,3 ; div3 -> 5,1 ; outra -> 1,1
-seleções (por reputação): 5->22,7, 4->15,4, 3->5,1, 2->5,1, 1->5,1
+clube de país com liga ativa: div1 -> base=20, faixa=7 ; div2 -> 15,3 ; div3 -> 5,1 ; outra -> 1,1
+seleções E clubes de país sem liga ativa (por reputação): 5->22,7, 4->15,4, 3->5,1, 2->5,1, 1->5,1, 0->1,1
 nível mapeado: <=15 -> o próprio ; 16->17 17->18 18->19 19->21 20->25 21->26 ... 25->30
 força = nívelMapeado + base + rnd(3)
 titular -> +8 + rnd(2)

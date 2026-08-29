@@ -223,6 +223,18 @@ resultado, para que a suposição fique visível.
 Vale notar que este caminho só vale para seleções. Um clube em liga escolhe pela divisão e nunca lê
 a reputação aqui.
 
+**Resolução no original (CONFIRMADO). A leitura adotada está ERRADA nas duas metades.**
+
+1. Reputação 0 **não** usa a faixa de 1-3: ela cai no valor inicial da variável, **base 1 e
+   faixa 1** - a mesma dupla de um clube sem divisão. A tabela do original tem casos explícitos só
+   de 5 a 1, e o zero fica com o resto do mundo, não com o vizinho de baixo. A 4.4 foi corrigida
+   para listar `0 -> 1,1`.
+2. A nota final também estava errada: o caminho de reputação **não é só de seleções**. Ele vale
+   para todo time que não pertence a um país com liga ativa - seleções e **clubes de país cuja
+   liga não é disputada** (ver item 27). Para seleções o caso da reputação 0 é inalcançável,
+   porque a reputação de seleção deriva do nível do país e nunca fica abaixo de 1 (4.12); um clube
+   com reputação 0 no arquivo, porém, alcança o ramo.
+
 ### 19. A cadeia do lateral na 4.3 não tem padrão
 
 A 4.3 fecha as cadeias do meia e do atacante com um padrão explícito, mas a do lateral termina numa
@@ -330,6 +342,15 @@ arbitrário e está registrado como tal.
 Isto é **observável**: basta abrir o jogo e ver quem está em cada divisão. Uma observação que
 contrarie a ordenação por nível derruba esta resolução, e o custo é uma função.
 
+**Resolução no original (CONFIRMADO). A ordenação por nível está certa; o desempate não é o
+fileRef.** O original ordena os clubes do país por **nível decrescente** e preenche as divisões na
+ordem, exatamente como o INFERIDO apostou. O desempate, porém, é um **número aleatório sorteado na
+criação de cada clube** (1..1000, sem semente): clubes de mesmo nível trocam de divisão de um mundo
+gerado para outro. O desempate por fileRef continua sendo a escolha certa para este projeto - é o
+que a seção 0 já faz com toda aleatoriedade sem semente do original: substituir por algo
+determinístico da mesma distribuição de efeitos. Fica registrado que ali onde o motor é
+determinístico, o original é loteria. Mecanismo completo da pirâmide na 1.9 da SIMULATION-SPEC.
+
 ### 25. A distribuição de talento nos arquivos não é a da seção 4.6
 
 A 4.6 dá distribuições de talento por qualidade do clube, com pico em 5 e 6 (25% a 35% cada). O
@@ -390,21 +411,36 @@ com 45 já está acima do teto de 30 do `div0`, logo nunca cresce, e declina rum
 O Benzema cresce rumo a 100 e nunca cai abaixo de 35. Em poucas temporadas todo país sem arquivo de
 liga desaba, o que o jogo original claramente não faz.
 
-**Resolução atual (EM ABERTO):** nenhuma. O importador registra uma nota dizendo quantos clubes ficaram sem
-divisão, e a nota subestima o problema porque só menciona a base de geração da 4.4.
+**Resolução no original (CONFIRMADO). A hipótese estava certa na metade certa e errada na
+arquitetura: os `.cfg` são sobreponíveis, mas não existe tabela embutida - existe um GERADOR
+embutido.** O mecanismo completo está na 1.9 da SIMULATION-SPEC e na FORMAT-SPEC; o resumo:
 
-**Hipótese a testar:** os dois `.cfg` são configurações **sobreponíveis** pelo usuário, colocadas por
-cima de uma tabela de ligas embutida no jogo, e não o conjunto completo das ligas. Isso explicaria ao
-mesmo tempo por que só dois arquivos são distribuídos e por que o Bayern não é fraco no jogo real.
-A tabela embutida ficaria no código, fora do alcance da regra clean-room, exatamente como a tabela de
-nível de país do item 14.
+1. **Elegibilidade por contagem.** Todo país com pelo menos **10 arquivos de time** é candidato a
+   liga nacional (o limiar sobe para **16** em ALE, ARG, ING, ITA e FRA). A lista de candidatos é
+   oferecida na criação do jogo e **o usuário marca quais ligas serão disputadas**; o Brasil vem
+   pré-marcado. Não há tabela de pirâmides em lugar nenhum: só o gerador e essa escolha.
+2. **Até 4 divisões por país ativo.** Para cada divisão procura-se um `.cfg` com o par
+   (país, divisão); sem ele, vale o **padrão embutido**: tamanho no maior degrau de
+   `20, 18, 16, 14, 12, 10` que cabe nos clubes restantes, 4 rebaixados no degrau 20 e 2 nos
+   demais, pontos corridos. Com menos de 10 clubes restantes a pirâmide para. Os dois
+   `.cfg` distribuídos são, como a hipótese dizia, sobrescritas por cima disso.
+3. **Clube para divisão por nível decrescente** (item 24), desempate aleatório por mundo. Quem
+   sobra fica sem divisão mesmo em país ativo.
+4. **A resposta ao "Bayern fraco": clube de país sem liga ativa não usa a linha de divisão.** Ele
+   usa o caminho de **reputação** - o mesmo das seleções - tanto na base de força da 4.4
+   (reputação 5 -> base 22, faixa 7) quanto no teto de crescimento da 4.5 (reputação 5/4 -> 100,
+   3 -> 70, 2 -> 40, 1 -> 30, 0 -> 20, limitado pelo teto de país). Um Bayern com liga alemã
+   desligada nasce de reputação 5, não de base 1. A tabela do enunciado deste item comparava
+   "divisão 1" com a coluna errada: `div0` só existe para clube de país **ativo** que sobrou fora
+   das quatro divisões - esses, sim, nascem de base 1 e crescem até 30, no original também.
+5. Dois efeitos colaterais do gerador que nenhuma hipótese previa: em país **sem** liga ativa, só
+   os **15 clubes de maior nível entram no mundo** (os demais arquivos são ignorados); e com os
+   estaduais ligados a 4a divisão brasileira é preenchida pelos estaduais, não por nível.
 
-**Como decidir:** é observável. Basta abrir o original e ver se a Alemanha tem liga com divisões, e
-quantas. Se tiver, o recurso não pode ser `div0`, e a saída provável é derivar uma pirâmide sintética
-para país não configurado a partir do nível dos clubes, em vez de jogar todos na faixa mais fraca.
-
-Enquanto isso não for decidido, qualquer aferição estatística feita fora do Brasil e da Espanha mede
-este item e não o motor.
+Para o importador, a consequência é dupla: a pirâmide sintética por nível que a hipótese esboçava é
+exatamente o que o original faz (e agora tem os parâmetros exatos), e o recurso para país sem liga
+não é `div0`, é o caminho de reputação. A aferição estatística fora de Brasil e Espanha volta a
+medir o motor, desde que o importador reproduza a 1.9.
 
 ### 28. A contagem de tiques da 3.1 não bate com a da 3.16
 

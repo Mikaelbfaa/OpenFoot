@@ -100,6 +100,28 @@ Tabela completa de 224 países em `countries.json` (índice -> nome). Exemplos c
 
 As classes `est.ConfigLigaType`, `est.ConfigEstadualType` e `est.Options` **não são ofuscadas**: os nomes de campos serializados já são auto-explicativos (`nTimes`, `nRebaixados`, `doisTurnos`, `divisao`, `pais`, `formula`, `desempate`, `nGrupos`, `melhoresTerceiros`, etc.). Use `ban2json.py --raw` ou qualquer parser de serialização Java para inspecioná-las. `versaoArquivo=22` nos `.cfg` distribuídos.
 
+### Semântica dos `.cfg` de liga nacional: sobrescrita por divisão - CONFIRMADO
+
+Os dois `.cfg` distribuídos (BRA, ESP) **não são o conjunto completo das ligas**: são sobrescritas
+colocadas por cima de um gerador de pirâmide embutido no jogo (mecanismo completo na seção 1.9 da
+SIMULATION-SPEC). Regras de carga:
+
+- Na criação do mundo, **todos** os `.cfg` de `conf_ligas_nacionais/` são lidos e suas entradas
+  `ConfigLigaType` concatenadas numa lista única. **O nome do arquivo é irrelevante** para a carga -
+  cada entrada carrega o próprio `pais` e a própria `divisao`; um arquivo pode, em tese, configurar
+  vários países.
+- A consulta é por par `(pais, divisao)`: vence a **primeira** entrada da lista que casa. Sem
+  entrada para o par - ou com `nTimes` maior que os clubes restantes do país - vale o **padrão
+  embutido** daquela divisão (tamanho em degraus 20/18/16/14/12/10, 4 rebaixados no degrau 20 e 2
+  nos demais, pontos corridos, turnos pelo padrão de tamanho).
+- `nRebaixados > 2` com `nTimes <= 10` é grampeado para 2 na carga.
+- Um `.cfg` **não cria liga**: só configura divisões de um país que já é elegível (>= 10 arquivos
+  de time; >= 16 para ALE/ARG/ING/ITA/FRA) e que o usuário ativou na criação do jogo. Também **não
+  lista times**: a atribuição de clube a divisão é sempre por nível decrescente (seção 1.9 da
+  SIMULATION-SPEC).
+- O editor de ligas do jogo grava um arquivo **por país**, nomeado `<SIGLA>.cfg` (sigla de 3 letras
+  da tabela de países), substituindo na lista global todas as entradas daquele país.
+
 ### `formula` (campeonatos estaduais - `ConfigEstadualType`) - CONFIRMADO
 
 Índice num preset de estrutura de fase final (rótulos do array `best.aq.sN`, e parâmetros em `best.aq.sL[formula]`). `sL[formula] = [nTimes, nGrupos, nClassificados, flagPlayoff, pernas]`:
