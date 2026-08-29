@@ -612,8 +612,20 @@ Os ajustes, **nesta ordem** (a ordem importa por causa do teto, do piso e do rem
 1. **Fora de posição** (slot `<= 0` também conta como fora de posição): **-1,5**; e **-1,5 extra se o
    slot é o 1**, isto é, se o deslocado foi para o gol.
 2. **Meias (slots 10-17)**, comparando o contador de posse dos dois times: com **mais** posse +0,8
-   (ou +0,3 com prob. 1/3), +0,3 se volante, **+0,5 se a 1ª característica é Passe ou Armação** (só a
-   primeira); com **menos** posse -0,8 (ou -0,3 com prob. 1/3), -0,5 se volante.
+   (ou +0,3 com prob. 1/3), **+0,3 se o estilo derivado é 0**, **+0,5 se a 1ª característica é Passe
+   ou Armação** (só a primeira); com **menos** posse -0,8 (ou -0,3 com prob. 1/3), **-0,5 se o estilo
+   derivado é 0**.
+
+   O termo que a redação antiga chamava de "volante" **não é uma faixa de slot** - não é 11-13. É o
+   **estilo derivado da 4.3** (`ex`) valendo **0**, testado sozinho, depois de a faixa 10-17 já ter
+   sido aplicada. CONFIRMADO. Duas consequências que a leitura por slot não dá:
+   - um **meia ofensivo de estilo defensivo** (Desarme ou Marcação nas características) escalado no
+     slot 14, 15 ou 16 **recebe** o termo;
+   - nos **slots 10 e 17 (alas)**, que exigem posição Lateral, quem recebe o termo é o **lateral de
+     estilo defensivo** - não há volante nenhum ali. O teste é sobre o estilo, e não sobre a
+     posição, então ele alcança laterais também.
+
+   Ver o item 60 do `OPEN-QUESTIONS.md`.
 3. **Eventos do jogador:** gols da partida **x+0,9**; gols contra **x-1,5**; **se perdeu algum
    pênalti interativo, -1,2 x (gols contra)** - o termo existe, mas multiplica o contador errado e só
    morde quem fez gol contra e perdeu pênalti na mesma partida (item 15 da 3.15); amarelos x-0,2;
@@ -627,15 +639,29 @@ Os ajustes, **nesta ordem** (a ordem importa por causa do teto, do piso e do rem
    jogador só sobe no ramo "defendido" da resolução de chute, então **gol não conta aqui** e chute
    para fora também não. Ver o item 52 do `OPEN-QUESTIONS.md`.
 6. **Só o slot 1 (goleiro):** -0,8 fixo; **+0,2 por chute no alvo sofrido**; **+1,2 por pênalti
-   defendido** (só pela via interativa da 3.10 - e ela é alcançável); **+0,2 se o adversário chutou
-   > 10** - os ramos "> 15" (+0,2) e "> 20" (+0,3) estão numa cadeia de senão depois do "> 10" e são
-   **inalcançáveis**; gols sofridos >= 5 -> -2,0, >= 4 -> -1,5, >= 2 -> -1,0, >= 1 -> -0,5, sem
-   sofrer -> +1,0; **se não sofreu nenhum chute no alvo -> -1,5**.
+   defendido** (só pela via interativa da 3.10 - e ela é alcançável); **+0,2 se o adversário deu mais
+   de 10 chutes no total** - os ramos "> 15" (+0,2) e "> 20" (+0,3) estão numa cadeia de senão depois
+   do "> 10" e são **inalcançáveis**; gols sofridos >= 5 -> -2,0, >= 4 -> -1,5, >= 2 -> -1,0, >= 1 ->
+   -0,5, sem sofrer -> +1,0; **se não sofreu nenhum chute no alvo -> -1,5**.
+
+   **Os dois testes leem contadores diferentes**, e a troca de palavra da frase é real. CONFIRMADO:
+   - o **+0,2 por chute** e o **-1,5 de "nenhum chute"** leem o contador de **chutes no alvo** do
+     adversário (gols + defendidos, 3.13);
+   - o degrau **"> 10"** lê o contador de **chutes totais** do adversário (no alvo + para fora).
+
+   A diferença é enorme na prática: pela 3.16 um lado dá ~16 chutes totais e bem menos no alvo, então
+   sob o contador total **quase todo goleiro leva o +0,2 do degrau**, enquanto sob o de no alvo quase
+   nenhum levaria. Ver o item 61 do `OPEN-QUESTIONS.md`.
 7. **Slots 1-13:** partida **sem sofrer gol** +0,5, mais +0,5 se o slot é **2-9**, mais +0,5 com
    prob. 1/3 se o slot é **11-13**; **sofrendo 2 ou mais gols, -0,1 por gol sofrido** (sofrer
    exatamente 1 não custa nada aqui); e, para os slots **2-13**, **-0,4 com prob. 1/3,
    incondicionalmente** - um imposto que todo defensor e todo volante paga em 1/3 das partidas.
-8. Estrela **+0,4**; estrela vermelha **+0,6**.
+8. Estrela **+0,4**; estrela vermelha **+0,6**. **Os dois termos são cumulativos**: são duas somas
+   independentes, e não uma cadeia de senão. Quem carrega as duas marcas soma **+1,0**. CONFIRMADO.
+   Como a 4.10 faz a estrela vermelha implicar a estrela **na criação do mundo e na leitura do
+   `.ban`**, quase todo jogador de estrela vermelha soma +1,0 - mas a **promoção a estrela vermelha
+   durante a carreira não liga a estrela comum**, e esse jogador soma só +0,6 (item 18 da 3.15). Ver
+   o item 62 do `OPEN-QUESTIONS.md`.
 9. **Teto 10**; e, logo depois, **se a nota ficou negativa ela vira 1,0** (não 0, e não o piso 2,0 -
    este passo é anterior ao piso e ao desconto de minutos).
 10. **Minutos jogados**: < 15 -> **-2,5**; senão < 45 -> **-1,5**.
@@ -684,12 +710,20 @@ tempo custa -2,5. Ver o item 53 do `OPEN-QUESTIONS.md`.
     pênaltis perdidos, mas o valor multiplicado por -1,2 é o de **gols contra**. Quem perdeu pênalti e
     não fez gol contra perde 0,0; quem fez as duas coisas é punido duas vezes pelo gol contra.
     CONFIRMADO.
-16. **Dois ramos inalcançáveis na nota do goleiro** (">15" e ">20" chutes sofridos, seção 3.14) e um
+16. **Dois ramos inalcançáveis na nota do goleiro** (">15" e ">20" **chutes totais** sofridos, seção 3.14) e um
     no sorteio de tipo de gol (o olímpico que viraria bola rolando por o sorteado ser goleiro, seção
     3.7). Não portar nenhum dos três.
 17. **Existe uma segunda tabela de tipo de gol, mais generosa com faltas (80% bola rolando, 5%
     pênalti, 13% falta), acoplada a um sorteio de cartão para o time que cometeu o pênalti. Nada a
     chama** - é código morto de outra versão do motor. Não portar.
+
+18. **A estrela vermelha só implica a estrela comum na entrada, não na promoção.** A 4.10 diz que a
+    estrela vermelha implica a estrela, e isso vale onde a marca chega de fora: ao montar o mundo e ao
+    ler um jogador do `.ban`, ligar a estrela comum força a marca ligada quando a vermelha já está.
+    Mas a **promoção a estrela vermelha ao fim de temporada** (4.10) liga só a marca vermelha e não
+    toca na comum. Efeito na nota (passo 8 da 3.14, cujos dois termos são cumulativos): um jogador
+    promovido a estrela vermelha que nunca tinha ganhado a estrela comum recebe **+0,6**, e não +1,0 -
+    fica valendo *menos* por partida do que um jogador equivalente vindo do arquivo. CONFIRMADO.
 
 ## 3.16 Sanity check (o que uma reimplementação fiel deve produzir)
 
@@ -976,7 +1010,10 @@ Aferição: força 50, 24 anos, clube nível 20 -> `100^2 x (600+176) = 7,76 M`.
 
 ## 4.10 Estrela e topMundial
 
-`topMundial` **implica** `estrela`.
+`topMundial` **implica** `estrela` - mas **só na entrada**: ao criar o mundo e ao ler o `.ban`, ligar
+`estrela` num jogador que já tem `topMundial` força `estrela` ligada. A **promoção a `topMundial`
+durante o jogo não liga `estrela`** (item 18 da 3.15), o que muda o passo 8 da 3.14 para esse
+jogador.
 
 | Sistema | estrela | topMundial |
 |---|---|---|

@@ -1897,3 +1897,64 @@ derivação escrita.
 Consequência para validação: um teste que espere placares de disputa de pênalti até 9 está errado, e
 a distribuição do placar do vencedor **não é uniforme** - ela é a de `x` condicionada ao ramo, que
 pende para os valores altos no ramo do mandante e para os baixos no do visitante.
+
+### 60. O que "volante" quer dizer no passo 2 da 3.14
+
+O passo 2 escrevia a faixa de slot em número - "Meias (slots 10-17)" - e logo em seguida escrevia
+**"volante"** como palavra solta, nas duas pontas do ramo de posse (+0,3 com mais posse, -0,5 com
+menos). Duas leituras cabiam: o **sub-papel derivado da 4.3** (estilo = 0, defensivo) ou uma segunda
+**faixa de slot**, a dos volantes, 11-13. A troca de registro no meio da mesma frase parecia
+transcrição de dois testes diferentes, e a escolha move 0,3 ou 0,5 numa fatia grande dos meias de
+toda partida.
+
+**Resolução (CONFIRMADO): é o sub-papel, não a faixa de slot.** O teste é sobre o **estilo derivado
+da 4.3** valendo 0, e nada mais - a faixa 10-17 já foi checada antes, e dentro dela o slot não é
+consultado de novo. A leitura "11-13" está **descartada**.
+
+As duas leituras não são só redações diferentes da mesma coisa; elas discordam nos dois sentidos:
+
+- **A faixa 11-13 daria demais.** Um volante de estilo **1** (armador - Passe, Finalização, Drible ou
+  Armação nas características) escalado no slot 11, 12 ou 13 **não** recebe o termo. Pela 3.2 o slot
+  de volante não exige estilo defensivo de quem o ocupa; a escalação automática relaxa até ignorar o
+  papel no 3º passe, então isso acontece com frequência.
+- **A faixa 11-13 daria de menos.** Um **meia ofensivo de estilo 0** nos slots 14-16 **recebe** o
+  termo, e um **lateral de estilo 0 nos slots 10 ou 17** (as alas, que exigem posição Lateral) também
+  - ali não há volante nenhum, e ainda assim o termo se aplica. Chamar o termo de "volante" é uma
+  aproximação da posição típica; o que o motor testa é o estilo.
+
+Consequência para a validação: um teste que ligue esse termo ao slot vai divergir tanto em meias
+ofensivos defensivistas quanto em alas, e a divergência é sistemática, não de amostragem.
+
+### 61. Qual contador o degrau "> 10" da nota do goleiro compara
+
+O passo 6 da 3.14 dá ao goleiro **+0,2 por chute no alvo sofrido** e, na mesma frase, **+0,2 se o
+adversário chutou > 10**, trocando "chute no alvo" por "chutou"; o item 16 da 3.15 ainda chamava os
+irmãos inalcançáveis ">15" e ">20" de "chutes sofridos". Ou os dois termos liam o mesmo contador (e a
+troca de palavra era só estilo), ou liam contadores diferentes. Pela 3.16 um lado dá ~16 chutes
+totais e bem menos no alvo, então sob uma leitura quase todo goleiro leva o degrau e sob a outra quase
+nenhum leva - a diferença aparece na média de nota dos goleiros de qualquer amostra.
+
+**Resolução (CONFIRMADO): são contadores diferentes, e a leitura que a reimplementação já adotou está
+certa.** O **+0,2 por chute** e o **-1,5 de "não sofreu nenhum chute no alvo"** leem o contador de
+**chutes no alvo** do adversário; o degrau **"> 10"** lê o de **chutes totais**. São dois contadores
+mantidos lado a lado (a 3.13): o total sobe uma vez por finalização, e a resolução do chute manda o
+desfecho para "no alvo" (gol ou defesa) ou para "para fora".
+
+Efeito prático: com ~16 chutes totais por lado, **o degrau é quase sempre pago** - ele funciona como
+um +0,2 quase fixo na nota do goleiro, e não como um prêmio por partida movimentada. Os irmãos ">15"
+e ">20", que seriam alcançáveis em chutes totais, continuam mortos por estarem depois do "> 10" numa
+cadeia de senão; a 3.15 item 16 foi corrigida para dizer "chutes totais".
+
+### 62. Estrela e estrela vermelha na nota: cumulativas ou excludentes
+
+O passo 8 da 3.14 dá **+0,4** por estrela e **+0,6** por estrela vermelha, e a 4.10 fazia a vermelha
+implicar a comum. Faltava dizer se um jogador de estrela vermelha soma as duas (+1,0) ou só a maior.
+
+**Resolução (CONFIRMADO): são cumulativas.** As duas marcas são somadas por termos independentes, sem
+senão entre elas; quem tem as duas soma **+1,0**.
+
+Isso trouxe à tona um segundo achado, registrado como item 18 da 3.15: **a implicação da 4.10 só vale
+na entrada**. Ao criar o mundo e ao ler um jogador do `.ban`, ligar a estrela comum força a marca
+quando a vermelha já está - mas a **promoção a estrela vermelha ao fim de temporada liga só a marca
+vermelha**. Um jogador promovido que nunca ganhou a estrela comum soma **+0,6**, não +1,0, e portanto
+vale menos por partida do que um jogador idêntico que chegou pelo arquivo. A 4.10 foi anotada.

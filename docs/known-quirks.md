@@ -213,7 +213,15 @@ Ficam registrados aqui para quando o código chegar nessas partes.
   como chute no alvo sem que o goleiro tenha tocado na bola, então a linha "no alvo" da súmula não é
   exatamente "gols + defesas" quando houve pênalti interativo (seções 3.10 e 3.13).
 - Os ramos "+0,2 se o adversário chutou mais de 15" e "+0,3 se chutou mais de 20" da nota do goleiro
-  estão atrás do ramo "mais de 10" numa cadeia de senão e nunca são alcançados (seção 3.14).
+  estão atrás do ramo "mais de 10" numa cadeia de senão e nunca são alcançados (seção 3.14). O ramo
+  "mais de 10" que sobrou compara **chutes totais**, e não chutes no alvo como o +0,2 por chute da
+  mesma frase; com ~16 chutes totais por lado ele é pago em quase toda partida, virando um bônus
+  quase fixo em vez de um prêmio por partida movimentada (seção 3.14, item 61 de
+  `OPEN-QUESTIONS.md`).
+- A estrela vermelha implica a estrela comum ao criar o mundo e ao ler o `.ban`, mas a **promoção a
+  estrela vermelha durante a carreira não liga a estrela comum**. Como os dois bônus de nota são
+  cumulativos (+0,4 e +0,6), o jogador promovido soma +0,6 por partida e um jogador idêntico vindo do
+  arquivo soma +1,0 (seção 3.15, item 18).
 - O capitão e o "falso 9" da seção 5.6 são derivados pelo original e guardados no time, mas nada os
   lê: a própria seção marca o efeito real dos dois como nenhum, display no caso do capitão, manual e
   sem efeito nenhum no caso do falso 9. O motor não deriva nem guarda os dois por isso, e só o
