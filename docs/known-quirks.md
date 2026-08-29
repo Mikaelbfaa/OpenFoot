@@ -46,6 +46,23 @@ mesma coisa.
 Spec: seção 3.6b, com a resolução registrada em `spec/OPEN-QUESTIONS.md`. Mantido como está: sem o
 piso, um zagueiro sofreria **mais** que nenhum, o que é pior.
 
+### O bônus de Velocidade no sorteio de assistência vale mais na caminhada que no total
+
+O sorteio de assistência da seção 3.6 soma um peso por candidato e depois **caminha** um segundo
+peso até passar do alvo sorteado. Os dois passes leem a mesma tabela, com uma única exceção: o ramo
+de Velocidade da cadeia de características vale **1** no total e **2** na caminhada. Quem tem
+Velocidade fica com uma fatia do sorteio que a soma nunca contabilizou, e todo mundo listado depois
+dele fica com menos do que o próprio peso diz. Não é só o total que muda: o defeito muda **quem
+recebe a assistência**.
+
+`assistWeight`, em `AssistSelection.kt`, é onde os dois números divergem - `paceWalkBonus` na
+caminhada contra `paceTotalBonus` no total. Nenhum outro bônus da tabela distingue os dois passes.
+
+Spec: seção 3.6, defeito 4 da seção 3.15. Em `MODERN` a caminhada passa a valer 1, igual ao total.
+É a caminhada que se move e não o total, porque o total é o que todas as outras características da
+cadeia já pagam e porque deixar o total quieto mantém a soma contra a qual o sorteio é escalado
+exatamente onde estava.
+
 ### Depois da primeira lesão, a taxa de cartões despenca
 
 O limiar de amarelo é sobrescrito ao longo da partida, e cada sobrescrita **apaga** a anterior em
@@ -157,7 +174,18 @@ minuto 15; assistir depois do minuto 35 do 2º tempo aplica -2,5 ao assistente.
 calculam o minuto guardado a cada gol, cartão, substituição e pênalti interativo defendido, e o campo
 fica exatamente como o último desses eventos o deixou.
 
-Spec: seção 3.14, defeito 14 da seção 3.15. Reproduzido em `CLASSIC`.
+Spec: seção 3.14, defeito 14 da seção 3.15. Em `MODERN` o campo passa a medir tempo em campo de
+verdade: o relógio de cada jogador abre no apito inicial, ou no minuto em que o reserva entrou, e
+fecha na substituição, na expulsão, na lesão ou no apito final - e o apito final é o total do
+relógio daquela partida, com acréscimos, e não noventa fixo. Os dois números são calculados sempre,
+nos dois conjuntos de regras, e `RuleSet.minutesPlayedRule` escolhe qual deles a nota lê; o fold não
+pergunta em momento nenhum qual conjunto está rodando.
+
+Uma saída de campo o log não mostra, e fica registrada aqui em vez de aproximada: a lesão cujo
+sorteio de duração dá **zero dia**, que só um jogador de 20 anos ou menos consegue tirar, não gera
+evento nenhum e ainda assim tira o jogador. Se o time também não tiver ninguém no banco para
+substituí-lo, não há nada no log que feche o relógio dele e ele conta até o apito final. Inventar
+uma regra no fold sobre um evento que não está lá seria pior que registrar o caso.
 
 ### O desconto de pênalti perdido da nota multiplica o contador errado
 
@@ -166,10 +194,15 @@ multiplica por -1,2 é o de gols contra, e não o de pênaltis perdidos. Quem pe
 gol contra nenhum não perde nada; quem fez as duas coisas na mesma partida é punido duas vezes pelo gol
 contra, uma pelo termo comum de -1,5 e outra por este.
 
-`eventAdjustment`, em `PlayerRating.kt`, é onde isso vive: `if (tally.missedPenalties > 0)` liga o
-termo, e o corpo do `if` multiplica `tally.ownGoals`, não `tally.missedPenalties`.
+`ClassicMissedPenaltyRule`, em `RuleSets.kt`, é onde isso vive desde que virou delta: o termo é
+ligado por `missedPenalties > 0` e o corpo multiplica `ownGoals`, não `missedPenalties`.
+`eventAdjustment`, em `PlayerRating.kt`, apenas entrega os dois contadores e o valor à regra.
 
-Spec: seção 3.14, defeito 15 da seção 3.15. Reproduzido em `CLASSIC`.
+Spec: seção 3.14, defeito 15 da seção 3.15. Em `MODERN` o termo multiplica o contador que dá nome a
+ele: quem perdeu um pênalti e não fez gol contra paga -1,2 uma vez, e quem fez as duas coisas paga
+-1,5 pelo gol contra e -1,2 pelo pênalti, cada coisa uma vez só. O valor em si,
+`missedPenaltyCharge`, continua sendo o mesmo -1,2 nos dois conjuntos; só o que ele multiplica muda,
+e por isso a divergência é um objeto de estratégia e não um número.
 
 ### Cinco dos sete desfechos de pênalti interativo perdido contam como chute no alvo
 

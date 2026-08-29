@@ -7,7 +7,7 @@ import kotlin.test.assertSame
 class RuleSetsTest {
 
     /**
-     * Seven deltas, each a defect of the original. Slot eighteen counting in
+     * Ten deltas, each a defect of the original. Slot eighteen counting in
      * no line, home advantage applied with the wrong sign, one lineup
      * relaxation pass unreachable, the two card threshold overwrites of
      * section 3.15 item 5, switched off by putting their trigger counts out of
@@ -15,6 +15,16 @@ class RuleSetsTest {
      * 3.15 items 11 and 12: one side's change per pass swallowing the other
      * side's window, and the just came on check reading the home side's list
      * of arrivals whichever side it is protecting.
+     *
+     * The last three are section 3.15 items 4, 15 and 14. Item 4 is the
+     * Velocidade defect of the assist draw, where the Pace trait pays the walk
+     * pass two and the total pass one, and it is the only one of the ten that
+     * is a nested copy rather than a flat argument, because the figure lives
+     * on AssistRules. Item 15 is the missed penalty term of section 3.14 step
+     * 3 multiplying the own goal counter, and item 14 is the minutes penalty
+     * of step 10 reading the minute of the player's last event rather than his
+     * time on the pitch; both differ in shape and not in value, so both are
+     * strategy objects in the shape shotHomeRule already set.
      *
      * The wasted keeper draw of section 3.8 is deliberately not among them.
      * Section 3.15 does not name it a defect and section 3.8 states it as the
@@ -27,7 +37,7 @@ class RuleSetsTest {
      * decision, so it is not where to look for it.
      */
     @Test
-    fun `the modern rules differ from the classic ones by seven named deltas`() {
+    fun `the modern rules differ from the classic ones by ten named deltas`() {
         assertEquals(
             RuleSets.CLASSIC,
             RuleSets.MODERN.copy(
@@ -39,8 +49,72 @@ class RuleSetsTest {
                 anyInjuryAtLeast = 1,
                 substitutingSidesPerPass = 1,
                 scoreWindowArrivalsSide = listOf(TeamSide.HOME, TeamSide.HOME),
+                assist = RuleSets.MODERN.assist.copy(paceWalkBonus = 2),
+                missedPenaltyRule = ClassicMissedPenaltyRule,
+                minutesPlayedRule = ClassicMinutesPlayedRule,
             ),
         )
+    }
+
+    /**
+     * Section 3.15 item 4: the Pace trait is worth one to the sum the assist
+     * draw is scaled against and two to the walk that looks for the winner,
+     * so a player carrying it takes a share of the draw the sum never
+     * accounted for. The modern rules make the two agree.
+     *
+     * The total figure is asserted for both rule sets and not only the walk
+     * one, because a repair that moved the total down to match a walk of two
+     * would satisfy an assertion on their equality alone while changing what
+     * every Pace player is worth in the sum as well.
+     */
+    @Test
+    fun `classic pays the pace trait more on the walk than on the total`() {
+        assertEquals(1, RuleSets.CLASSIC.assist.paceTotalBonus)
+        assertEquals(2, RuleSets.CLASSIC.assist.paceWalkBonus)
+        assertEquals(1, RuleSets.MODERN.assist.paceTotalBonus)
+        assertEquals(1, RuleSets.MODERN.assist.paceWalkBonus)
+    }
+
+    /**
+     * Section 3.15 item 15, read off the two strategy objects directly.
+     *
+     * Three fixtures, because no two of them agree under both readings. A
+     * missed penalty with no own goal is nought under the classic rule and one
+     * charge under the modern one; a missed penalty with an own goal is one
+     * charge under both, which is exactly why it cannot be the only fixture;
+     * and three missed penalties with two own goals separates them again and
+     * in the other direction, since the classic rule follows the own goals and
+     * the modern one the penalties.
+     */
+    @Test
+    fun `the classic missed penalty rule multiplies own goals and the modern one missed penalties`() {
+        val charge = -1.2
+
+        assertEquals(0.0, ClassicMissedPenaltyRule.adjust(1, 0, charge), 1e-12)
+        assertEquals(charge, ModernMissedPenaltyRule.adjust(1, 0, charge), 1e-12)
+
+        assertEquals(charge, ClassicMissedPenaltyRule.adjust(1, 1, charge), 1e-12)
+        assertEquals(charge, ModernMissedPenaltyRule.adjust(1, 1, charge), 1e-12)
+
+        assertEquals(2 * charge, ClassicMissedPenaltyRule.adjust(3, 2, charge), 1e-12)
+        assertEquals(3 * charge, ModernMissedPenaltyRule.adjust(3, 2, charge), 1e-12)
+    }
+
+    /**
+     * Section 3.15 item 14, read off the two strategy objects directly.
+     *
+     * The two arguments are deliberately unequal and neither is the smaller,
+     * the larger or the first in both fixtures: a rule that always returned
+     * the first argument, the smaller of the two or the larger of the two
+     * would agree with one of the four assertions below and disagree with
+     * another.
+     */
+    @Test
+    fun `the classic minutes rule keeps the event figure and the modern one the actual`() {
+        assertEquals(5, ClassicMinutesPlayedRule.minutes(eventDerived = 5, actual = 93))
+        assertEquals(93, ModernMinutesPlayedRule.minutes(eventDerived = 5, actual = 93))
+        assertEquals(88, ClassicMinutesPlayedRule.minutes(eventDerived = 88, actual = 12))
+        assertEquals(12, ModernMinutesPlayedRule.minutes(eventDerived = 88, actual = 12))
     }
 
     /**

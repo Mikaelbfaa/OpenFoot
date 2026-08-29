@@ -255,7 +255,7 @@ internal fun ratePlayer(
     var value = ratings.base.pick(player.strength).forResult(context.goalsFor, context.goalsAgainst)
     value += outOfPositionAdjustment(player, slot, rules)
     value += midfieldAdjustment(player, slot, context, ratings, rng)
-    value += eventAdjustment(tally, ratings)
+    value += eventAdjustment(tally, rules)
     value += defensiveAdjustment(slot, context, ratings, rng)
     value += tally.shotsSavedByKeeper * ratings.savedShotBonus
     value += keeperAdjustment(slot, tally, context, rules)
@@ -400,23 +400,27 @@ private fun midfieldAdjustment(
  * an open play, free kick or olympic goal moves twice, so one open play goal
  * is worth one point eight here and not nought point nine.
  *
- * The missed penalty term is section 3.15 item 15 and is reproduced with its
- * defect intact. It is switched on by the player having missed at least one
- * interactive penalty and then multiplies his OWN GOALS, not his missed
- * penalties. A player who missed a penalty and scored no own goal loses
- * nothing; a player who did both in one match is charged for the own goal
- * twice, once at one point five and again at one point two. Repairing it is
- * explicitly out of scope and no rule set switches it off, so there is no
- * branch here for the intended reading.
+ * The missed penalty term is section 3.15 item 15 and is the one term of the
+ * six whose shape the rule set decides, so it is the one term that is not
+ * written out here. RuleSet.missedPenaltyRule is handed both counters and the
+ * charge and returns what the term is worth. The classic reading is the defect
+ * intact: switched on by the player having missed at least one interactive
+ * penalty, it multiplies his OWN GOALS, so a player who missed a penalty and
+ * scored no own goal loses nothing and a player who did both is charged for
+ * the own goal twice, once at one point five and again at one point two. The
+ * modern reading multiplies the penalties he missed, once each, and leaves the
+ * own goal to the term above.
  */
 @SpecRef("3.14")
-private fun eventAdjustment(tally: PlayerTally, ratings: RatingRules): Double {
-    val events = ratings.events
+private fun eventAdjustment(tally: PlayerTally, rules: RuleSet): Double {
+    val events = rules.ratings.events
     var adjustment = tally.matchGoals * events.goalBonus
     adjustment += tally.ownGoals * events.ownGoalPenalty
-    if (tally.missedPenalties > 0) {
-        adjustment += tally.ownGoals * events.missedPenaltyOwnGoalPenalty
-    }
+    adjustment += rules.missedPenaltyRule.adjust(
+        tally.missedPenalties,
+        tally.ownGoals,
+        events.missedPenaltyCharge,
+    )
     adjustment += tally.yellowCards * events.yellowCardPenalty
     adjustment += tally.redCards * events.redCardPenalty
     adjustment += tally.assists * events.assistBonus
@@ -612,11 +616,15 @@ private fun starAdjustment(player: MatchPlayer, ratings: RatingRules): Double {
 /**
  * Step 10. The minutes penalty, whose two rungs are exclusive.
  *
- * Minutes played are not a measurement of time on the pitch. They are ninety
- * unless the player appeared in an event, and then they are whatever the
- * minute of his LAST event works out to, which is why a striker who scored
- * early in the first half is charged here as though he had barely played. See
- * PlayerTally and OPEN-QUESTIONS item 53.
+ * What the minutes handed in here measure is section 3.15 item 14 and is
+ * settled by RuleSet.minutesPlayedRule before this is ever called. Under the
+ * classic rules they are not a measurement of time on the pitch at all: ninety
+ * unless the player appeared in an event, and then whatever the minute of his
+ * LAST event works out to, which is why a striker who scored early in the
+ * first half is charged here as though he had barely played. Under the modern
+ * rules they are the time he was actually on the pitch. Either way this
+ * function only reads the number, so both rungs and their strictness are the
+ * same under both. See PlayerTally and OPEN-QUESTIONS item 53.
  */
 @SpecRef("3.14")
 private fun minutesAdjustment(minutes: Int, limits: RatingLimits): Double = when {

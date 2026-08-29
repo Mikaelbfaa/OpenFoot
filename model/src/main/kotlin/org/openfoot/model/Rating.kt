@@ -86,20 +86,23 @@ data class MidfieldRatingRules(
  * Every one of them multiplies a counter rather than firing once, so a player
  * who scored twice collects goalBonus twice.
  *
- * missedPenaltyOwnGoalPenalty is section 3.15 item 15 and is named for what
- * it does rather than for what it meant to do. It is switched on by the
- * player having missed at least one interactive penalty, and the counter it
- * then multiplies is his own goals conceded against his own side, not the
- * penalties he missed. It is therefore nought for everybody except the player
- * who, in one match, missed a penalty and scored an own goal, and that player
- * is punished twice over for the own goal. Confirmed original behaviour, to
- * be reproduced and not repaired; see OPEN-QUESTIONS item 54.
+ * missedPenaltyCharge is the one figure of the six that does not name the
+ * counter it multiplies, because which counter that is depends on the rule
+ * set. It is section 3.15 item 15, and RuleSet.missedPenaltyRule is what
+ * settles it: the classic reading switches the charge on by the player having
+ * missed at least one interactive penalty and then multiplies his own goals,
+ * so it is nought for everybody except the player who, in one match, missed a
+ * penalty and scored an own goal, and that player is punished twice over for
+ * the own goal; the modern reading multiplies the penalties he missed. The
+ * charge itself is the same minus one point two either way, which is why it
+ * stays a plain constant here and only what it multiplies is a strategy. See
+ * OPEN-QUESTIONS item 54.
  */
 @SpecRef("3.14")
 data class PlayerEventRatingRules(
     @property:SpecRef("3.15") val goalBonus: Double,
     @property:SpecRef("3.14") val ownGoalPenalty: Double,
-    @property:SpecRef("3.15") val missedPenaltyOwnGoalPenalty: Double,
+    @property:SpecRef("3.15") val missedPenaltyCharge: Double,
     @property:SpecRef("3.14") val yellowCardPenalty: Double,
     @property:SpecRef("3.14") val redCardPenalty: Double,
     @property:SpecRef("3.14") val assistBonus: Double,

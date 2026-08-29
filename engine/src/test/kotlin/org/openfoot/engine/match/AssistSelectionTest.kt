@@ -321,6 +321,65 @@ class AssistSelectionTest {
         assertEquals(a.id, winner.id)
     }
 
+    /**
+     * Section 3.15 item 4, the Velocidade defect, proved where it actually
+     * costs something: on which player the draw lands, not on a weight read
+     * back on its own.
+     *
+     * Three candidates in lineup order. R stands at cell five and Q at cell
+     * four, both characteristic neutral, so both weigh two in either pass. P
+     * stands at cell three, also worth two by cell, and carries Pace on a non
+     * lateral cell, which is the one branch of the chain whose two passes can
+     * disagree: he weighs three in the total pass under both rule sets, four
+     * in the walk under the classic ones and three under the modern ones.
+     *
+     * The sum the draw is scaled against is the total pass and is seven under
+     * both, so the same scripted 0.8 gives the same target of 5.6 either way,
+     * and the two rule sets can only differ in the walk. The classic walk
+     * reaches two after R and six after P, and six clears 5.6, so it stops on
+     * P. The modern walk reaches two after R and five after P, which does not
+     * clear 5.6, and seven after Q, which does, so it stops on Q. The trait
+     * bonus therefore moves the drawn assister and not merely a running total.
+     *
+     * Neither answer is a shortcut in disguise. R is the first candidate and
+     * is the answer under neither rule set, so a walk that returned the head
+     * of the list fails both assertions. P is the heaviest candidate in the
+     * total pass, so a draw that returned the heaviest would agree with the
+     * classic assertion and fail the modern one. And Q is the last candidate,
+     * which asymmetricWeightedPick also returns when its walk falls off the
+     * end, so the classic assertion is what keeps a walk that never stops from
+     * passing this test by accident.
+     */
+    @Test
+    fun `the pace trait moves the drawn assister between the two rule sets`() {
+        val early = neutralPlayer(5, id = 5)
+        val paced = Lineups.player(3, 50, id = 3, firstTrait = Trait.PACE, secondTrait = Trait.TACKLING)
+        val late = neutralPlayer(4, id = 4)
+        val candidates = listOf(early, paced, late)
+        val side = Lineups.side(candidates, marking = Marking.LIGHT)
+
+        val classicWinner = pickAssister(candidates, side, RuleSets.CLASSIC, ScriptedRng(0.8))
+        val modernWinner = pickAssister(candidates, side, RuleSets.MODERN, ScriptedRng(0.8))
+
+        assertEquals(paced.id, classicWinner.id, "the inflated walk weight wins the classic draw")
+        assertEquals(late.id, modernWinner.id, "the same draw passes the pace player under the modern rules")
+    }
+
+    /**
+     * The same weight read directly, so that a repair which equalised the two
+     * passes by moving the TOTAL down rather than the walk up would be caught
+     * here rather than left to look like a success above.
+     */
+    @Test
+    fun `the pace bonus differs between the passes under classic and agrees under modern`() {
+        val paced = Lineups.player(3, 50, id = 3, firstTrait = Trait.PACE, secondTrait = Trait.TACKLING)
+
+        assertEquals(3.0, assistWeight(paced, lightSide, RuleSets.CLASSIC, walk = false), "classic total")
+        assertEquals(4.0, assistWeight(paced, lightSide, RuleSets.CLASSIC, walk = true), "classic walk")
+        assertEquals(3.0, assistWeight(paced, lightSide, RuleSets.MODERN, walk = false), "modern total")
+        assertEquals(3.0, assistWeight(paced, lightSide, RuleSets.MODERN, walk = true), "modern walk")
+    }
+
     @Test
     fun `the coin firing returns no assister and draws nothing else`() {
         val finisher = neutralPlayer(20)

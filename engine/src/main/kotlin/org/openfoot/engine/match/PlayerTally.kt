@@ -51,10 +51,15 @@ import org.openfoot.model.TeamSide
  * keeper's own save; see InteractivePenaltyResult's docstring for why the two
  * are distinct counters read by two different clauses of step 6.
  *
- * minutesPlayed defaults to ninety and is not a measurement of anything.
- * toPlayerTallies below is the only place it changes, and it changes exactly
- * as section 3.14 states: whichever of a protagonist's or a supporting
- * player's formula the player's own last event in the log calls for. See
+ * minutesPlayed is whichever of two figures RuleSet.minutesPlayedRule asks
+ * for, and toPlayerTallies below is the only place it is ever set. The event
+ * derived figure is section 3.15 item 14's defect and is not a measurement of
+ * anything: ninety unless the player appears in the log, and then whichever of
+ * a protagonist's or a supporting player's formula his own LAST qualifying
+ * event calls for. The actual figure is the time he spent on the pitch, from
+ * kick off or from his arrival to his departure or to the final whistle. Both
+ * are computed for every player whatever the rule set and the rule chooses
+ * between them, so this field carries one number and never both. See
  * OPEN-QUESTIONS item 53.
  */
 @SpecRef("3.14")
@@ -125,9 +130,10 @@ data class PlayerTallies(
  * who arrived in his place. A caller that already has the pre-match MatchSetup
  * it handed to simulateMatch reads the two starting lineups straight off it.
  *
- * rules is read for exactly one field, keeperSlot, which is what lets this
- * function recognise the goalkeeper's cell without hard coding the number the
- * classic rules happen to give it.
+ * rules is read for two fields. keeperSlot is what lets this function
+ * recognise the goalkeeper's cell without hard coding the number the classic
+ * rules happen to give it. minutesPlayedRule is what settles section 3.15 item
+ * 14, below.
  *
  * The fold is single pass over the log except for one lookahead, gathered
  * before the loop starts: which minute and side carried an InteractivePenalty
@@ -147,17 +153,44 @@ data class PlayerTallies(
  * whether it is on target, wide, saved or scored. Only a Substitution, a
  * Booking, a SendingOff, a scored or missed Goal's author, a Goal's assister
  * and the goalkeeper of a saved InteractivePenalty are named, and this
- * function reads no other event as either. The Shot exclusion is the one that
- * actually proves the closed list rather than the wider headline: a Shot is
- * the single most frequent event of a match, so a shooter would be the
- * protagonist of nearly every minute he is ever mentioned in, and item 53's
- * own consequence list, which is entirely about goals, cards and assists,
- * would read nothing like it does if every shot moved a shooter's minutes as
- * well. That is also the argument for Injury, only louder: item 53 lists the
+ * function reads no other event as either for that purpose. The Shot
+ * exclusion is the one that actually proves the closed list rather than the
+ * wider headline: a Shot is the single most frequent event of a match, so a
+ * shooter would be the protagonist of nearly every minute he is ever mentioned
+ * in, and item 53's own consequence list, which is entirely about goals, cards
+ * and assists, would read nothing like it does if every shot moved a shooter's
+ * minutes as well. That is also the argument for Injury, only louder: item 53 lists the
  * events its formula reaches, not every event a player can appear in, and a
  * later change that adds a MatchEvent.Shot branch here would give every
  * shooter in the game a silent minutes penalty that nothing in section 3.14
  * asks for.
+ *
+ * The actual time on the pitch of section 3.15 item 14 is folded out of the
+ * same single pass, into a PitchSpan per player kept beside the tallies, and
+ * is turned into a figure only once the whole log has been walked. A starter's
+ * span opens at kick off and an arrival's at the minute of his own
+ * Substitution; a span closes at the minute of the Substitution that took the
+ * man off, of the SendingOff that dismissed him or of the Injury he did not
+ * come back from, and a span still open at the end of the log closes at the
+ * final whistle, which is the clock's own total and therefore carries that
+ * match's stoppage time rather than a flat ninety.
+ *
+ * Only the FIRST close of a span counts, because an injured man who is
+ * replaced produces an Injury and a Substitution in the same minute and the
+ * two must not be read as two departures. Every Injury event closes a span,
+ * which is not the same list of events as the minutes rule above reads: an
+ * Injury moves neither of section 3.14's two formulas and yet always ends the
+ * injured man's match, since the branch that logs it either replaces him or
+ * drops him from the lineup outright.
+ *
+ * One departure the log cannot show is the injury whose drawn duration comes
+ * to nought days, which only a player of twenty or under can draw. That branch
+ * logs no Injury event at all and still takes the player off, so if his side
+ * also has nobody to bring on there is nothing in the log to close his span
+ * and he is counted to the final whistle. It is recorded here rather than
+ * approximated around: the alternative would be a rule invented in this fold
+ * about an event that is not there, and the case needs an injury, a player of
+ * twenty or under, a duration of nought and an empty bench all at once.
  */
 @SpecRef("3.14")
 fun List<MatchEvent>.toPlayerTallies(
@@ -168,10 +201,35 @@ fun List<MatchEvent>.toPlayerTallies(
 ): PlayerTallies {
     val home = LinkedHashMap<PlayerId, PlayerTally>()
     val away = LinkedHashMap<PlayerId, PlayerTally>()
-    for (player in homeLineup) home[player.id] = PlayerTally()
-    for (player in awayLineup) away[player.id] = PlayerTally()
+    val homeSpans = LinkedHashMap<PlayerId, PitchSpan>()
+    val awaySpans = LinkedHashMap<PlayerId, PitchSpan>()
+    for (player in homeLineup) {
+        home[player.id] = PlayerTally()
+        homeSpans[player.id] = PitchSpan(arrived = KICK_OFF_MINUTE)
+    }
+    for (player in awayLineup) {
+        away[player.id] = PlayerTally()
+        awaySpans[player.id] = PitchSpan(arrived = KICK_OFF_MINUTE)
+    }
 
     fun tallyOf(side: TeamSide): LinkedHashMap<PlayerId, PlayerTally> = if (side == TeamSide.HOME) home else away
+
+    fun spansOf(side: TeamSide): LinkedHashMap<PlayerId, PitchSpan> =
+        if (side == TeamSide.HOME) homeSpans else awaySpans
+
+    fun arrive(side: TeamSide, id: PlayerId, minute: Int) {
+        spansOf(side)[id] = PitchSpan(arrived = minute)
+    }
+
+    fun depart(side: TeamSide, id: PlayerId, minute: Int) {
+        val spans = spansOf(side)
+        val current = checkNotNull(spans[id]) {
+            "$id of $side has no span yet, and only a starter or a Substitution arrival should have one"
+        }
+        if (current.left == null) {
+            spans[id] = current.copy(left = minute)
+        }
+    }
 
     fun touch(side: TeamSide, id: PlayerId, change: (PlayerTally) -> PlayerTally) {
         val map = tallyOf(side)
@@ -274,23 +332,28 @@ fun List<MatchEvent>.toPlayerTallies(
                 touch(event.side, event.player.id) {
                     it.copy(redCards = it.redCards + 1, minutesPlayed = protagonistMinute(event.minute))
                 }
+                depart(event.side, event.player.id, event.minute)
                 if (event.player.slot.value == rules.keeperSlot) {
                     setKeeperOf(event.side, null)
                 }
             }
 
-            is MatchEvent.Injury ->
+            is MatchEvent.Injury -> {
+                depart(event.side, event.player.id, event.minute)
                 if (event.player.slot.value == rules.keeperSlot) {
                     setKeeperOf(event.side, null)
                 }
+            }
 
             is MatchEvent.Substitution -> {
                 touch(event.side, event.off.id) {
                     it.copy(minutesPlayed = protagonistMinute(event.minute))
                 }
+                depart(event.side, event.off.id, event.minute)
                 val onSide = tallyOf(event.side)
                 val arriving = onSide[event.on.id] ?: PlayerTally()
                 onSide[event.on.id] = arriving.copy(minutesPlayed = supportingMinute(event.minute))
+                arrive(event.side, event.on.id, event.minute)
                 if (event.on.slot.value == rules.keeperSlot) {
                     setKeeperOf(event.side, event.on.id)
                 }
@@ -300,8 +363,43 @@ fun List<MatchEvent>.toPlayerTallies(
         }
     }
 
+    fun settleMinutes(tallies: LinkedHashMap<PlayerId, PlayerTally>, spans: Map<PlayerId, PitchSpan>) {
+        for (id in tallies.keys.toList()) {
+            val tally = tallies.getValue(id)
+            val span = spans.getValue(id)
+            val actual = (span.left ?: clock.totalMinutes) - span.arrived
+            tallies[id] = tally.copy(
+                minutesPlayed = rules.minutesPlayedRule.minutes(tally.minutesPlayed, actual),
+            )
+        }
+    }
+
+    settleMinutes(home, homeSpans)
+    settleMinutes(away, awaySpans)
+
     return PlayerTallies(home = home, away = away)
 }
+
+/**
+ * When one player reached the pitch and when he left it, in whole match
+ * minutes counted from kick off.
+ *
+ * left is null for as long as the log has not shown him leaving, which at the
+ * end of the walk means he was still on at the final whistle. It is not a
+ * sentinel for an unknown departure: the one departure the log genuinely
+ * cannot show is argued for on toPlayerTallies above, and it too is read as
+ * still on.
+ *
+ * Held beside the tallies rather than on PlayerTally because neither figure is
+ * a counter section 3.14 reads. What section 3.14 reads is the one number the
+ * two of them, and the rule set, produce.
+ */
+@SpecRef("3.15")
+private data class PitchSpan(val arrived: Int, val left: Int? = null)
+
+/** The minute a starter's time on the pitch begins, counted from nought. */
+@SpecRef("3.15")
+private const val KICK_OFF_MINUTE = 0
 
 /** Section 3.14's second half offset for a protagonist's minute. */
 @SpecRef("3.14")

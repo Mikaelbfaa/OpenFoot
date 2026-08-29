@@ -39,9 +39,12 @@ data class ShotMultipliers(val saved: Double, val wide: Double)
  * chain that stops at its first match, exactly mirroring the finisher bonus
  * chain of shooterWeight above: Passing first, then Playmaking, then
  * Dribbling, then Pace, then Crossing. paceTotalBonus and paceWalkBonus are
- * deliberately unequal, one and two, which is section 3.15 item 4's
- * Velocidade defect reproduced through asymmetricWeightedPick; every other
- * bonus here applies identically to the total pass and the walk pass.
+ * the one pair in the whole table that can disagree, and under the classic
+ * rules they do, at one and at two, which is section 3.15 item 4's Velocidade
+ * defect reproduced through asymmetricWeightedPick: the trait pays the walk
+ * more than the sum the walk is scaled against ever accounted for. Every
+ * other bonus here applies identically to the total pass and the walk pass,
+ * and under the modern rules this one does too, both at one.
  *
  * heavyMarkingFullbackBonus applies on top of whichever branch above fired,
  * to any of the two lateral slots, only when the side's own marking equals
@@ -145,6 +148,50 @@ fun interface ShotHomeRule {
 }
 
 /**
+ * How section 3.14 step 3 reads the two counters of its missed penalty term.
+ *
+ * A strategy object rather than a constant for the reason ShotHomeRule above
+ * is one: the classic and the modern readings differ in shape and not only in
+ * value. The classic reading is section 3.15 item 15's defect verbatim, a term
+ * switched on by a missed penalty that then multiplies the OWN GOAL counter,
+ * so a player who missed a penalty and scored no own goal loses nothing at all
+ * and a player who did both in one match is charged twice over for the own
+ * goal. The modern reading multiplies the counter the term is named for, once
+ * per penalty missed and never for an own goal.
+ *
+ * Both counters are handed over on every call, and the charge with them, so
+ * that neither reading has to reach for the engine's own tally type: a
+ * strategy declared here may name only model types and primitives, and these
+ * three numbers are the whole of what either reading needs.
+ */
+@SpecRef("3.15")
+fun interface MissedPenaltyRule {
+    fun adjust(missedPenalties: Int, ownGoals: Int, penalty: Double): Double
+}
+
+/**
+ * Which of the two minute figures section 3.14 step 10 charges its penalty on.
+ *
+ * A strategy object for the same reason the two above are: section 3.15 item
+ * 14 is not a number read wrongly but a counter that measures the wrong
+ * thing, and the two readings cannot be told apart by any constant. The
+ * classic figure is the one the original keeps, the minute of the player's own
+ * last qualifying event worked through section 3.14's protagonist or
+ * supporting formula, which is why a starter booked in the fifth minute is
+ * charged as though he had barely played. The modern figure is the time he was
+ * actually on the pitch, from kick off or from the minute he came on to the
+ * minute he left or to the final whistle.
+ *
+ * Both figures are computed for every player whatever the rule set, and this
+ * chooses between them afterwards, so the fold that produces them never
+ * branches on which rules are running.
+ */
+@SpecRef("3.15")
+fun interface MinutesPlayedRule {
+    fun minutes(eventDerived: Int, actual: Int): Int
+}
+
+/**
  * Every tunable number of the simulation, gathered in one value object.
  *
  * A difference between rule sets is expressed as a different value here, never
@@ -239,6 +286,8 @@ data class RuleSet(
     @property:SpecRef("3.10") val penalties: PenaltyRules,
 
     @property:SpecRef("3.14") val ratings: RatingRules,
+    @property:SpecRef("3.15") val missedPenaltyRule: MissedPenaltyRule,
+    @property:SpecRef("3.15") val minutesPlayedRule: MinutesPlayedRule,
 
     @property:SpecRef("3.15") val lineupRelaxationPasses: Int,
     @property:SpecRef("5.4") val benchTemplate: List<Int>,

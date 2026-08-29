@@ -63,6 +63,69 @@ object ModernShotHomeRule : ShotHomeRule {
 }
 
 /**
+ * The missed penalty term of section 3.14 step 3, as the original computes it.
+ *
+ * Section 3.15 item 15's defect verbatim. The term is switched on by the
+ * player having missed at least one interactive penalty, and the counter it
+ * then multiplies is his own goals rather than the penalties he missed. It is
+ * therefore nought for everybody except the player who, in one match, missed a
+ * penalty and scored an own goal, and that player is charged for the own goal
+ * twice: once by the ordinary own goal term and again here.
+ *
+ * Reproduced deliberately. See spec section 3.14 and OPEN-QUESTIONS item 54.
+ */
+@SpecRef("3.15")
+object ClassicMissedPenaltyRule : MissedPenaltyRule {
+    override fun adjust(missedPenalties: Int, ownGoals: Int, penalty: Double): Double =
+        if (missedPenalties > 0) ownGoals * penalty else 0.0
+}
+
+/**
+ * The missed penalty term read the way its own name states it.
+ *
+ * The charge multiplies the penalties the player missed, so a player who
+ * missed one and scored no own goal pays it once and a player who did both
+ * pays it once for the penalty and the ordinary own goal term once for the own
+ * goal, rather than the own goal term twice.
+ */
+@SpecRef("3.15")
+object ModernMissedPenaltyRule : MissedPenaltyRule {
+    override fun adjust(missedPenalties: Int, ownGoals: Int, penalty: Double): Double =
+        missedPenalties * penalty
+}
+
+/**
+ * The minutes section 3.14 step 10 charges on, as the original keeps them.
+ *
+ * Section 3.15 item 14's defect. The original never measures time on the
+ * pitch: it overwrites one field every time the player appears in one of the
+ * events section 3.14 names, with the minute of that event worked through the
+ * protagonist or the supporting formula, and whatever the last of those
+ * events left standing is what the minutes penalty reads. A starter booked in
+ * the fifth minute is charged as though he had played five minutes and takes
+ * the short appearance penalty for a full match.
+ *
+ * Reproduced deliberately. See spec section 3.14 and OPEN-QUESTIONS item 53.
+ */
+@SpecRef("3.15")
+object ClassicMinutesPlayedRule : MinutesPlayedRule {
+    override fun minutes(eventDerived: Int, actual: Int): Int = eventDerived
+}
+
+/**
+ * The minutes step 10 charges on, measured as time actually on the pitch.
+ *
+ * From kick off, or from the minute the player came on, to the minute he left
+ * or to the final whistle. Nothing about which events he happened to appear in
+ * is read at all, so a booking, a goal or an assist no longer moves a figure
+ * that is supposed to be a duration.
+ */
+@SpecRef("3.15")
+object ModernMinutesPlayedRule : MinutesPlayedRule {
+    override fun minutes(eventDerived: Int, actual: Int): Int = actual
+}
+
+/**
  * The available rule sets.
  *
  * CLASSIC reproduces the original bug for bug and is the default. It is also
@@ -340,7 +403,7 @@ object RuleSets {
             events = PlayerEventRatingRules(
                 goalBonus = 0.9,
                 ownGoalPenalty = -1.5,
-                missedPenaltyOwnGoalPenalty = -1.2,
+                missedPenaltyCharge = -1.2,
                 yellowCardPenalty = -0.2,
                 redCardPenalty = -0.8,
                 assistBonus = 0.4,
@@ -401,12 +464,15 @@ object RuleSets {
             ),
         ),
 
+        missedPenaltyRule = ClassicMissedPenaltyRule,
+        minutesPlayedRule = ClassicMinutesPlayedRule,
+
         lineupRelaxationPasses = 2,
         benchTemplate = listOf(1, 1, 2, 4, 4, 12, 15, 15, 20, 20, 23),
     )
 
     /**
-     * Exactly seven deltas, each of them a defect of the original.
+     * Exactly ten deltas, each of them a defect of the original.
      *
      * The first two live in the aggregate and shot code: slot eighteen
      * counting in no line, and home advantage applied with the wrong sign and
@@ -427,10 +493,11 @@ object RuleSets {
      * through a flag. The doubling past five yellows is not named as a defect
      * and both rule sets keep it.
      *
-     * The last two live in section 3.8's substitutions and are section 3.15's
-     * items 11 and 12. Item 11 is the away side's window being swallowed by
-     * the home side's: the two windows of one pass are run in one go, the home
-     * side first, and a pass in which the home side actually changed somebody
+     * The sixth and seventh live in section 3.8's substitutions and are
+     * section 3.15's items 11 and 12. Item 11 is the away side's window being
+     * swallowed by the home side's: the two windows of one pass are run in one
+     * go, the home side first, and a pass in which the home side actually
+     * changed somebody
      * never examines the away side's window at all. Classic allows one side
      * per pass and modern allows both, which is a count rather than a flag
      * because what the original limits is how many changes one pass can carry.
@@ -442,8 +509,45 @@ object RuleSets {
      * with separate effects: one costs the away side windows and the other
      * costs it the protection inside a window it does get.
      *
-     * The wasted keeper draw of section 3.8 is deliberately not a third delta
-     * here. This docstring is where that decision is argued, and
+     * The eighth is section 3.15 item 4, the Velocidade defect of section
+     * 3.6's assist draw. That draw sums one weight over the candidates and
+     * then walks a second, and the Pace branch is the only place in the whole
+     * table where the two disagree: the trait is worth one to the total and
+     * two to the walk, so a player with it takes a share of the draw the total
+     * never accounted for and everybody listed after him takes less than his
+     * weight says. Modern makes the walk figure agree with the total one at
+     * one. It is the walk that moves rather than the total because the total
+     * is what every other characteristic of the chain already pays, and
+     * because leaving the total alone keeps the sum the draw is scaled against
+     * exactly where it was.
+     *
+     * The ninth and tenth are strategy objects rather than constants, for the
+     * reason shotHomeRule above is one: the two readings differ in shape and
+     * no number can express the difference.
+     *
+     * The ninth is section 3.15 item 15. Section 3.14 step 3's missed penalty
+     * term is switched on by a missed penalty and then multiplies the own goal
+     * counter, so a player who missed a penalty and scored no own goal loses
+     * nothing and a player who did both is charged for the own goal twice.
+     * Modern multiplies the counter the term is named for. The charge itself,
+     * PlayerEventRatingRules.missedPenaltyCharge, is the same minus one point
+     * two in both rule sets; only what it multiplies moves.
+     *
+     * The tenth is section 3.15 item 14, and it is the one delta here that
+     * changes what a counter MEASURES rather than how a number is computed.
+     * The original never measures time on the pitch at all: it overwrites one
+     * field with the minute of the player's own last qualifying event, worked
+     * through section 3.14's protagonist or supporting formula, so a starter
+     * booked in the fifth minute is recorded as having played five minutes and
+     * takes step 10's short appearance penalty for a full match. Modern
+     * records the time he was actually on the pitch, kick off or his arrival
+     * to his departure or the final whistle. Both figures are computed for
+     * every player under both rule sets and the strategy chooses between them
+     * afterwards, so the fold that produces them stays free of any question
+     * about which rules are running.
+     *
+     * The wasted keeper draw of section 3.8 is deliberately not an eleventh
+     * delta here. This docstring is where that decision is argued, and
      * docs/known-quirks.md carries the same argument for a reader who is not
      * in the code; OPEN-QUESTIONS item 44 records the wasted window itself but
      * says nothing about rule sets, so it is not the authority for this.
@@ -473,5 +577,8 @@ object RuleSets {
         anyInjuryAtLeast = Int.MAX_VALUE,
         substitutingSidesPerPass = 2,
         scoreWindowArrivalsSide = listOf(TeamSide.HOME, TeamSide.AWAY),
+        assist = CLASSIC.assist.copy(paceWalkBonus = 1),
+        missedPenaltyRule = ModernMissedPenaltyRule,
+        minutesPlayedRule = ModernMinutesPlayedRule,
     )
 }

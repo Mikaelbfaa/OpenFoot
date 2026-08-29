@@ -3,6 +3,7 @@ package org.openfoot.engine.match
 import org.openfoot.engine.world.ScriptedInts
 import org.openfoot.model.PlayerStyle
 import org.openfoot.model.Position
+import org.openfoot.model.RuleSet
 import org.openfoot.model.RuleSets
 import org.openfoot.model.Slot
 import org.openfoot.model.Trait
@@ -66,6 +67,21 @@ class PlayerRatingTest {
     )
 
     private fun rate(
+        player: MatchPlayer,
+        tally: PlayerTally = PlayerTally(),
+        context: SideRatingContext = context(),
+        rng: ScriptedInts = ScriptedInts(),
+    ): PlayerRating = ratePlayer(player, tally, context, rules, rng)
+
+    /**
+     * The same rating under a rule set of the caller's choosing.
+     *
+     * Only the two rule set aware tests below use this; every other fixture in
+     * this file reads the classic rules through rate above, since section
+     * 3.14's eleven steps are otherwise identical under both.
+     */
+    private fun rateWith(
+        rules: RuleSet,
         player: MatchPlayer,
         tally: PlayerTally = PlayerTally(),
         context: SideRatingContext = context(),
@@ -453,7 +469,10 @@ class PlayerRatingTest {
     }
 
     /**
-     * Section 3.15 item 15, reproduced rather than repaired.
+     * Section 3.15 item 15, reproduced under the classic rules and repaired
+     * under the modern ones. This half of the pair is the classic reading and
+     * is what fails if the defect is ever removed from CLASSIC rather than
+     * repaired beside it.
      *
      * The term is switched on by a missed penalty and multiplies the OWN GOAL
      * counter. Three fixtures are needed to pin that and not something that
@@ -485,6 +504,68 @@ class PlayerRatingTest {
             3.2,
             rate(strong, PlayerTally(matchGoals = 2, missedPenalties = 1, ownGoals = 2)),
             "two own goals charged at three and at two point four, over one open play goal",
+        )
+    }
+
+    /**
+     * Section 3.15 item 15 repaired: the modern term multiplies the counter it
+     * is named for.
+     *
+     * The two fixtures the brief for this repair names are both here, and a
+     * third is not, deliberately. A player with one missed penalty and one own
+     * goal comes to the same 4,1 under both rule sets, since the classic
+     * reading charges one own goal once and the modern reading charges one
+     * penalty once, so that fixture proves nothing at all and is left out of
+     * the discriminating pair rather than dressed up as evidence.
+     *
+     * What does discriminate is a player who missed a penalty and scored no
+     * own goal, where the classic reading charges nothing and the modern one
+     * charges the term once, and a player whose two counters differ, where the
+     * classic reading follows the own goals and the modern one the penalties.
+     * The last fixture separates them in the other direction, the modern
+     * charge being the heavier of the two, so a reading that simply always
+     * charged more or always charged less would fail one of the two.
+     *
+     * Every figure below sits clear of step 11's floor of 2,0, which is why
+     * the open play goal is in the last two fixtures: without it the classic
+     * figure would land under the floor, both rule sets would publish 2,0 and
+     * the difference this test exists to show would be clamped away.
+     */
+    @Test
+    fun `the modern missed penalty term multiplies the missed penalties`() {
+        val strong = forward(91)
+
+        assertRating(
+            6.8,
+            rateWith(RuleSets.CLASSIC, strong, PlayerTally(missedPenalties = 1)),
+            "the classic term is switched on and multiplies nought own goals",
+        )
+        assertRating(
+            5.6,
+            rateWith(RuleSets.MODERN, strong, PlayerTally(missedPenalties = 1)),
+            "the modern term charges one point two for the one penalty missed",
+        )
+
+        assertRating(
+            3.2,
+            rateWith(RuleSets.CLASSIC, strong, PlayerTally(matchGoals = 2, missedPenalties = 1, ownGoals = 2)),
+            "two own goals charged at three and again at two point four",
+        )
+        assertRating(
+            4.4,
+            rateWith(RuleSets.MODERN, strong, PlayerTally(matchGoals = 2, missedPenalties = 1, ownGoals = 2)),
+            "two own goals charged at three and one penalty at one point two",
+        )
+
+        assertRating(
+            5.9,
+            rateWith(RuleSets.CLASSIC, strong, PlayerTally(matchGoals = 2, missedPenalties = 3, ownGoals = 1)),
+            "the classic charge follows the single own goal whatever the penalties",
+        )
+        assertRating(
+            3.5,
+            rateWith(RuleSets.MODERN, strong, PlayerTally(matchGoals = 2, missedPenalties = 3, ownGoals = 1)),
+            "the modern charge follows the three penalties",
         )
     }
 

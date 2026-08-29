@@ -1,7 +1,9 @@
 package org.openfoot.engine.match
 
+import org.openfoot.engine.world.ScriptedInts
 import org.openfoot.model.GoalType
 import org.openfoot.model.PlayerId
+import org.openfoot.model.RuleSet
 import org.openfoot.model.RuleSets
 import org.openfoot.model.TeamSide
 import kotlin.test.Test
@@ -19,13 +21,20 @@ import kotlin.test.assertTrue
  * rather than of the golden vector or the sanity checks, which read a real
  * simulation instead.
  *
- * The clock every test shares is forty minutes a first half and fifty a
+ * The clock most tests share is forty minutes a first half and fifty a
  * second, chosen to be nothing like the forty five and forty five a hasty
  * reading of section 3.1 might hard code, and every minute below is picked so
  * that the four minutes formulas of section 3.14 give four different answers:
  * a fixture whose expected figure is also the smallest, the largest or the
  * first one computed cannot tell a real rule from a shortcut that happens to
  * agree with it on that one case.
+ *
+ * Section 3.15 item 14's own fixtures run on a second clock instead, forty
+ * seven and forty nine, because that one's total of ninety six is the one
+ * figure the shared clock cannot supply: its total is ninety, which is exactly
+ * what an untouched tally already carries, and a modern reading that had done
+ * nothing at all would agree with a full match starter under it. See
+ * stoppageClock below.
  */
 class PlayerTallyTest {
 
@@ -40,6 +49,222 @@ class PlayerTallyTest {
         away: List<MatchPlayer>,
         log: List<MatchEvent>,
     ): PlayerTallies = log.toPlayerTallies(home, away, RuleSets.CLASSIC, clock)
+
+    /**
+     * The clock section 3.15 item 14's fixtures run on, forty seven minutes a
+     * first half and forty nine a second.
+     *
+     * Its total is ninety six and not ninety, deliberately. Ninety is the
+     * figure an untouched tally already carries, so a clock of two forty fives
+     * would let a modern reading that had quietly done nothing at all agree
+     * with a starter who played the whole match, and every fixture below that
+     * asserts ninety six would pass against a repair that was never wired in.
+     */
+    private val stoppageClock = MatchClock(firstHalfMinutes = 47, secondHalfMinutes = 49)
+
+    private fun minutesUnder(
+        rules: RuleSet,
+        home: List<MatchPlayer>,
+        log: List<MatchEvent>,
+        id: Int,
+    ): Int = log.toPlayerTallies(home, listOf(keeper(99)), rules, stoppageClock)
+        .home
+        .getValue(PlayerId(id))
+        .minutesPlayed
+
+    private fun tallyUnder(
+        rules: RuleSet,
+        home: List<MatchPlayer>,
+        log: List<MatchEvent>,
+        id: Int,
+    ): PlayerTally = log.toPlayerTallies(home, listOf(keeper(99)), rules, stoppageClock)
+        .home
+        .getValue(PlayerId(id))
+
+    /**
+     * Section 3.14's mark for one player of a one all draw with level
+     * possession, level tackles and no shots faced, which is the match in
+     * which a cell above thirteen reads nothing but the base table, the event
+     * counters and step 10's minutes penalty.
+     */
+    private fun ratingUnder(rules: RuleSet, player: MatchPlayer, tally: PlayerTally): Double =
+        ratePlayer(
+            player,
+            tally,
+            SideRatingContext(
+                goalsFor = 1,
+                goalsAgainst = 1,
+                possessionsWon = 40,
+                opponentPossessionsWon = 40,
+                tackles = 10,
+                opponentTackles = 10,
+                opponentShots = 0,
+            ),
+            rules,
+            ScriptedInts(),
+        ).value
+
+    /**
+     * Section 3.15 item 14, the direction that costs a starter his match.
+     *
+     * A forward booked in the fifth minute and never mentioned again. The
+     * classic rules record the minute of the booking, five, because that is
+     * the last qualifying event he appears in; the modern rules record the
+     * ninety six minutes he was actually on the pitch, since his span opened
+     * at kick off and nothing ever closed it.
+     *
+     * The two disagree by more than a rounding: five is under step 10's short
+     * rung of fifteen and ninety six is past both rungs, so the classic
+     * reading charges a full match starter the penalty meant for a man who
+     * came on at the death.
+     */
+    @Test
+    fun `a starter booked early keeps the booking minute under classic and the whole match under modern`() {
+        val booked = outfield(60, slot = 20)
+        val home = listOf(keeper(1), booked)
+        val log = listOf(MatchEvent.Booking(5, TeamSide.HOME, booked))
+
+        assertEquals(5, minutesUnder(RuleSets.CLASSIC, home, log, 60), "the minute of his own last event")
+        assertEquals(96, minutesUnder(RuleSets.MODERN, home, log, 60), "kick off to the final whistle")
+    }
+
+    /**
+     * Section 3.15 item 14, the direction that runs the other way.
+     *
+     * A substitution in the eighty second minute, which is the thirty fifth of
+     * a second half that runs to forty nine. The classic supporting formula
+     * counts down from fifty and gives the arrival fifteen; the modern reading
+     * gives him the fourteen minutes between his arrival and the whistle. The
+     * classic figure is the LARGER of the two here and the smaller in the
+     * fixture above, so no reading that simply always returns the greater or
+     * the lesser of the two can satisfy both.
+     *
+     * Fifteen against fourteen is not a near miss either: step 10's short rung
+     * is strict at fifteen, so the classic arrival pays 1,5 and the modern one
+     * pays 2,5, which the rating fixture below asserts.
+     *
+     * The man he replaced is asserted alongside him because his two figures
+     * come from two different rules that happen to agree closely: the classic
+     * protagonist formula puts him at eighty three and his span puts him at
+     * eighty two, and a fold that had closed his span at the whistle instead
+     * of at the substitution would report ninety six.
+     */
+    @Test
+    fun `a late arrival is worth one minute more under classic and his span is what modern reads`() {
+        val leaving = outfield(70, slot = 20)
+        val arriving = outfield(71, slot = 20)
+        val home = listOf(keeper(1), leaving)
+        val log = listOf(
+            MatchEvent.Substitution(82, TeamSide.HOME, leaving, arriving, SubstitutionReason.TIREDNESS),
+        )
+
+        assertEquals(15, minutesUnder(RuleSets.CLASSIC, home, log, 71), "fifty less thirty five into the half")
+        assertEquals(14, minutesUnder(RuleSets.MODERN, home, log, 71), "eighty two to the final whistle")
+        assertEquals(83, minutesUnder(RuleSets.CLASSIC, home, log, 70), "forty eight plus thirty five")
+        assertEquals(82, minutesUnder(RuleSets.MODERN, home, log, 70), "kick off to the substitution")
+    }
+
+    /**
+     * A dismissal closes a span, and an arrival opens one, so a substitute who
+     * lasted ten minutes is recorded as having lasted ten.
+     *
+     * The classic figure for the same man is sixty one, the protagonist
+     * formula applied to the minute of his dismissal, which is six times what
+     * he actually played and past step 10's short rung rather than well under
+     * it. This is the fixture that proves the modern span is bounded at BOTH
+     * ends: a reading that opened every span at kick off would report sixty
+     * and one that never closed a span would report forty six.
+     */
+    @Test
+    fun `a substitute sent off soon after arriving is recorded for the minutes he played`() {
+        val leaving = outfield(72, slot = 20)
+        val arriving = outfield(73, slot = 20)
+        val home = listOf(keeper(1), leaving)
+        val log = listOf(
+            MatchEvent.Substitution(50, TeamSide.HOME, leaving, arriving, SubstitutionReason.TIREDNESS),
+            MatchEvent.SendingOff(60, TeamSide.HOME, arriving, secondYellow = false),
+        )
+
+        assertEquals(61, minutesUnder(RuleSets.CLASSIC, home, log, 73), "forty eight plus thirteen into the half")
+        assertEquals(10, minutesUnder(RuleSets.MODERN, home, log, 73), "fifty to sixty")
+    }
+
+    /**
+     * An Injury closes a span and moves neither of section 3.14's own two
+     * formulas, so the two rules disagree here in a way no other event
+     * reproduces.
+     *
+     * The injured man never appears in the classic reading at all and keeps
+     * the untouched default of ninety, which is not a measurement of anything
+     * and is not even the length of this match. His span closes at the minute
+     * of the injury, because the branch that logs one either replaces him or
+     * drops him from the lineup outright and he never comes back either way.
+     */
+    @Test
+    fun `an injury leaves the classic default standing and closes the modern span`() {
+        val hurt = outfield(80, slot = 20)
+        val home = listOf(keeper(1), hurt)
+        val log = listOf(MatchEvent.Injury(20, TeamSide.HOME, hurt, days = 7, permanentStrengthLoss = 0))
+
+        assertEquals(90, minutesUnder(RuleSets.CLASSIC, home, log, 80), "no qualifying event, so the default stands")
+        assertEquals(20, minutesUnder(RuleSets.MODERN, home, log, 80), "kick off to the injury")
+    }
+
+    /**
+     * The whole reason section 3.15 item 14 matters: the two figures feed step
+     * 10's penalty, so the published mark moves with them.
+     *
+     * Both players are of strength fifty in a one all draw, so both start from
+     * the base table's 5,8 and read nothing else of section 3.14 but their own
+     * counters and the minutes rung. The booked starter is 2,5 down under the
+     * classic rules for a match he played in full and pays nothing under the
+     * modern ones. The late arrival goes the other way and by a smaller
+     * amount, 1,5 against 2,5, because his two figures straddle the short rung
+     * rather than sitting a rung apart.
+     *
+     * Neither figure is clamped. Every mark below is clear of step 11's floor
+     * of 2,0 and none of the four came to rest on it, so nothing here is the
+     * zeroing clause or the floor agreeing with the minutes rule by accident.
+     */
+    @Test
+    fun `the two minutes readings publish two different marks`() {
+        val booked = outfield(61, slot = 20)
+        val bookedHome = listOf(keeper(1), booked)
+        val bookedLog = listOf(MatchEvent.Booking(5, TeamSide.HOME, booked))
+
+        assertEquals(
+            3.1,
+            ratingUnder(RuleSets.CLASSIC, booked, tallyUnder(RuleSets.CLASSIC, bookedHome, bookedLog, 61)),
+            TOLERANCE,
+            "5,8 less 0,2 for the card and 2,5 for five minutes played",
+        )
+        assertEquals(
+            5.6,
+            ratingUnder(RuleSets.MODERN, booked, tallyUnder(RuleSets.MODERN, bookedHome, bookedLog, 61)),
+            TOLERANCE,
+            "5,8 less 0,2 for the card and nothing at all for ninety six minutes",
+        )
+
+        val leaving = outfield(74, slot = 20)
+        val arriving = outfield(75, slot = 20)
+        val arrivalHome = listOf(keeper(1), leaving)
+        val arrivalLog = listOf(
+            MatchEvent.Substitution(82, TeamSide.HOME, leaving, arriving, SubstitutionReason.TIREDNESS),
+        )
+
+        assertEquals(
+            4.3,
+            ratingUnder(RuleSets.CLASSIC, arriving, tallyUnder(RuleSets.CLASSIC, arrivalHome, arrivalLog, 75)),
+            TOLERANCE,
+            "5,8 less 1,5, since fifteen minutes clears the short rung",
+        )
+        assertEquals(
+            3.3,
+            ratingUnder(RuleSets.MODERN, arriving, tallyUnder(RuleSets.MODERN, arrivalHome, arrivalLog, 75)),
+            TOLERANCE,
+            "5,8 less 2,5, since fourteen minutes does not",
+        )
+    }
 
     /**
      * Both starting elevens and every substitute who came on are keys; a man
@@ -609,5 +834,17 @@ class PlayerTallyTest {
 
         assertEquals(3, populated.of(TeamSide.HOME).getValue(PlayerId(1)).matchGoals, "of(HOME) reads home")
         assertEquals(5, populated.of(TeamSide.AWAY).getValue(PlayerId(1)).matchGoals, "of(AWAY) reads away")
+    }
+
+    private companion object {
+
+        /**
+         * The four marks section 3.15 item 14's own fixture publishes are sums
+         * of tenths, which no binary double represents exactly, so they are
+         * compared within a tolerance far finer than the smallest term section
+         * 3.14 has. Every minute figure in this file is an integer and is
+         * compared exactly.
+         */
+        const val TOLERANCE = 1e-9
     }
 }
