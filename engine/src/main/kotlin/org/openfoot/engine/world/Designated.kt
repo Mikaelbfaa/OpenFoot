@@ -1,38 +1,11 @@
 package org.openfoot.engine.world
 
 import org.openfoot.engine.match.SideState
+import org.openfoot.model.Designated
 import org.openfoot.model.PlayerId
 import org.openfoot.model.Position
 import org.openfoot.model.SpecRef
 import org.openfoot.model.Trait
-
-/**
- * The two designations of section 5.6 that section 3.7 can credit a goal to:
- * the free kick and penalty taker, and the corner taker.
- *
- * Section 5.6 names four designations. Captain and false nine are left out of
- * this type on purpose, because the table itself marks their real effect as
- * none at all, display or manual only, and section 3.7 never reads either one.
- * Only the two that a goal can actually be credited to belong here.
- *
- * Both fields hold a player's index into the squad this was derived from, the
- * same identity space fillEleven hands out through PlayerId, so a designation
- * and a lineup entry can be compared directly without a lookup in between.
- *
- * This is guarded state, not a per match computation. The original stores it
- * on the club and recomputes it at world creation and again at every squad
- * change, never per match, and clears it only when the designated player
- * leaves the club. v0.1 has no season state and therefore no transfer that
- * could change a squad after world creation, so today this is derived exactly
- * once, when GeneratedClub is built in WorldGeneration.kt, and stored there.
- * The day v0.3 adds transfers, whatever moves a player in or out of a squad is
- * what must call deriveDesignated again for that squad.
- */
-@SpecRef("5.6")
-data class Designated(
-    @property:SpecRef("5.6") val taker: PlayerId?,
-    @property:SpecRef("5.6") val cornerTaker: PlayerId?,
-)
 
 /**
  * What deriveDesignated needs to know about a player's energy, since section
@@ -104,6 +77,16 @@ fun interface DesignationEnergy {
  * breaks every tie with strength and then energy, and nothing here is left to
  * chance. The absence of the parameter is the proof, enforced by the compiler
  * rather than by a test.
+ *
+ * What comes back is guarded state, not a per match computation. The original
+ * stores it on the club and recomputes it at world creation and again at every
+ * squad change, never per match, and clears it only when the designated player
+ * leaves the club. v0.1 has no season state and therefore no transfer that
+ * could change a squad after world creation, so today this runs exactly once,
+ * when GeneratedClub is built in WorldGeneration.kt, and the result is stored
+ * there and handed to the match side that reads it. The day v0.3 adds
+ * transfers, whatever moves a player in or out of a squad is what must call
+ * this again for that squad.
  */
 @SpecRef("5.6")
 fun deriveDesignated(squad: List<Player>, energy: DesignationEnergy): Designated {

@@ -4,17 +4,17 @@ import org.openfoot.model.Rng
 import org.openfoot.model.RuleSet
 import org.openfoot.model.SpecRef
 import org.openfoot.model.TeamSide
+import org.openfoot.model.Trait
 import org.openfoot.model.rand
 import org.openfoot.model.randRange
 
 /**
  * Section 3.10's two independent penalty paths.
  *
- * Neither has a caller yet. The shootout waits for the knockout brackets of
- * v0.3, and the interactive penalty waits for the goal typing of section
- * 3.7, which is meant to hand a penalty-type goal here whenever a human
- * managed side is playing, on either side, instead of adding it straight to
- * the score.
+ * The interactive penalty has a caller now: section 3.7's goal typing hands
+ * a penalty-type goal here whenever a human managed side is playing, on
+ * either side, instead of adding it straight to the score. The shootout
+ * still waits for the knockout brackets of v0.3.
  */
 
 /**
@@ -59,21 +59,6 @@ fun aiPenaltyShootout(rules: RuleSet, rng: Rng): AiShootoutResult {
 }
 
 /**
- * The two flags section 3.10 reads off an interactive penalty's taker.
- *
- * topWorld is section 4.10's estrela vermelha and, per that section,
- * implies star: a caller building this from a world Player should read
- * topWorld off Player.topWorld directly and never derive it from
- * Player.star alone, since Player.star already folds a red star player in.
- */
-@SpecRef("3.10")
-data class PenaltyTaker(val hasFinishing: Boolean, val star: Boolean, val topWorld: Boolean)
-
-/** The three flags section 3.10 reads off the goalkeeper facing the kick. */
-@SpecRef("3.10")
-data class PenaltyKeeper(val hasPenaltySaving: Boolean, val star: Boolean, val topWorld: Boolean)
-
-/**
  * What happened when a penalty-type goal, in a match with a human managed
  * side, went to the interactive path instead of straight onto the
  * scoreboard.
@@ -83,19 +68,17 @@ data class PenaltyKeeper(val hasPenaltySaving: Boolean, val star: Boolean, val t
  * scored is true only on a conversion. onTarget is true for the conversion
  * and, on a miss, false only for the off target branch.
  *
- * Section 3.10 itself only labels two of the seven miss outcomes as on
- * target, the two that credit nobody; it never says whether the three saved
- * outcomes belong on the on target side of that line too. Counting them as
- * on target here, so five of the seven rather than two, is this
- * implementation's own reading, not something section 3.10 states directly:
- * it leans on section 3.13's own definition of a shot on target as goals
- * plus saves, on the reasoning that a saved penalty is by construction a
- * shot the keeper touched. OPEN-QUESTIONS.md item 58 records both readings
- * for whoever checks this against the binary; if the alternative reading is
- * the right one, a human managed match's shots on target line runs three
- * sevenths of every missed interactive penalty too high, and nothing on
- * this branch would catch that on its own. A caller that feeds onTarget
- * straight into a Shot event is relying on this reading holding.
+ * Five of the seven miss outcomes are on target, not two. Section 3.10 now
+ * states that split explicitly, and it is confirmed: the seven outcomes are
+ * not a three way partition at all but two independent readings of one
+ * draw, two of the seven off target against five on, with the goalkeeper's
+ * three saves sitting inside those five. Two outcomes therefore count on
+ * target while crediting no save at all, the ball off the post and the
+ * taker slipping. This used to be flagged here as this implementation's own
+ * reading of an ambiguous sentence; the reading was right and the counts
+ * have not moved, so nothing below changed when the spec was confirmed.
+ * OPEN-QUESTIONS.md item 58 carries the confirmation and records the
+ * alternative reading as discarded.
  *
  * keeperCreditedWithSave marks the one missed branch, three of the seven,
  * that section 3.10 credits to the goalkeeper's own penalty-saved counter,
@@ -128,6 +111,20 @@ data class InteractivePenaltyResult(
  * The taker's conversion chance out of a hundred, before the coin is
  * tossed.
  *
+ * Both players are read straight off the pitch rather than out of a bag of
+ * flags copied from them. Finalizacao and Defesa Penalty are characteristics
+ * a MatchPlayer already answers for, and the two badges of section 4.10
+ * travel on him for section 3.14 step 8 in any case, so sourcing them twice
+ * would only be a second place for them to go wrong. topWorld is the estrela
+ * vermelha and section 4.10 makes it imply star, which is why a MatchPlayer
+ * carries both and never derives one from the other.
+ *
+ * Either player may be absent. The taker is null only in the unreachable case
+ * of a side with nobody on the pitch, and the goalkeeper is null whenever the
+ * conceding side has left the keeper's cell empty, which a side with no bench
+ * really does after losing him. Section 3.10 says nothing about either, so an
+ * absent player simply contributes no modifier of his own.
+ *
  * Every one of the five checks below is independent and none of them short
  * circuits another: a red star taker facing a red star keeper collects the
  * Finalizacao-or-red-star bonus once, ten, and the star bonus once more,
@@ -140,26 +137,30 @@ data class InteractivePenaltyResult(
  */
 @SpecRef("3.10")
 internal fun interactivePenaltyThreshold(
-    taker: PenaltyTaker,
-    keeper: PenaltyKeeper,
+    taker: MatchPlayer?,
+    keeper: MatchPlayer?,
     rules: RuleSet,
 ): Int {
     val penalties = rules.penalties
     var threshold = penalties.interactiveBaseThreshold
-    if (taker.hasFinishing || taker.topWorld) {
-        threshold += penalties.takerFinishingOrTopWorldBonus
+    if (taker != null) {
+        if (taker.hasTrait(Trait.FINISHING) || taker.topWorld) {
+            threshold += penalties.takerFinishingOrTopWorldBonus
+        }
+        if (taker.star) {
+            threshold += penalties.takerStarBonus
+        }
     }
-    if (taker.star) {
-        threshold += penalties.takerStarBonus
-    }
-    if (keeper.hasPenaltySaving) {
-        threshold -= penalties.keeperPenaltySavingPenalty
-    }
-    if (keeper.topWorld) {
-        threshold -= penalties.keeperTopWorldPenalty
-    }
-    if (keeper.star) {
-        threshold -= penalties.keeperStarPenalty
+    if (keeper != null) {
+        if (keeper.hasTrait(Trait.PENALTY_SAVING)) {
+            threshold -= penalties.keeperPenaltySavingPenalty
+        }
+        if (keeper.topWorld) {
+            threshold -= penalties.keeperTopWorldPenalty
+        }
+        if (keeper.star) {
+            threshold -= penalties.keeperStarPenalty
+        }
     }
     return threshold
 }
@@ -182,8 +183,8 @@ internal fun interactivePenaltyThreshold(
  */
 @SpecRef("3.10")
 fun interactivePenalty(
-    taker: PenaltyTaker,
-    keeper: PenaltyKeeper,
+    taker: MatchPlayer?,
+    keeper: MatchPlayer?,
     rules: RuleSet,
     rng: Rng,
 ): InteractivePenaltyResult {

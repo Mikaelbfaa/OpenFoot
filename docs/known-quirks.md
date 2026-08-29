@@ -109,7 +109,57 @@ As regras anti-exploit acima só valem quando há clube humano na partida.
 
 Spec: seções 3.6b e 3.6c. Mantido.
 
+### Um gol de bola rolando, de falta ou olímpico conta duas vezes
+
+O contador de gols **da partida** do finalizador sorteado sobe uma vez logo depois do sorteio de tipo,
+para todo tipo que não seja pênalti nem gol contra, e sobe de novo quando o gol é somado ao placar.
+Bola rolando, falta e olímpico contam duas vezes; pênalti em IAxIA e gol contra contam uma. Como é
+esse contador que a nota da seção 3.14 lê, um gol de bola rolando vale **+1,8** de nota e não +0,9.
+
+A artilharia da temporada não é afetada: ela é montada a partir dos eventos, e o evento continua
+sendo um só.
+
+Spec: seção 3.7, defeito 13 da seção 3.15, item 51 de `spec/OPEN-QUESTIONS.md`. Mantido nos dois
+conjuntos de regras: a contagem dobrada é o comportamento do original, e deduplicar mudaria a
+distribuição de notas de todo jogo de ataque.
+
+### O autor do evento e o dono do gol da partida são dois créditos diferentes
+
+Num gol de pênalti, falta ou olímpico em que o designado da seção 5.6 está em campo, ele aparece como
+autor no relato e na artilharia da temporada, mas o **+0,9 de nota fica com o finalizador sorteado**.
+Num gol contra, o autor exibido vira um jogador do time que defende e leva o -1,5, enquanto o
+finalizador sorteado do time atacante ganha um gol na contagem da partida que **não aparece em lugar
+nenhum**.
+
+O motor guarda os dois lados no mesmo evento, `author` e `scorer`, justamente porque eles podem
+divergir; unificar os dois moveria 0,9 de nota entre dois jogadores em cerca de 8,5% dos gols.
+
+Spec: seção 3.7, item 57 de `spec/OPEN-QUESTIONS.md`. Mantido nos dois conjuntos de regras.
+
+### Gol de pênalti em partida com time humano não é somado direto
+
+Quando o sorteio da seção 3.7 devolve pênalti e **qualquer um dos dois times** é humano, o gol não vai
+para o placar: ele é entregue ao pênalti interativo da seção 3.10, que decide. Nada se perde, porque a
+condição do visualizador é a mesma, e o pênalti convertido ali vale **+0,9** de nota para o batedor, e
+não +1,8, porque quem soma é o visualizador e ele incrementa uma vez só.
+
+Spec: seções 3.7 e 3.10, item 51 de `spec/OPEN-QUESTIONS.md`. Mantido nos dois conjuntos de regras.
+
 ## Nunca reproduzido, em nenhum conjunto de regras
+
+### Os dois caminhos mortos do sorteio de tipo de gol
+
+A seção 3.7 tem um ramo que transformaria um gol olímpico em gol de bola rolando quando o jogador
+sorteado fosse goleiro. Ele é **inalcançável**: o sorteio de finalizador da seção 3.6 já exclui todo
+goleiro de posição natural, então nunca há um goleiro para o ramo testar. O item 16 da seção 3.15
+manda não portar, e ele não foi portado.
+
+O item 17 da mesma seção registra uma **segunda tabela de tipo de gol**, mais generosa com faltas
+(80% bola rolando, 5% pênalti, 13% falta) e acoplada a um sorteio de cartão para o time que cometeu o
+pênalti. Nada no original a chama: é código morto de outra versão do motor. Ela também não foi
+portada, e por isso não existe campo nenhum de `RuleSet` que pudesse ligá-la.
+
+Spec: seção 3.7, itens 16 e 17 da seção 3.15.
 
 ### Pools de minutos de substituição estáticos entre partidas
 
@@ -153,9 +203,6 @@ Ficam registrados aqui para quando o código chegar nessas partes.
 - Prorrogação nunca é simulada. Empate em mata-mata vai direto para uma fórmula abstrata de
   pênaltis (seção 3.10).
 - Clubes da IA não têm dinheiro (seção 6.0). Esse é o mais estrutural de todos.
-- Um gol de bola rolando, de falta ou olímpico conta **duas vezes** na contagem de gols da partida do
-  seu autor, e por isso vale +1,8 de nota em vez de +0,9. Pênalti em IAxIA e gol contra contam uma vez
-  (seção 3.15, item 13).
 - Os "minutos jogados" que descontam nota não são tempo em campo: são o minuto do último evento em que
   o jogador aparece. Marcar no 1º tempo custa -1,5, ou -2,5 antes do minuto 15; assistir depois do
   minuto 35 do 2º tempo custa -2,5 (seção 3.15, item 14).
@@ -165,9 +212,6 @@ Ficam registrados aqui para quando o código chegar nessas partes.
   creditam uma defesa ao goleiro. Os outros 2 - a bola na trave e o batedor que escorrega - contam
   como chute no alvo sem que o goleiro tenha tocado na bola, então a linha "no alvo" da súmula não é
   exatamente "gols + defesas" quando houve pênalti interativo (seções 3.10 e 3.13).
-- Num gol de pênalti, falta ou olímpico redirecionado para o batedor designado, o relato e a artilharia
-  ficam com o designado e o **+0,9 de nota fica com o finalizador sorteado**. Num gol contra, o
-  finalizador sorteado do time atacante ganha um +0,9 que não aparece em lugar nenhum (seção 3.7).
 - Os ramos "+0,2 se o adversário chutou mais de 15" e "+0,3 se chutou mais de 20" da nota do goleiro
   estão atrás do ramo "mais de 10" numa cadeia de senão e nunca são alcançados (seção 3.14).
 - O capitão e o "falso 9" da seção 5.6 são derivados pelo original e guardados no time, mas nada os

@@ -2,6 +2,7 @@ package org.openfoot.engine.world
 
 import org.openfoot.dataset.ClubEntry
 import org.openfoot.dataset.WorldDataset
+import org.openfoot.model.Designated
 import org.openfoot.model.Rng
 import org.openfoot.model.SeedDomain
 import org.openfoot.model.SpecRef

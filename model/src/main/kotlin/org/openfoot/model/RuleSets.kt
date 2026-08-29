@@ -166,6 +166,26 @@ object RuleSets {
             heavyMarkingFullbackBonus = 20,
         ),
 
+        goalTypes = GoalTypeRules(
+            drawBound = 1000,
+            penaltyFrom = 900,
+            freeKickFrom = 950,
+            ownGoalFrom = 980,
+            olympicFrom = 990,
+            openPlayTailFrom = 995,
+            ownGoalEligibleSlots = 1..25,
+            ownGoalSlotWeights = listOf(
+                0,
+                1,
+                5,
+                18, 18, 18, 18, 18, 18,
+                5,
+                1,
+                5, 5, 5,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            ),
+        ),
+
         energyDrainInterval = 7,
         energyCostByAge = listOf(
             20 to 1,

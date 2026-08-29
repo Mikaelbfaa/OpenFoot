@@ -134,6 +134,12 @@ private class AssembledSide(val side: MatchSide, val bench: List<MatchPlayer>)
  * holding one season state, which is what knows about every club's injuries at
  * once, and it is why availability is one parameter of assembleMatch rather
  * than one per side.
+ *
+ * The side carries the club's own designations across unchanged, unfiltered by
+ * who actually made the eleven. Section 5.6 derives them from the whole squad
+ * and section 3.7 is what refuses credit to a designated player who is not on
+ * the pitch, so filtering them here would apply the same rule twice and hide
+ * where it lives.
  */
 private fun assembleSide(
     club: GeneratedClub,
@@ -163,7 +169,12 @@ private fun assembleSide(
     )
 
     val matchdaySquad = autoLineup(club.squad, formation, rules, availability)
-    val side = MatchSide(lineup = matchdaySquad.onPitch, marking = marking, context = context)
+    val side = MatchSide(
+        lineup = matchdaySquad.onPitch,
+        marking = marking,
+        context = context,
+        designated = club.designated,
+    )
     return AssembledSide(side, matchdaySquad.bench)
 }
 

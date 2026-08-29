@@ -70,6 +70,66 @@ data class AssistRules(
 )
 
 /**
+ * Every number section 3.7's goal typing reads, gathered in one value object
+ * for the reason AssistRules and PenaltyRules already are: RuleSet is at its
+ * own guidance of about sixty properties and a divergence here would be one
+ * named argument either way.
+ *
+ * drawBound is the bound of the single rand(1000) the type comes out of, and
+ * the five From thresholds are the lower edge of each band above the opening
+ * one, read in ascending order by typeOf below. Open play owns two bands, the
+ * whole run under penaltyFrom and the short tail from openPlayTailFrom to the
+ * bound, which is why there are six bands and five thresholds rather than six
+ * of each.
+ *
+ * ownGoalEligibleSlots and ownGoalSlotWeights describe the draw that replaces
+ * the displayed author of an own goal with a player of the side that
+ * conceded. slotWeights is read by cell number directly, with index nought a
+ * padding entry the eligible range never reaches, the same one to one indexing
+ * shooterSlotWeights and AssistRules.slotWeights use. The weights are not the
+ * shooter's or the assister's: they put nearly all of the weight on the six
+ * centre back cells, at eighteen each against one for a forward, which is what
+ * makes an own goal look like a defender's mistake.
+ *
+ * There is deliberately no second table here. Section 3.15 item 17 records a
+ * second, more generous typing table in the original, eighty per cent open
+ * play and thirteen per cent free kick, wired to a card for the side that gave
+ * the penalty away; nothing in the original calls it, and the spec says not to
+ * port it, so it exists in neither rule set and has no field to be switched
+ * on by.
+ */
+@SpecRef("3.7")
+data class GoalTypeRules(
+    @property:SpecRef("3.7") val drawBound: Int,
+    @property:SpecRef("3.7") val penaltyFrom: Int,
+    @property:SpecRef("3.7") val freeKickFrom: Int,
+    @property:SpecRef("3.7") val ownGoalFrom: Int,
+    @property:SpecRef("3.7") val olympicFrom: Int,
+    @property:SpecRef("3.7") val openPlayTailFrom: Int,
+    @property:SpecRef("3.7") val ownGoalEligibleSlots: IntRange,
+    @property:SpecRef("3.7") val ownGoalSlotWeights: List<Int>,
+) {
+    /**
+     * The band one draw of rand(drawBound) falls in.
+     *
+     * Every edge is a lower bound reached from below, so a draw exactly on a
+     * threshold belongs to the band that threshold names and never to the one
+     * beneath it. Keeping the whole chain here rather than in the engine is
+     * what stops the boundary convention being restated, and possibly
+     * restated differently, at a second site.
+     */
+    @SpecRef("3.7")
+    fun typeOf(draw: Int): GoalType = when {
+        draw < penaltyFrom -> GoalType.OPEN_PLAY
+        draw < freeKickFrom -> GoalType.PENALTY
+        draw < ownGoalFrom -> GoalType.FREE_KICK
+        draw < olympicFrom -> GoalType.OWN_GOAL
+        draw < openPlayTailFrom -> GoalType.OLYMPIC
+        else -> GoalType.OPEN_PLAY
+    }
+}
+
+/**
  * How home advantage reaches the two non goal weights of a shot.
  *
  * This is the one place in the engine that needs a strategy object rather than
@@ -157,6 +217,8 @@ data class RuleSet(
     @property:SpecRef("3.6") val shooterHeadingDefenderBonus: Int,
 
     @property:SpecRef("3.6") val assist: AssistRules,
+
+    @property:SpecRef("3.7") val goalTypes: GoalTypeRules,
 
     @property:SpecRef("3.9") val energyDrainInterval: Int,
     @property:SpecRef("3.9") val energyCostByAge: List<Pair<Int, Int>>,

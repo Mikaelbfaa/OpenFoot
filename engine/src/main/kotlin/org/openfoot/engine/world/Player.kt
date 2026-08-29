@@ -79,6 +79,8 @@ fun Player.inSlot(
     abilities = abilities.toIntArray(),
     firstTrait = firstTrait,
     secondTrait = secondTrait,
+    star = star,
+    topWorld = topWorld,
     side = side,
     style = style,
     representsSideCountry = representsSideCountry,

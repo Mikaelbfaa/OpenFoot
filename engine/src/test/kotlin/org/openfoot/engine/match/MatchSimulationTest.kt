@@ -283,11 +283,11 @@ class MatchSimulationTest {
      */
     @Test
     fun `events credits a tackle to the side that did not have the ball`() {
-        val awayHadTheBall = TickOutcome(TeamSide.HOME, TeamSide.HOME, TickEvent.TACKLE).events(0).toStats()
+        val awayHadTheBall = TickOutcome(TeamSide.HOME, TeamSide.HOME, TickEvent.TACKLE).events(0, goal = null).toStats()
         assertEquals(0, awayHadTheBall.home.tackles, "the possessor must not be credited with the tackle")
         assertEquals(1, awayHadTheBall.away.tackles, "the non possessor should be credited with the tackle")
 
-        val homeHadTheBall = TickOutcome(TeamSide.AWAY, TeamSide.AWAY, TickEvent.TACKLE).events(0).toStats()
+        val homeHadTheBall = TickOutcome(TeamSide.AWAY, TeamSide.AWAY, TickEvent.TACKLE).events(0, goal = null).toStats()
         assertEquals(1, homeHadTheBall.home.tackles, "the non possessor should be credited with the tackle")
         assertEquals(0, homeHadTheBall.away.tackles, "the possessor must not be credited with the tackle")
     }
@@ -301,34 +301,43 @@ class MatchSimulationTest {
      * Each case also checks that the other side's matching counter stayed at
      * zero, so a bug that credits both sides at once cannot hide either.
      */
+    /**
+     * The plainest section 3.7 resolution there is: a goal that reached the
+     * scoreboard on target. Its own events are left empty because toStats
+     * reads only the Shot, so what the resolution carried beside it cannot
+     * change a counter here, and a real Goal event would only add a player
+     * this test says nothing about.
+     */
+    private val scoredGoal = ResolvedGoal(scored = true, onTarget = true, events = emptyList())
+
     @Test
     fun `events credits every event to exactly the side its docstring names`() {
         for (possessor in listOf(TeamSide.HOME, TeamSide.AWAY)) {
             val defender = possessor.opponent
 
-            val afterGoal = TickOutcome(possessor, possessor, TickEvent.GOAL).events(0).toStats()
+            val afterGoal = TickOutcome(possessor, possessor, TickEvent.GOAL).events(0, scoredGoal).toStats()
             assertEquals(1, afterGoal.of(possessor).goals, "GOAL: possessor $possessor")
             assertEquals(1, afterGoal.of(possessor).shots, "GOAL: possessor $possessor")
             assertEquals(1, afterGoal.of(possessor).onTarget, "GOAL: possessor $possessor")
             assertEquals(0, afterGoal.of(defender).goals, "GOAL must not touch the defender: possessor $possessor")
             assertEquals(0, afterGoal.of(defender).shots, "GOAL must not touch the defender: possessor $possessor")
 
-            val afterSave = TickOutcome(possessor, possessor, TickEvent.SAVE).events(0).toStats()
+            val afterSave = TickOutcome(possessor, possessor, TickEvent.SAVE).events(0, goal = null).toStats()
             assertEquals(1, afterSave.of(possessor).shots, "SAVE: possessor $possessor")
             assertEquals(1, afterSave.of(possessor).onTarget, "SAVE: possessor $possessor")
             assertEquals(0, afterSave.of(possessor).goals, "SAVE must not score: possessor $possessor")
             assertEquals(0, afterSave.of(defender).shots, "SAVE must not touch the defender: possessor $possessor")
 
-            val afterWide = TickOutcome(possessor, possessor, TickEvent.WIDE).events(0).toStats()
+            val afterWide = TickOutcome(possessor, possessor, TickEvent.WIDE).events(0, goal = null).toStats()
             assertEquals(1, afterWide.of(possessor).shots, "WIDE: possessor $possessor")
             assertEquals(1, afterWide.of(possessor).wide, "WIDE: possessor $possessor")
             assertEquals(0, afterWide.of(defender).shots, "WIDE must not touch the defender: possessor $possessor")
 
-            val afterTackle = TickOutcome(possessor, possessor, TickEvent.TACKLE).events(0).toStats()
+            val afterTackle = TickOutcome(possessor, possessor, TickEvent.TACKLE).events(0, goal = null).toStats()
             assertEquals(0, afterTackle.of(possessor).tackles, "TACKLE must not credit the possessor: $possessor")
             assertEquals(1, afterTackle.of(defender).tackles, "TACKLE: defender of $possessor")
 
-            val afterMisplaced = TickOutcome(possessor, possessor, TickEvent.MISPLACED_PASS).events(0).toStats()
+            val afterMisplaced = TickOutcome(possessor, possessor, TickEvent.MISPLACED_PASS).events(0, goal = null).toStats()
             assertEquals(1, afterMisplaced.of(possessor).misplacedPasses, "MISPLACED_PASS: possessor $possessor")
             assertEquals(
                 0,

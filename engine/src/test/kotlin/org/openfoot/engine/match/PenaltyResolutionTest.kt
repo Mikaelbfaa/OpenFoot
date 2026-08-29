@@ -3,6 +3,7 @@ package org.openfoot.engine.match
 import org.openfoot.engine.world.ScriptedInts
 import org.openfoot.model.RuleSets
 import org.openfoot.model.TeamSide
+import org.openfoot.model.Trait
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -18,8 +19,31 @@ import kotlin.test.assertTrue
 class PenaltyResolutionTest {
 
     private val rules = RuleSets.CLASSIC
-    private val neutralTaker = PenaltyTaker(hasFinishing = false, star = false, topWorld = false)
-    private val neutralKeeper = PenaltyKeeper(hasPenaltySaving = false, star = false, topWorld = false)
+
+    /**
+     * A taker built as a fielded player rather than as a bag of flags, since
+     * that is what section 3.10 now reads. Finalizacao is given as the second
+     * characteristic on purpose: the check is hasTrait and not firstTrait, so
+     * a fixture that only ever put it first could not tell the two apart.
+     */
+    private fun taker(finishing: Boolean = false, star: Boolean = false, topWorld: Boolean = false) =
+        Lineups.player(
+            slot = 20,
+            strength = 50,
+            secondTrait = if (finishing) Trait.FINISHING else Lineups.NEUTRAL_TRAITS.second,
+            star = star,
+            topWorld = topWorld,
+        )
+
+    /** The goalkeeper facing the kick, built the same way. */
+    private fun keeper(penaltySaving: Boolean = false, star: Boolean = false, topWorld: Boolean = false) =
+        Lineups.player(
+            slot = 1,
+            strength = 50,
+            secondTrait = if (penaltySaving) Trait.PENALTY_SAVING else Lineups.NEUTRAL_TRAITS.second,
+            star = star,
+            topWorld = topWorld,
+        )
 
     /** Turns an actual roll into the raw ScriptedInts value randRange consumes. */
     private fun roll(value: Int) = value - rules.penalties.shootoutRollMin
@@ -125,98 +149,94 @@ class PenaltyResolutionTest {
 
     @Test
     fun `the neutral threshold is the base seventy`() {
-        assertEquals(70, interactivePenaltyThreshold(neutralTaker, neutralKeeper, rules))
+        assertEquals(70, interactivePenaltyThreshold(taker(), keeper(), rules))
     }
 
     @Test
     fun `finalizacao alone adds ten`() {
-        val taker = neutralTaker.copy(hasFinishing = true)
-        assertEquals(80, interactivePenaltyThreshold(taker, neutralKeeper, rules))
+        assertEquals(80, interactivePenaltyThreshold(taker(finishing = true), keeper(), rules))
     }
 
     @Test
     fun `a red star taker with no finalizacao still gets the ten, plus five more for being a star too`() {
-        val taker = neutralTaker.copy(star = true, topWorld = true)
-        assertEquals(85, interactivePenaltyThreshold(taker, neutralKeeper, rules))
+        assertEquals(85, interactivePenaltyThreshold(taker(star = true, topWorld = true), keeper(), rules))
     }
 
     @Test
     fun `finalizacao and a red star never stack the ten twice`() {
-        val taker = neutralTaker.copy(hasFinishing = true, star = true, topWorld = true)
+        val decorated = taker(finishing = true, star = true, topWorld = true)
         assertEquals(
             85,
-            interactivePenaltyThreshold(taker, neutralKeeper, rules),
+            interactivePenaltyThreshold(decorated, keeper(), rules),
             "ten once from the finalizacao-or-red-star check, five once more from the star check",
         )
     }
 
     @Test
     fun `a plain star with neither finalizacao nor a red star only adds five`() {
-        val taker = neutralTaker.copy(star = true)
-        assertEquals(75, interactivePenaltyThreshold(taker, neutralKeeper, rules))
+        assertEquals(75, interactivePenaltyThreshold(taker(star = true), keeper(), rules))
     }
 
     @Test
     fun `defesa penalty subtracts ten from the keeper's side`() {
-        val keeper = neutralKeeper.copy(hasPenaltySaving = true)
-        assertEquals(60, interactivePenaltyThreshold(neutralTaker, keeper, rules))
+        assertEquals(60, interactivePenaltyThreshold(taker(), keeper(penaltySaving = true), rules))
     }
 
     @Test
     fun `a red star keeper with no defesa penalty still loses ten, plus five more for being a star too`() {
-        val keeper = neutralKeeper.copy(star = true, topWorld = true)
-        assertEquals(55, interactivePenaltyThreshold(neutralTaker, keeper, rules))
+        assertEquals(55, interactivePenaltyThreshold(taker(), keeper(star = true, topWorld = true), rules))
     }
 
     @Test
     fun `a plain star keeper with neither trait nor red star only subtracts five`() {
-        val keeper = neutralKeeper.copy(star = true)
-        assertEquals(65, interactivePenaltyThreshold(neutralTaker, keeper, rules))
+        assertEquals(65, interactivePenaltyThreshold(taker(), keeper(star = true), rules))
     }
 
     @Test
     fun `every keeper modifier combines rather than the strongest one alone applying`() {
-        val keeper = PenaltyKeeper(hasPenaltySaving = true, star = true, topWorld = true)
+        val decorated = keeper(penaltySaving = true, star = true, topWorld = true)
         assertEquals(
             45,
-            interactivePenaltyThreshold(neutralTaker, keeper, rules),
+            interactivePenaltyThreshold(taker(), decorated, rules),
             "ten for the trait, ten for the red star, five for the star, twenty five in total",
         )
     }
 
     @Test
     fun `a fully decorated taker and a fully decorated keeper both apply at once`() {
-        val taker = PenaltyTaker(hasFinishing = true, star = true, topWorld = true)
-        val keeper = PenaltyKeeper(hasPenaltySaving = true, star = true, topWorld = true)
         assertEquals(
             60,
-            interactivePenaltyThreshold(taker, keeper, rules),
+            interactivePenaltyThreshold(
+                taker(finishing = true, star = true, topWorld = true),
+                keeper(penaltySaving = true, star = true, topWorld = true),
+                rules,
+            ),
             "70 base, +15 taker, -25 keeper",
         )
     }
 
     @Test
     fun `the coin converts exactly on the threshold and misses one past it`() {
-        val converted = interactivePenalty(neutralTaker, neutralKeeper, rules, ScriptedInts(coin(70)))
+        val converted = interactivePenalty(taker(), keeper(), rules, ScriptedInts(coin(70)))
         assertEquals(true, converted.scored)
         assertEquals(true, converted.onTarget)
         assertEquals(false, converted.keeperCreditedWithSave)
 
-        val missed = interactivePenalty(neutralTaker, neutralKeeper, rules, ScriptedInts(coin(71), 0))
+        val missed = interactivePenalty(taker(), keeper(), rules, ScriptedInts(coin(71), 0))
         assertEquals(false, missed.scored)
     }
 
     @Test
     fun `a conversion consumes exactly one draw`() {
         val rng = ScriptedInts(coin(70))
-        interactivePenalty(neutralTaker, neutralKeeper, rules, rng)
+        interactivePenalty(taker(), keeper(), rules, rng)
         assertEquals(1, rng.draws)
     }
 
     @Test
     fun `a miss consumes exactly two draws`() {
         val rng = ScriptedInts(coin(71), 0)
-        interactivePenalty(neutralTaker, neutralKeeper, rules, rng)
+        interactivePenalty(taker(), keeper(), rules, rng)
         assertEquals(2, rng.draws)
     }
 
@@ -230,7 +250,7 @@ class PenaltyResolutionTest {
     @Test
     fun `all seven miss outcomes are reachable and exactly three credit a save`() {
         val outcomes = (0..6).map { draw ->
-            interactivePenalty(neutralTaker, neutralKeeper, rules, ScriptedInts(coin(71), draw))
+            interactivePenalty(taker(), keeper(), rules, ScriptedInts(coin(71), draw))
         }
 
         outcomes.forEach { assertEquals(false, it.scored, "a miss never scores") }
@@ -247,9 +267,38 @@ class PenaltyResolutionTest {
 
     @Test
     fun `a saved miss is on target as well as saved, never off target`() {
-        val result = interactivePenalty(neutralTaker, neutralKeeper, rules, ScriptedInts(coin(71), 0))
+        val result = interactivePenalty(taker(), keeper(), rules, ScriptedInts(coin(71), 0))
         assertTrue(result.onTarget)
         assertTrue(result.keeperCreditedWithSave)
+    }
+
+    /**
+     * A side that lost its goalkeeper with an empty bench really does play on
+     * with the keeper's cell empty, so section 3.10 can be reached with
+     * nobody to face the kick. The spec says nothing about that case, and the
+     * reading here is that an absent player moves no threshold at all, which
+     * is checked from both ends: an absent taker loses the bonuses a
+     * decorated one would have brought, and an absent keeper loses the
+     * penalties a decorated one would have imposed.
+     */
+    @Test
+    fun `an absent taker or keeper contributes no modifier of his own`() {
+        assertEquals(70, interactivePenaltyThreshold(null, null, rules), "neither player present")
+        assertEquals(
+            70,
+            interactivePenaltyThreshold(null, keeper(), rules),
+            "an absent taker brings nothing, not even the bonuses a decorated one would",
+        )
+        assertEquals(
+            85,
+            interactivePenaltyThreshold(taker(star = true, topWorld = true), null, rules),
+            "the taker's own fifteen still applies with nobody in goal",
+        )
+        assertEquals(
+            70,
+            interactivePenaltyThreshold(taker(), null, rules),
+            "an absent keeper takes nothing away",
+        )
     }
 
     /** Converts the actual coin value section 3.10 compares to a threshold into a ScriptedInts draw. */

@@ -79,6 +79,17 @@ import kotlin.test.assertTrue
  * and the home possession share all rise slightly, and the away figures all
  * fall slightly.
  *
+ * Section 3.7's goal typing then landed on top of all of that and moved
+ * nothing at all, to the last digit of every figure below, which is the
+ * outcome it had to have. The typing draws from a stream of its own, a
+ * sibling of the tick's under the same minute, so it cannot move a draw the
+ * tick makes; and it only decides who a goal is credited to, never whether
+ * one was scored. Neither side here is human managed either, so section
+ * 3.7's one path that can take a goal off the scoreboard, the penalty handed
+ * to section 3.10, is out of reach. A goal count or a shot count moving with
+ * that change would have been a wiring fault rather than a figure to
+ * re-measure, and none did.
+ *
  * The last three tests pin the discipline bullet of section 3.16 itself, and
  * they are the one part of this class that now agrees with it. They used to
  * be three disagreements: section 3.16 asked for two to three bookings, a

@@ -37,6 +37,14 @@ import kotlin.test.assertTrue
  * matters here is section 3.8's duration of nought, which registers no injury
  * at all and is drawable only at twenty or under.
  *
+ * Section 3.7's goal typing moved nothing here either, and could not have.
+ * It draws from a stream of its own, a sibling of the tick's under the same
+ * minute, so it cannot move a draw a tick makes, and neither side here is
+ * human managed, so no goal can be taken off the scoreboard by section
+ * 3.10. What did change is the replay rendering below, which now prints the
+ * two new events as well, so a typing that started crediting a different
+ * player would break the replay assertion rather than pass unnoticed.
+ *
  * The two sides are equivalent in everything except the ground, so the gap
  * between the home and the away figures below is section 3.8's own doing and
  * measures two defects at once. Section 3.15 item 11 has a home side that
@@ -332,6 +340,15 @@ class BenchedSanityCheckTest {
                     is MatchEvent.Substitution ->
                         "sub ${event.minute} ${event.side} ${event.off.id.value} " +
                             "${event.on.id.value} ${event.on.slot.value} ${event.reason}"
+
+                    is MatchEvent.Goal ->
+                        "goal ${event.minute} ${event.side} ${event.type} " +
+                            "${event.author?.id?.value} ${event.scorer?.id?.value} " +
+                            "${event.matchGoalCredits} ${event.assister?.id?.value}"
+
+                    is MatchEvent.InteractivePenalty ->
+                        "pen ${event.minute} ${event.side} ${event.taker?.id?.value} " +
+                            "${event.keeper?.id?.value} ${event.scored} ${event.keeperSaved}"
                 }
             }
             return "$startingPossessor ${clock.firstHalfMinutes} ${clock.secondHalfMinutes} " +
