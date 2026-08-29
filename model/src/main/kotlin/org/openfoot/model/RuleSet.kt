@@ -17,6 +17,59 @@ data class AntiBlowoutStep(val goalsAtLeast: Int, val weights: ShotBaseWeights)
 data class ShotMultipliers(val saved: Double, val wide: Double)
 
 /**
+ * Every number the assist draw of section 3.6 reads, gathered in one value
+ * object rather than left flat on RuleSet, which is already near its own
+ * guidance of about sixty properties.
+ *
+ * eligibleSlots and slotWeights cover the pitch cells one to twenty five, the
+ * same one to one indexing shooterSlotWeights above uses: slotWeights is read
+ * by slot number directly, with index zero a padding entry that is never
+ * reached because eligibleSlots excludes it.
+ *
+ * fullbackSlots names the two cells the spec calls laterais for this draw,
+ * slots two and nine, and only those two. This is not the same set as
+ * Position.FULLBACK's natural position, and it is not the same set as the
+ * slot range that asks for a fullback in Slot.requiredPosition, which also
+ * includes the wing back cells ten and seventeen. Those two wing back cells
+ * take the plain seventeen to twenty five weight of ten in slotWeights and
+ * none of the lateral bonuses below; the spec's own weight table marks only
+ * two and nine as laterais and gives ten its own separate table entry.
+ *
+ * passingBonus through crossingFullbackBonus are read in a fixed order by a
+ * chain that stops at its first match, exactly mirroring the finisher bonus
+ * chain of shooterWeight above: Passing first, then Playmaking, then
+ * Dribbling, then Pace, then Crossing. paceTotalBonus and paceWalkBonus are
+ * deliberately unequal, one and two, which is section 3.15 item 4's
+ * Velocidade defect reproduced through asymmetricWeightedPick; every other
+ * bonus here applies identically to the total pass and the walk pass.
+ *
+ * heavyMarkingFullbackBonus applies on top of whichever branch above fired,
+ * to any of the two lateral slots, only when the side's own marking equals
+ * Marking.HEAVY. Marking's three values are LIGHT, HEAVY, VERY_HEAVY in that
+ * ordinal order, so Pesada is the middle one and not the hardest setting;
+ * VERY_HEAVY earns no bonus here at all.
+ */
+@SpecRef("3.6")
+data class AssistRules(
+    @property:SpecRef("3.6") val noAssistThreshold: Int,
+    @property:SpecRef("3.6") val eligibleSlots: IntRange,
+    @property:SpecRef("3.6") val slotWeights: List<Int>,
+    @property:SpecRef("3.6") val fullbackSlots: List<Int>,
+    @property:SpecRef("3.6") val passingBonus: Int,
+    @property:SpecRef("3.6") val passingPlaymakingBonus: Int,
+    @property:SpecRef("3.6") val playmakingBonus: Int,
+    @property:SpecRef("3.6") val playmakingDribblingBonus: Int,
+    @property:SpecRef("3.6") val dribblingBonus: Int,
+    @property:SpecRef("3.6") val dribblingPaceBonus: Int,
+    @property:SpecRef("3.15") val paceTotalBonus: Int,
+    @property:SpecRef("3.15") val paceWalkBonus: Int,
+    @property:SpecRef("3.6") val paceFullbackBonus: Int,
+    @property:SpecRef("3.6") val crossingBonus: Int,
+    @property:SpecRef("3.6") val crossingFullbackBonus: Int,
+    @property:SpecRef("3.12") val heavyMarkingFullbackBonus: Int,
+)
+
+/**
  * How home advantage reaches the two non goal weights of a shot.
  *
  * This is the one place in the engine that needs a strategy object rather than
@@ -102,6 +155,8 @@ data class RuleSet(
     @property:SpecRef("3.6") val shooterFinishingBonus: Int,
     @property:SpecRef("3.6") val shooterHeadingBonus: Int,
     @property:SpecRef("3.6") val shooterHeadingDefenderBonus: Int,
+
+    @property:SpecRef("3.6") val assist: AssistRules,
 
     @property:SpecRef("3.9") val energyDrainInterval: Int,
     @property:SpecRef("3.9") val energyCostByAge: List<Pair<Int, Int>>,

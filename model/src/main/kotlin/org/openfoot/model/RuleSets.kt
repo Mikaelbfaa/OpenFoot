@@ -141,6 +141,31 @@ object RuleSets {
         shooterHeadingBonus = 2,
         shooterHeadingDefenderBonus = 2,
 
+        assist = AssistRules(
+            noAssistThreshold = 80,
+            eligibleSlots = 1..25,
+            slotWeights = listOf(
+                0,
+                1,
+                10, 2, 2, 2, 2, 2, 2, 10,
+                10, 4, 4, 4, 20, 20, 20,
+                10, 10, 10, 10, 10, 10, 10, 10, 10,
+            ),
+            fullbackSlots = listOf(2, 9),
+            passingBonus = 10,
+            passingPlaymakingBonus = 5,
+            playmakingBonus = 2,
+            playmakingDribblingBonus = 2,
+            dribblingBonus = 2,
+            dribblingPaceBonus = 2,
+            paceTotalBonus = 1,
+            paceWalkBonus = 2,
+            paceFullbackBonus = 2,
+            crossingBonus = 5,
+            crossingFullbackBonus = 2,
+            heavyMarkingFullbackBonus = 20,
+        ),
+
         energyDrainInterval = 7,
         energyCostByAge = listOf(
             20 to 1,
