@@ -172,6 +172,14 @@ Continua sendo uma **divergência deliberada**: o original usa uma tabela própr
 reproduzir esses multiplicadores até que ela seja observada. Como é dado e não lógica, trocar a
 tabela depois não mexe em código nenhum.
 
+**Resolução no original (CONFIRMADO). A tabela existe e está publicada por inteiro na 4.4.1 da
+SIMULATION-SPEC.** É uma tabela embutida de 224 países, com nível de 11 a 20, na mesma escala do
+nível de clube - a forma que a derivação apostou. Onde a derivação erra: o topo tem **sete** países
+no nível 20 (ALE, ARG, BRA, ESP, FRA, ING, ITA), não cinco - a derivação punha Brasil e Argentina
+abaixo por olhar só o clube mais forte. A divergência deliberada acaba aqui: a tabela real é dado
+e pode substituir a derivada sem tocar em código; o campo derivado só continua fazendo sentido
+para conjuntos de dados que não venham de uma instalação.
+
 ### 15. O que significa "-4 se > 4" na entrada A da 4.2
 
 A 4.2 diz que na criação do mundo `A` é o nível mapeado do clube, "-4 se > 4". O parêntese admite
@@ -286,6 +294,13 @@ O campo `majorLeague` do país continua existindo, porque o mesmo conjunto reapa
 continental de crescimento) e parcialmente na 4.10 (limiares de topMundial), e porque um conjunto de
 dados que não venha de uma instalação precisa poder dizer isso por conta própria.
 
+**Resolução no original (CONFIRMADO). A leitura adotada está certa.** O jogo carrega uma constante
+com exatamente os cinco índices `{3, 72, 104, 97, 65}`, consultada tanto pela nacionalidade do
+jogador quanto pelo país do clube, e a tabela embutida de países (4.4.1) mostra a sigla ING no
+índice **97**. Atenção a um sósia: a lista de limiar de elegibilidade de liga da 1.9 também tem
+cinco países, mas é `{3, 11, 97, 104, 72}` - com a Argentina no lugar da Espanha. São duas listas
+diferentes para dois fins diferentes.
+
 ### 22. Onde entram os multiplicadores da 4.9
 
 O bloco da 4.9 lista os multiplicadores (estrela, topMundial, atacante, titular) entre a definição
@@ -378,6 +393,13 @@ nenhum arquivo expressa. Escolher "não Europa" garante que a falta de dado não
 europeia a ninguém, que é o erro que passaria despercebido.
 
 Quando as competições chegarem, isto deixa de ser inerte e precisa de tabela de verdade.
+
+**Resolução no original (CONFIRMADO). A tabela de verdade existe e está na 4.4.1 da
+SIMULATION-SPEC**, na mesma tabela embutida de países que resolve o item 14. Os códigos:
+`0 = Europa, 1 = América do Sul, 2 = África, 3 = Ásia, 4 = Concacaf, 5 = Oceania`, com três
+entradas reservadas em `-1` (índices 135, 204 e 207), fora de qualquer confederação. O
+"continente 0" da 3.3 é a Europa, como suposto. O importador pode trocar o "não Europa"
+provisório pela coluna real da tabela sem esperar competição nenhuma.
 
 ### 27. Um país sem arquivo de liga deixa todos os seus clubes fora de qualquer divisão
 

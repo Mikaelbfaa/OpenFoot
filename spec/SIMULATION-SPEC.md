@@ -244,7 +244,8 @@ Depois, nesta ordem:
 3. **Escala por competição** (multiplica `s`):
    - Seleções: jogador do mesmo país da seleção -> x0.65 se reputação < 3; x0.85 se = 3; x0.95 se = 4.
    - Internacional 1: reputação do clube < 3 -> x0.75; = 3 -> x0.85; senão, país 29 -> x0.90.
-   - Mundial: rep < 3 -> x0.55; = 3 -> x0.75; senão, fora do continente 0 -> x0.90.
+   - Mundial: rep < 3 -> x0.55; = 3 -> x0.75; senão, fora do continente 0 -> x0.90
+     (continente 0 = Europa; tabela completa de continentes na 4.4.1).
    - Liga nacional: rep < 3 -> x0.85; = 3 -> x0.95.
    - Copa Nacional / Estadual: se mandante tem rep < 3 e visitante >= 3, **todo o visitante** x0.80.
 4. **Retorna `s / 10`.**
@@ -877,6 +878,86 @@ teto 100 ; contrato = 210 + rnd(30) dias
 ```
 Elenco inicial montado com **3 GOL, 4 LAT, 4 ZAG, 5 MEI, 4 ATA**, `força = nívelMapeado - 5 + rnd(8)`,
 talento `es = 7 + rnd(4)`, idade `18 + rnd(12)`, contrato 180 dias.
+
+### 4.4.1 Tabela de países: continente e nível CONFIRMADO
+
+A tabela de países é **embutida no jogo** (não vem de arquivo de dados) e carrega, por país, o
+código de 3 letras, o **continente** e o **nível do país** - o `nívelPaís` que a escala por país da
+4.4 consulta, e o continente que a 3.3 (deságio do Mundial de Clubes), a 4.5 (teto de país) e a 4.9
+(nacionalidade europeia) consultam. Fecha os itens 14 e 26 de OPEN-QUESTIONS.
+
+Continentes: `0 = Europa, 1 = América do Sul, 2 = África, 3 = Ásia, 4 = Concacaf (América do
+Norte/Central e Caribe), 5 = Oceania` - os nomes são estes, na tabela de rótulos do próprio jogo.
+Três entradas reservadas (135, 204, 207) têm continente `-1` e não pertencem a confederação
+nenhuma. O "continente 0" da regra do Mundial de Clubes da 3.3 é, portanto, **a Europa**.
+
+Níveis vão de 11 a 20. **Sete** países estão no nível 20: ALE, ARG, BRA, ESP, FRA, ING, ITA - e não
+só os cinco grandes do salário da 4.8; a derivação por dados do item 14 acertava a forma da tabela,
+mas o topo real tem sete. No nível 19: BEL, CRO, HOL, MEX, POR, URU.
+
+| Indice | Sigla | Cont | Nivel | Indice | Sigla | Cont | Nivel | Indice | Sigla | Cont | Nivel | Indice | Sigla | Cont | Nivel |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | AFG | 3 | 14 | 56 | DOM | 4 | 13 | 112 | LAO | 3 | 13 | 168 | SVG | 4 | 13 |
+| 1 | AFS | 2 | 16 | 57 | EGI | 2 | 17 | 113 | LES | 2 | 13 | 169 | SEN | 2 | 17 |
+| 2 | ALB | 0 | 15 | 58 | ELS | 4 | 16 | 114 | LET | 0 | 15 | 170 | SLE | 2 | 14 |
+| 3 | ALE | 0 | 20 | 59 | EMI | 3 | 17 | 115 | LBN | 3 | 15 | 171 | SER | 0 | 17 |
+| 4 | AND | 0 | 13 | 60 | EQU | 1 | 16 | 116 | LIB | 2 | 15 | 172 | SEY | 2 | 12 |
+| 5 | AGO | 2 | 15 | 61 | ERI | 2 | 12 | 117 | LRI | 2 | 13 | 173 | SIN | 3 | 13 |
+| 6 | AIA | 4 | 12 | 62 | ESC | 0 | 16 | 118 | LIE | 0 | 13 | 174 | SIR | 3 | 16 |
+| 7 | ATG | 4 | 13 | 63 | ELQ | 0 | 17 | 119 | LIT | 0 | 15 | 175 | SOM | 2 | 12 |
+| 8 | CUR | 4 | 13 | 64 | ESV | 0 | 16 | 120 | LUX | 0 | 13 | 176 | SRI | 3 | 12 |
+| 9 | ARS | 3 | 17 | 65 | ESP | 0 | 20 | 121 | MAC | 3 | 13 | 177 | ESS | 2 | 13 |
+| 10 | ALG | 2 | 18 | 66 | EST | 0 | 15 | 122 | MCD | 0 | 14 | 178 | SUD | 2 | 13 |
+| 11 | ARG | 1 | 20 | 67 | ETI | 2 | 13 | 123 | MAD | 2 | 13 | 179 | SUE | 0 | 18 |
+| 12 | ARM | 0 | 14 | 68 | EUA | 4 | 18 | 124 | MAL | 3 | 13 | 180 | SUI | 0 | 18 |
+| 13 | ARU | 4 | 12 | 69 | FIJ | 5 | 12 | 125 | MWI | 2 | 14 | 181 | SUR | 4 | 13 |
+| 14 | AUS | 3 | 17 | 70 | FIN | 0 | 16 | 126 | MLD | 3 | 13 | 182 | TAD | 3 | 14 |
+| 15 | AUT | 0 | 17 | 71 | FIL | 3 | 14 | 127 | MLI | 2 | 16 | 183 | TAI | 3 | 14 |
+| 16 | AZE | 0 | 14 | 72 | FRA | 0 | 20 | 128 | MTA | 0 | 13 | 184 | TTI | 5 | 14 |
+| 17 | BAH | 4 | 13 | 73 | GAB | 2 | 15 | 129 | MAR | 2 | 17 | 185 | TAW | 3 | 13 |
+| 18 | BHR | 3 | 14 | 74 | GAM | 2 | 13 | 130 | MAU | 2 | 13 | 186 | TAN | 2 | 13 |
+| 19 | BAN | 3 | 13 | 75 | GAN | 2 | 17 | 131 | MEX | 4 | 19 | 187 | TGO | 2 | 14 |
+| 20 | BAR | 4 | 13 | 76 | GEO | 0 | 14 | 132 | MIA | 3 | 13 | 188 | TON | 5 | 12 |
+| 21 | BEL | 0 | 19 | 77 | GRA | 4 | 13 | 133 | MOC | 2 | 14 | 189 | TRT | 4 | 15 |
+| 22 | BLZ | 4 | 13 | 78 | GRE | 0 | 16 | 134 | MOL | 0 | 14 | 190 | TUN | 2 | 17 |
+| 23 | BEN | 2 | 14 | 79 | GUA | 4 | 14 | 135 | MNC | -1 | 12 | 191 | TCM | 3 | 14 |
+| 24 | BER | 4 | 13 | 80 | GUN | 4 | 13 | 136 | MGL | 3 | 13 | 192 | TUR | 0 | 18 |
+| 25 | BIE | 0 | 15 | 81 | GUI | 2 | 16 | 137 | NAM | 2 | 14 | 193 | UCR | 0 | 17 |
+| 26 | BOL | 1 | 16 | 82 | GNB | 2 | 14 | 138 | NEP | 3 | 13 | 194 | UGA | 2 | 15 |
+| 27 | BOS | 0 | 16 | 83 | GNE | 2 | 13 | 139 | NIC | 4 | 14 | 195 | URU | 1 | 19 |
+| 28 | BOT | 2 | 13 | 84 | HAI | 4 | 14 | 140 | NIR | 2 | 14 | 196 | UZB | 3 | 15 |
+| 29 | BRA | 1 | 20 | 85 | HOL | 0 | 19 | 141 | NIG | 2 | 18 | 197 | VAN | 5 | 13 |
+| 30 | BRU | 3 | 12 | 86 | HON | 4 | 16 | 142 | NOR | 0 | 17 | 198 | VEN | 1 | 16 |
+| 31 | BUL | 0 | 16 | 87 | HKG | 3 | 14 | 143 | NOZ | 5 | 16 | 199 | VIE | 3 | 15 |
+| 32 | BKF | 2 | 15 | 88 | HUN | 0 | 17 | 144 | OMA | 3 | 15 | 200 | ZAM | 2 | 15 |
+| 33 | BUR | 2 | 13 | 89 | IEM | 3 | 13 | 145 | PGA | 0 | 17 | 201 | ZIM | 2 | 14 |
+| 34 | BUT | 3 | 12 | 90 | ICA | 4 | 12 | 146 | PAL | 3 | 15 | 202 | ICM | 2 | 12 |
+| 35 | CAV | 2 | 15 | 91 | ICO | 5 | 12 | 147 | PAN | 4 | 16 | 203 | MIC | 5 | 13 |
+| 36 | CAM | 2 | 17 | 92 | IFA | 0 | 14 | 148 | PNG | 5 | 13 | 204 | IMA | -1 | 12 |
+| 37 | CMJ | 3 | 13 | 93 | ISA | 5 | 14 | 149 | PAQ | 3 | 13 | 205 | IMR | 2 | 12 |
+| 38 | CAN | 4 | 15 | 94 | IVB | 4 | 12 | 150 | PAR | 1 | 17 | 206 | NAU | 5 | 13 |
+| 39 | CAT | 3 | 16 | 95 | IND | 3 | 14 | 151 | PER | 1 | 17 | 207 | PLU | -1 | 12 |
+| 40 | CAZ | 0 | 14 | 96 | IDO | 3 | 14 | 152 | POL | 0 | 18 | 208 | KIR | 5 | 13 |
+| 41 | CHA | 2 | 12 | 97 | ING | 0 | 20 | 153 | PRI | 4 | 13 | 209 | SUS | 2 | 13 |
+| 42 | CHI | 1 | 18 | 98 | IRA | 3 | 18 | 154 | POR | 0 | 19 | 210 | TUV | 5 | 13 |
+| 43 | CHN | 3 | 17 | 99 | IRQ | 3 | 16 | 155 | QUI | 3 | 15 | 211 | IVA | 4 | 12 |
+| 44 | CPR | 0 | 15 | 100 | IRL | 0 | 16 | 156 | RCA | 2 | 13 | 212 | MST | 4 | 13 |
+| 45 | TML | 3 | 12 | 101 | IRN | 0 | 17 | 157 | RDG | 2 | 16 | 213 | ITC | 4 | 12 |
+| 46 | COL | 1 | 18 | 102 | ISL | 0 | 16 | 158 | RDO | 4 | 13 | 214 | SME | 5 | 12 |
+| 47 | CNG | 2 | 16 | 103 | ISR | 0 | 12 | 159 | RTC | 0 | 17 | 215 | NCA | 5 | 13 |
+| 48 | CRN | 3 | 14 | 104 | ITA | 0 | 20 | 160 | ROM | 0 | 17 | 216 | GIB | 0 | 13 |
+| 49 | CRS | 3 | 17 | 105 | MON | 0 | 16 | 161 | RUA | 2 | 13 | 217 | GDA | 4 | 13 |
+| 50 | COM | 2 | 17 | 106 | JAM | 4 | 16 | 162 | RUS | 0 | 18 | 218 | GMA | 3 | 12 |
+| 51 | CSR | 4 | 17 | 107 | JAP | 3 | 18 | 163 | SAM | 5 | 12 | 219 | MTI | 4 | 13 |
+| 52 | CRO | 0 | 19 | 108 | JOR | 3 | 15 | 164 | SAN | 0 | 12 | 220 | GFR | 4 | 13 |
+| 53 | CUB | 4 | 14 | 109 | QUE | 2 | 14 | 165 | STL | 4 | 13 | 221 | BON | 4 | 11 |
+| 54 | DIN | 0 | 18 | 110 | KOS | 0 | 14 | 166 | SCN | 4 | 14 | 222 | SMF | 4 | 11 |
+| 55 | DJI | 2 | 12 | 111 | KUW | 3 | 14 | 167 | STP | 2 | 12 | 223 | SMH | 4 | 11 |
+
+**A lista dos cinco grandes é uma constante à parte** e vale `{3, 65, 72, 97, 104}` = {ALE, ESP,
+FRA, ING, ITA} - o índice da Inglaterra é **97**, como o item 21 de OPEN-QUESTIONS inferiu. É essa
+lista que a 4.8 (salário) e o teto de país da 4.5 consultam. Não confundir com a lista de limiar de
+liga da 1.9, que troca a Espanha pela Argentina.
 
 ## 4.5 Evolução semanal (todo domingo)
 
