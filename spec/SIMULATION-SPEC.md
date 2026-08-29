@@ -856,10 +856,20 @@ independentes da qualidade individual na criação do mundo.
 
 ## 4.3 "Estilo" derivado (`ex`) - usado para elegibilidade de slot
 
-Calculado uma vez a partir de posição + características. GOL e ZAG -> 0.
-LAT -> 1 (ofensivo) se Velocidade/Cruzamento; 0 se Desarme/Marcação; senão 1 se Drible/Finalização/Passe/Armação.
-MEI -> 1 se Passe/Finalização/Drible/Armação; 0 se Desarme/Marcação; padrão 1.
-ATA -> 0 se Desarme/Marcação; **2 (ponta)** se Drible/Velocidade/Cruzamento; senão 1.
+Calculado uma vez a partir de posição + características. GOL e ZAG -> 0. As cadeias exatas, com a
+ordem dos testes e qual das duas características (c1, c2) cada teste lê, são CONFIRMADO:
+
+- **LAT**: c1 em {Velocidade, Cruzamento} -> 1; c1 em {Desarme, Marcação} -> 0;
+  c2 = Velocidade -> 1; c2 em {Desarme, Marcação} -> 0;
+  c1 em {Drible, Finalização, Passe, Armação} -> 1; **senão 0** (defensivo).
+  Dois defeitos de alcance nessa cadeia: **Cruzamento como segunda característica não é testado**
+  (o teste que deveria ler c2 = Cruzamento relê c1), e a última cláusula lê **só c1** - um lateral
+  com Drible/Finalização/Passe/Armação apenas na segunda característica cai no padrão 0.
+- **MEI**: c1 em {Passe, Finalização, Drible, Armação} -> 1; c1 em {Desarme, Marcação} -> 0;
+  os mesmos dois testes sobre c2; **padrão 1** (ofensivo).
+- **ATA**: **só c1 é lida**: c1 em {Desarme, Marcação} -> 0;
+  c1 em {Drible, Velocidade, Cruzamento} -> **2 (ponta)**; senão 1. Um atacante com essas
+  características apenas em c2 é centroavante.
 
 ## 4.4 Força inicial na criação do mundo
 

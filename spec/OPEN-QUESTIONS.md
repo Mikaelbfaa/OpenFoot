@@ -127,6 +127,12 @@ O efeito é pequeno: com os pesos do gol (0,60 para Gol) a diferença fica em to
 Isto é **observável**, e a observação vale mais que o argumento: escale um jogador de linha no gol
 com habilidade individual ligada e leia a coluna Gol na tabela de elenco.
 
+**Resolução no original (CONFIRMADO). A leitura adotada está certa.** As três linhas omissas usam
+`Gol = 1+rnd(4)`. Mais precisamente: o gerador calcula o Gol **uma vez por posição, não por
+estilo** - o lateral recebe `1+rnd(4)` nos dois estilos, e o meia (volante e armador) também
+recebe `1+rnd(4)` nos dois. O zagueiro fica com `1+rnd(7)` e o atacante com `1+rnd(6)`, como a 4.2
+já dizia. Não existe segunda punição além da divisão pela metade da 3.3.
+
 ### 12. A seção 4.4 descreve dois elencos e não diz qual se aplica
 
 O bloco principal calcula a força de jogadores que já existem, e o parágrafo seguinte monta um
@@ -198,6 +204,12 @@ reais, isso é só uma guarda defensiva. Existe um teste que fixa que níveis 6 
 subtração, para que um conjunto de dados futuro com nível menor falhe alto em vez de produzir o
 degrau em silêncio.
 
+**Resolução no original (CONFIRMADO). A leitura adotada está certa.** A conta é literal: calcula-se
+o nível mapeado e, **se ele passa de 4, subtraem-se 4**; senão fica o próprio. O ramo alternativo
+existe no original exatamente como guarda inalcançável, já que nenhum clube real produz mapeado
+menor que 6. A mesma conta, com o mesmo limiar 4, aparece também na geração do elenco sintético e
+na dos jogadores avulsos de seleção (4.12).
+
 ### 16. Desconto por temporada de chegada na temporada 1
 
 O valor de mercado da 4.9 desconta por quando o jogador chegou ao clube, mas não diz o que vale para
@@ -217,6 +229,12 @@ distribuição documentada, e nesta versão o valor é inerte de qualquer forma:
 é condicionado a ter vindo da base, seja pelo `veio de base` do crescimento semanal, seja pelo
 `desenvolvimento de base >= 60` do teto. Quando a base for implementada, este item precisa ser
 revisto contra o que os arquivos realmente contêm.
+
+**Resolução no original (CONFIRMADO). A resolução INFERIDA acima está ERRADA, e a revisão do item
+25 está certa.** Não há sorteio nenhum: o talento do profissional é **copiado do campo do arquivo**
+ao construir o jogador, com uma única transformação, a que a FORMAT-SPEC já registra - estrela com
+talento acima de 8 é forçado a 10. As distribuições da 4.6 valem só para júnior gerado em tempo de
+execução. Um importador deve carregar o campo como está, inclusive os zeros.
 
 ### 18. A tabela de reputação da 4.4 não cobre reputação zero
 
@@ -255,6 +273,14 @@ Resistência, então um lateral com essas duas cai no vazio.
 significa não ser 1. O meia e o atacante recebem padrão 1 porque a spec diz isso explicitamente para
 eles; o lateral não tem essa frase.
 
+**Resolução no original (CONFIRMADO). A leitura adotada está certa - e a cadeia real é mais
+estreita do que a 4.3 escrevia.** O padrão do lateral é 0. Mas dois testes da cadeia têm alcance
+menor que o texto sugeria: **Cruzamento só conta na primeira característica** (o teste da segunda
+relê a primeira, um defeito do original), e a cláusula final Drible/Finalização/Passe/Armação
+**também lê só a primeira**. Logo um lateral com Cruzamento ou Drible apenas na segunda
+característica é defensivo. O atacante tem a mesma miopia inteira: as três cláusulas dele leem só a
+primeira característica. A 4.3 foi reescrita com as cadeias exatas.
+
 ### 20. Uma fórmula para vários atributos: um sorteio ou um por atributo
 
 A 4.2 escreve a mesma fórmula para mais de um atributo em dois lugares. Na linha do goleiro,
@@ -271,6 +297,11 @@ explica a escrita sem implicar sorteio compartilhado.
 
 Há testes que fixam as duas escolhas, então se a observação contradisser, o que muda é um teste
 e uma linha.
+
+**Resolução no original (CONFIRMADO). A leitura adotada está certa.** Cada atributo faz o **seu
+próprio sorteio**, nos dois lugares: os três atributos `B+rnd(3)` do goleiro são três sorteios
+independentes, e o bônus da característica Armação sorteia um `rnd(5)` para Armação e outro para
+Passe. Vale em geral: todo `rnd` da 4.2 é uma chamada nova do gerador, nunca um valor reusado.
 
 ### 21. A spec nomeia os cinco países que pagam mais, mas não publica os cinco índices
 
