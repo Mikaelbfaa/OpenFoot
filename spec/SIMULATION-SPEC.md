@@ -1199,6 +1199,41 @@ Ao aposentar: sai do clube, entra no hall da fama se teve carreira relevante (li
 temporada), o clube gera reposição se ficar abaixo de `{2,3,3,6,4}` por posição ou com menos de 16
 jogadores, e há chance de **virar treinador** (1/25 a 1/125 conforme divisão; 1/5 se estrela; 1/2 se topMundial).
 
+## 4.12 Seleções: criação do time e convocação CONFIRMADO
+
+**Não existe elenco de seleção em arquivo nenhum** - a pasta `selecoes/` da instalação só tem
+imagens (escudos e camisas). A seleção é um objeto de time criado **sob demanda** quando uma
+competição precisa dela, e o elenco é **convocado** dos jogadores que já existem no mundo.
+
+**O time.** Criado com o nível do país (tabela da 4.4.1), cores de camisa embutidas na mesma tabela
+de países, e **reputação derivada do nível do país**:
+`>= 20 -> 5 ; 19 -> 4 ; 17-18 -> 3 ; 15-16 -> 2 ; senão 1`.
+É essa reputação que a força de criação da 4.4 (caminho de reputação) e a escala de competição da
+3.3 leem para jogos de seleção.
+
+**A convocação** monta uma lista de 23 assim:
+
+1. **Pool**: todos os jogadores do mundo com a nacionalidade do país que têm clube, mais os
+   jogadores avulsos daquela nacionalidade (piscina de agentes livres nacionais, abaixo).
+2. **Complemento sintético**: se o país não tem jogadores de verdade suficientes, o jogo gera
+   **20 jogadores avulsos** da nacionalidade - 3 GOL, 4 LAT, 4 ZAG, 5 MEI, 4 ATA. "Suficientes"
+   são dois testes quase iguais, e os dois precisam falhar: **15 de linha e 2 goleiros** contando
+   só jogadores com clube, e **16 de linha e 2 goleiros** contando também os avulsos. Cada
+   jogador gerado sai com
+   `força = nívelMapeado(nívelPaís) - 5 + rnd(8)`, idade `18 + rnd(12)`, talento `es = 7 + rnd(4)`,
+   lado `rnd(2)`, características sorteadas por posição, contrato 180 dias, nome gerado por país.
+   Eles entram na piscina de avulsos e **persistem** (podem ser convocados de novo e contratados).
+3. **Ordenação**: o pool é ordenado por **força decrescente**; empate favorece o jogador estrela.
+4. **Cotas**, preenchidas na ordem do pool (D = lado direito, E = esquerdo):
+   `GOL 3 ; LAT 2D + 2E ; ZAG 2D + 2E ; MEI ofensivo 2D + 3E ; volante 2D + 1E ; ATA 2D + 2E`
+   (3 + 4 + 4 + 5 + 3 + 4 = 23; o meia conta pela posição MEI e pelo estilo da 4.3).
+5. **Preenchimento final**: com menos de 23 no pool, completa por posição ignorando lado e estilo,
+   e depois com quem sobrar.
+
+**Técnico da seleção**: escolhido entre os técnicos desempregados, preferindo o da mesma
+nacionalidade com reputação 5, depois 4; depois qualquer nacionalidade com reputação 5, depois 4;
+depois compatriota de reputação 3, depois qualquer um de reputação 3.
+
 ---
 
 # 5. TIME, FORMAÇÕES E TÁTICA
