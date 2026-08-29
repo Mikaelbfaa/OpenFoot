@@ -590,7 +590,14 @@ montagem. Nenhuma faixa foi alargada para acomodar a 3.16.
 Isto é **observável**: ler a média de chutes de uma temporada IA contra IA no jogo original, junto
 com a formação escalada, resolve.
 
-### 31. A partir de qual minuto do tempo se conta o desgaste de 7 em 7 minutos da 3.9
+**Resolução no original (CONFIRMADO). Os divisores são fixos, e a 3.4 está certa letra por
+letra.** O agregado soma **no máximo** 5 (meio), 3 (ataque) e 5 (defesa) jogadores, na ordem da
+lista, e divide sempre pelas constantes 5, 3 e 5 - nunca pela contagem encontrada. Os casos
+degenerados também batem: menos de 3 no meio ou na defesa dá 0,01, ataque vazio dá 0,0, gol vazio
+dá 0,1, e o goleiro improvisado leva o arredondamento inteiro de `GK x 0,2`. O bônus de marcação
+entra na soma do meio antes da divisão, como o item 5 mediu. O experimento E1 fica resolvido sem
+rodar: a previsão da coluna "divisores fixos" é a que descreve o original, o defeito 3 da 3.15 é
+real, e nenhum resultado de partida do motor muda.
 
 A 3.9 diz que o desgaste acontece "a cada 7 minutos" e dá "~7 descontos por tempo", mas não diz se a
 contagem começa no primeiro minuto do tempo ou no sétimo. A seção também afirma que um jogador de 24

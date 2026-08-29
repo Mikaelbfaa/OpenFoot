@@ -252,7 +252,12 @@ Depois, nesta ordem:
 
 **Energia NÃO entra em `B()`.** Nem moral, nem forma, nem capitão.
 
-## 3.4 Agregados de linha
+## 3.4 Agregados de linha CONFIRMADO
+
+Os divisores desta tabela são **constantes fixas** (5.0, 3.0, 5.0), nunca a contagem de jogadores
+encontrados - dúvida do item 30 de OPEN-QUESTIONS e do experimento E1, fechada por leitura direta
+da lógica. O laço soma **no máximo** N jogadores (5/3/5) e divide sempre pela constante; o bônus de
+marcação do meio-campo entra na soma **antes** da divisão, como o item 5 já media.
 
 Não existe cache de força de time. A cada tick recalcula-se, **percorrendo a lista de escalados na
 ordem da lista e pegando os primeiros N que qualificam** (não os melhores N):

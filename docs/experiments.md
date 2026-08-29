@@ -8,7 +8,12 @@ Um experimento so entra aqui se as duas hipoteses derem previsoes **diferentes o
 serem vistas**. Se as previsoes ficam a um ponto percentual uma da outra, o experimento nao presta e
 e melhor dizer isso do que gastar cem partidas.
 
-## E1. Os divisores de linha sao fixos ou seguem a contagem de jogadores?
+## E1. Os divisores de linha sao fixos ou seguem a contagem de jogadores? [RESOLVIDO]
+
+**Resolvido sem rodar, pela equipe de spec em quarentena (ago/2026): os divisores sao FIXOS.**
+A leitura direta da logica do original confirmou a coluna "divisores fixos" da tabela abaixo,
+incluindo os casos degenerados da 3.4. Registro completo no item 30 de OPEN-QUESTIONS. O
+protocolo fica guardado como verificacao independente barata para quem quiser conferir jogando.
 
 Resolve o item 30 e, junto com ele, a duvida mais cara em aberto: se os divisores seguirem a
 contagem, **todo agregado de linha do motor esta errado**, e portanto todo resultado de partida.
