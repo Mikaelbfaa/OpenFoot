@@ -206,4 +206,42 @@ class WorldDatasetTest {
         assertEquals("Brasil", data.country(Country.BRAZIL)?.name)
         assertNull(data.country(Country.BRAZIL + 1))
     }
+
+    private fun sampleLeague(
+        country: Int = Country.BRAZIL,
+        division: Int = 1,
+        teamCount: Int = 20,
+        relegated: Int = 4,
+        turns: Int = 2,
+        penaltiesTiebreak: Boolean = false,
+    ) = LeagueConfigEntry(
+        country = country,
+        division = division,
+        teamCount = teamCount,
+        relegated = relegated,
+        turns = turns,
+        penaltiesTiebreak = penaltiesTiebreak,
+    )
+
+    @Test
+    fun `a league configuration entry validates its ranges`() {
+        val entry = sampleLeague()
+        assertEquals(20, entry.teamCount)
+        assertFailsWith<IllegalArgumentException> { entry.copy(country = -1) }
+        assertFailsWith<IllegalArgumentException> { entry.copy(division = 0) }
+        assertFailsWith<IllegalArgumentException> { entry.copy(division = 5) }
+        assertFailsWith<IllegalArgumentException> { entry.copy(teamCount = 0) }
+        assertFailsWith<IllegalArgumentException> { entry.copy(relegated = 21) }
+        assertFailsWith<IllegalArgumentException> { entry.copy(turns = 0) }
+        assertFailsWith<IllegalArgumentException> { entry.copy(turns = 5) }
+    }
+
+    @Test
+    fun `league configurations survive a round trip and default to none`() {
+        val original = dataset().copy(leagues = listOf(sampleLeague()))
+        val encoded = Json.encodeToString(original)
+        val decoded = Json.decodeFromString<WorldDataset>(encoded)
+        assertEquals(listOf(sampleLeague()), decoded.leagues)
+        assertEquals(emptyList(), dataset().leagues)
+    }
 }

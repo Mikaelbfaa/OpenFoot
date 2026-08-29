@@ -30,6 +30,7 @@ data class WorldDataset(
     val options: DatasetOptions = DatasetOptions(),
     val countries: List<CountryEntry>,
     val clubs: List<ClubEntry>,
+    val leagues: List<LeagueConfigEntry> = emptyList(),
 ) {
     init {
         require(version == CURRENT_VERSION) {
@@ -246,5 +247,44 @@ data class PlayerEntry(
          */
         @SpecRef("4.6")
         val TALENT_RANGE = 0..10
+    }
+}
+
+/**
+ * One configured tier of a national league.
+ *
+ * The pyramid generator of section 1.9 consults these before its built in
+ * defaults, first match by country and division winning, which is why entry
+ * order is preserved and duplicates are legal rather than rejected: a later
+ * entry for the same pair is simply never reached, exactly as in the
+ * original's concatenated configuration list.
+ */
+@Serializable
+data class LeagueConfigEntry(
+    @property:SpecRef("1.9") val country: Int,
+    @property:SpecRef("1.9") val division: Int,
+    @property:SpecRef("1.9") val teamCount: Int,
+    @property:SpecRef("1.9") val relegated: Int,
+    @property:SpecRef("1.3") val turns: Int,
+    @property:SpecRef("FORMAT-SPEC, desempate") val penaltiesTiebreak: Boolean,
+) {
+    init {
+        require(country >= 0) { "league configuration for negative country $country" }
+        require(division in 1..MAX_DIVISION) {
+            "league division $division, and section 1.9 builds at most $MAX_DIVISION"
+        }
+        require(teamCount > 0) { "a league tier of $teamCount teams" }
+        require(relegated in 0..teamCount) {
+            "$relegated relegated from a tier of $teamCount teams"
+        }
+        require(turns in 1..MAX_TURNS) { "a league of $turns turns, section 1.3 knows 1 to $MAX_TURNS" }
+    }
+
+    companion object {
+        @SpecRef("1.9")
+        const val MAX_DIVISION = 4
+
+        @SpecRef("1.3")
+        const val MAX_TURNS = 4
     }
 }
