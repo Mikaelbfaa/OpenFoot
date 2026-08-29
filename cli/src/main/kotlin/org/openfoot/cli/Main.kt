@@ -261,7 +261,7 @@ private fun match(args: List<String>) {
 @SpecRef("3.5")
 private const val MATCH_SEASON = 1
 
-private fun parseOptions(args: List<String>): Map<String, String> {
+internal fun parseOptions(args: List<String>): Map<String, String> {
     val options = LinkedHashMap<String, String>()
     var index = 0
     while (index < args.size) {
