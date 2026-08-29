@@ -74,11 +74,12 @@ object InstallationImporter {
      *
      * This is the single most consequential thing about an imported world. A
      * club with no division is generated on the weakest band of section 4.4, a
-     * strength base of one against twenty for a first division side, so it
-     * fields a visibly worse squad than an equally rated club in a country that
-     * happens to ship a league configuration. The distributed data configures
-     * very few countries, so this is the normal case rather than the exception,
-     * and it must not be discovered by wondering why a good club is bad.
+     * strength base of one against twenty for a first division side, and when
+     * the weekly evolution of section 4.5 exists it will also be capped at the
+     * divisionless growth ceiling and dropped to the divisionless decline
+     * floor. The distributed data configures very few countries, so this is
+     * the normal case rather than the exception, and it must not be
+     * discovered by wondering why a good club is bad.
      */
     @SpecRef("4.4")
     private fun reportDivisionCoverage(clubs: List<ClubEntry>, notes: ImportNotes) {
@@ -87,8 +88,10 @@ object InstallationImporter {
             notes.note(
                 "$without of ${clubs.size} clubs have no division, because the installation " +
                     "configures a league for only some countries. Those clubs generate on the " +
-                    "weakest band of section 4.4 and will field weaker squads than their level " +
-                    "suggests",
+                    "weakest band of section 4.4, a strength base of one against twenty; when " +
+                    "the weekly evolution of section 4.5 lands they will also grow only to the " +
+                    "divisionless ceiling of 30 instead of 80 to 100, and decline to the floor " +
+                    "of 1 instead of 35",
             )
         }
     }
