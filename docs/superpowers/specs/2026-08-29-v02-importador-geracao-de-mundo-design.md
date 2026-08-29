@@ -134,3 +134,54 @@ trilha.
   de pé.
 - **Decompilação infrutífera**: se a extração ou a decompilação falhar, cai-se para a rota de
   observação (abrir o jogo e olhar as ligas), com o mesmo destino de registro na spec.
+
+## Adendo (2026-08-29, pós-varredura): o que a evidência mudou
+
+A varredura do time de spec fechou os itens 11, 14, 15, 17, 18, 19, 20, 21, 24, 26, 27 e 30, e
+quatro achados mudam este design. As decisões abaixo foram aprovadas em conversa.
+
+### 1. Gerador, não tabela
+
+Não existe tabela estática de ligas no original: existe um **gerador de pirâmide** (seção 1.9 da
+SIMULATION-SPEC), com elegibilidade por contagem de arquivos (10, ou 16 para ALE/ARG/ING/ITA/FRA),
+até 4 divisões por país, tamanhos em degraus 20/18/16/14/12/10, 4 rebaixados no degrau 20 e 2 nos
+demais, e os `.cfg` como sobrescritas por par país-divisão. O gerador vira lógica citada com
+`@SpecRef` no `:engine` (mundo), porque é ele que monta o mundo; a decisão anterior de "tabela
+embutida no `:importer`" fica sem objeto.
+
+### 2. Divisão é propriedade do mundo, não do conjunto de dados
+
+O original atribui clube a divisão **na criação de cada mundo**, por nível decrescente com
+desempate sorteado, e quais ligas rodam é escolha de cada carreira. Portanto:
+
+- `ClubEntry.division` **sai do esquema** na versão 2. O conjunto de dados passa a carregar as
+  **configurações de liga** vindas dos `.cfg` (país, divisão, times, rebaixados, turnos, desempate
+  por pênaltis), que o gerador consulta antes dos padrões embutidos.
+- `generateWorld` ganha o conjunto de **ligas ativas** como entrada (o análogo headless das caixas
+  de seleção da criação de jogo), com o Brasil como padrão, espelhando o pré-marcado do original. A
+  CLI expõe isso como `--leagues` (siglas separadas por vírgula, ou `all`).
+- O desempate da ordenação é derivado da semente por clube, pela referência, no padrão do item 10:
+  mecanismo fiel, resultado reproduzível.
+- País sem liga ativa instancia só os **15 primeiros clubes** por nível e usa o **caminho de
+  reputação** da 4.4; a invariância de edição do conjunto de dados passa a valer **entre países**
+  (editar um clube pode remontar a pirâmide do próprio país, como no original).
+
+### 3. Correção do caminho de reputação (item 18 estava errado)
+
+O caminho de reputação vale para seleções **e** para clubes de país sem liga ativa; reputação 0 dá
+base 1 e faixa 1, e não 5 e 1. `ClubBands` é corrigido e os testes que fixavam a aposta antiga
+mudam junto, spec primeiro, como manda o processo.
+
+### 4. Tabela de países real e seleções geradas
+
+A tabela embutida de 224 países (nível e continente, seção 4.4.1) vira constantes citadas no
+`:importer`, preenchendo o `CountryEntry`; a derivação pelo clube mais forte sobrevive só como
+reserva anotada para índice fora da tabela. Seleções **não são lidas de arquivo nenhum**: são
+geradas sob demanda pela 4.12. O leitor de `selecoes/` que este design previa fica sem objeto, e o
+campo `nationalTeam` sai do esquema junto com `division`.
+
+### Esquema versão 2, consolidado
+
+Sai: `ClubEntry.division`, `ClubEntry.nationalTeam`. Entra: `WorldDataset.leagues` (configurações
+de liga). Muda: `continent` passa a obrigatório. Os campeonatos estaduais (`.ces`) e a geração de
+seleções da 4.12 ficam para um plano seguinte, cada um com consumidor claro.
