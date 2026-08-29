@@ -166,6 +166,13 @@ Ficam registrados aqui para quando o código chegar nessas partes.
   finalizador sorteado do time atacante ganha um +0,9 que não aparece em lugar nenhum (seção 3.7).
 - Os ramos "+0,2 se o adversário chutou mais de 15" e "+0,3 se chutou mais de 20" da nota do goleiro
   estão atrás do ramo "mais de 10" numa cadeia de senão e nunca são alcançados (seção 3.14).
+- O capitão e o "falso 9" da seção 5.6 são derivados pelo original e guardados no time, mas nada os
+  lê: a própria seção marca o efeito real dos dois como nenhum, display no caso do capitão, manual e
+  sem efeito nenhum no caso do falso 9. O motor não deriva nem guarda os dois por isso, e só o
+  batedor de falta/pênalti e o cobrador de escanteio existem no código (seção 5.6).
+- Existe no original um caminho que recalcularia o batedor designado a partir de uma lista dada, a
+  escalação da partida por exemplo, só quando o designado não estivesse nela. Nada no original chama
+  esse caminho, e por isso ele não foi portado (seção 5.6, item 56 de `OPEN-QUESTIONS.md`).
 
 ## Não são defeitos
 
