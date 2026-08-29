@@ -309,21 +309,38 @@ Com 3 gols já feitos: 7,5%; com 5: 5,1%; com 6: **0,9%** (trava anti-goleada ex
 destruindo o termo defesa-vs-ataque em toda partida com mando. Na prática o maior volume de chutes
 do mandante é quase exatamente cancelado pela conversão menor.
 
-### Quem finaliza e quem dá assistência
-**Finalizador** - sorteio ponderado entre os escalados (exceto goleiro): slots 2-9 -> peso 1;
-slot 10 -> 8; 11-13 -> 4; 14-17 -> 8; 18-25 -> **22**.
-Bônus por característica: **Finalização -> +4**; senão **Cabeceio -> +2** (**+2 extra se for zagueiro**).
+### Quem finaliza e quem dá assistência CONFIRMADO
 
-**Assistência** - só em gols de bola rolando; **20% das vezes não há assistente**.
+**Finalizador** - sorteio ponderado entre os escalados, **excluindo o ocupante do slot 1 e todo
+jogador cuja posição natural é goleiro** (as duas condições são exigidas, então um goleiro escalado
+na linha também fica de fora): slots 2-9 -> peso 1; slot 10 -> 8; 11-13 -> 4; 14-17 -> 8;
+18-25 -> **22**. Bônus por característica: **Finalização -> +4**; senão **Cabeceio -> +2**
+(**+2 extra se for zagueiro**). Se o sorteio não devolver ninguém, cai para o **último** jogador da
+lista de escalados. O finalizador é sorteado **uma vez por chute**, antes da resolução, e é o mesmo
+jogador que depois é levado ao sorteio de tipo de gol (seção 3.7).
+
+**Assistência** - só em gols de bola rolando; **19% das vezes não há assistente** (a moeda é
+`rand(100) > 80`, ou seja 81..99). Elegível é **qualquer escalado com slot >= 1 menos o próprio
+finalizador** - inclusive o goleiro, que tem peso 1.
 Pesos: slot 1 -> 1; **2 e 9 (laterais) -> 10**; 3-8 -> 2; **10 -> 10**; 11-13 -> 4; **14-16 -> 20**; 17-25 -> 10.
 Bônus (só o primeiro ramo que casar): **Passe -> +10** (+5 se também Armação); senão Armação -> +2
-(+2 se a 1ª característica for Drible); senão Drible -> +2 (+2 se a 1ª for Velocidade); senão
-Velocidade -> +1 (+2 se lateral); senão Cruzamento -> +5 (+2 se lateral).
-**Mais +20 para qualquer lateral quando a marcação do time é "Pesada".**
+(+2 se a **1ª** característica for Drible); senão Drible -> +2 (+2 se a **1ª** for Velocidade); senão
+Velocidade -> **+1 na conta do total e +2 na caminhada do sorteio** (+2 se lateral, nas duas);
+senão Cruzamento -> +5 (+2 se lateral).
+**Mais +20 para qualquer lateral quando a marcação do time é "Pesada"** (marcação = 1; 0 é Leve e
+2 é Muito pesada).
 
-## 3.7 Tipo de gol
+**A inconsistência da Velocidade (item 4 da 3.15) é CONFIRMADA e é assimétrica**: o total sorteável
+é somado com **+1** e a caminhada que escolhe o vencedor é somada com **+2**. Como a caminhada
+acumula mais peso do que o total, o alvo do sorteio é alcançado mais cedo: cada jogador com
+Velocidade (e nenhuma das características anteriores) rouba assistências dos que vêm **depois** dele
+na lista de escalados, e ninguém no fim da lista chega a ser sorteado quando há Velocidade suficiente
+antes. Não há terceira passagem: as duas passagens são a do total e a da escolha.
 
-Sorteio `rand(1000)` no momento do gol:
+## 3.7 Tipo de gol CONFIRMADO
+
+Sorteio `rand(1000)` no momento do gol, **depois** de o chute já ter sido resolvido como gol e com o
+finalizador já sorteado (seção 3.6c):
 
 | Faixa | Tipo | Probabilidade |
 |---|---|---|
@@ -334,11 +351,43 @@ Sorteio `rand(1000)` no momento do gol:
 | 990-994 | **gol olímpico** | 0,5% |
 | >= 995 | bola rolando | 0,5% |
 
-- Pênalti e falta: se o **batedor designado** estiver em campo, ele é creditado no lugar do sorteado.
-- Olímpico: se o **cobrador de escanteio** estiver em campo, ele é creditado; senão, se o sorteado for goleiro, vira bola rolando.
-- Gol contra: o autor é substituído por um jogador do time **que defende**, com pesos GOL 1, slot 2 -> 5, **slots 3-8 -> 18**, 9 -> 5, 10 -> 1, 11-13 -> 5, 14-25 -> 1. O gol continua contando para o time atacante.
-- Assistência só é sorteada para gols de bola rolando.
-- **Peculiaridade:** quando o tipo é pênalti e há time humano na partida, o gol **não** é somado ao placar - ele vira o pênalti interativo, que decide. Em IAxIA conta normalmente.
+Na ordem em que o original as aplica:
+
+1. **Assistência** - sorteada **só** quando o tipo é bola rolando, e **antes** dos remendos dos itens
+   2 e 3; um gol que só vira bola rolando por causa deles nunca tem assistente.
+2. **Olímpico**: se o **cobrador de escanteio** estiver em campo, ele é creditado. Senão o gol
+   continua olímpico e fica com o finalizador sorteado - o ramo "se o sorteado for goleiro, vira bola
+   rolando" **é inalcançável**, porque o sorteio de finalizador já exclui todo goleiro de posição
+   natural. Como o cobrador de escanteio nunca é preenchido pela IA (seção 5.6), na prática **todo
+   gol olímpico de time de IA é creditado ao finalizador**.
+3. **Gol contra**: o autor exibido é substituído por um jogador do time **que defende**, com pesos
+   GOL 1, slot 2 -> 5, **slots 3-8 -> 18**, 9 -> 5, 10 -> 1, 11-13 -> 5, 14-25 -> 1. O gol continua
+   contando para o time atacante. Se o time que defende não devolver ninguém, o tipo vira bola
+   rolando.
+4. **Pênalti e falta**: se o **batedor designado** estiver em campo, ele é creditado no lugar do
+   finalizador sorteado.
+
+**A quem o gol é creditado.** O redirecionamento dos itens 2 e 4 troca o autor **do evento** - é ele
+que aparece no relato da partida e é ele que recebe o gol na **estatística de temporada**. A
+contagem de gols **da partida**, que é a que alimenta a nota da seção 3.14, continua indo para o
+**finalizador sorteado**. Num gol de pênalti, de falta ou olímpico redirecionado, portanto, o
+batedor designado aparece como autor e o finalizador sorteado é quem ganha o `+0,9` de nota. Ver o
+item 57 do `OPEN-QUESTIONS.md`.
+
+**No gol contra o atacante também marca.** O item 3 troca o autor do evento pelo defensor e dá a ele
+o contador de gol contra (`-1,5` de nota), mas o **finalizador sorteado do time atacante ganha um gol
+na contagem da partida assim mesmo** (`+0,9` de nota), sem aparecer em lugar nenhum do relato. Só a
+estatística de temporada fica correta: gol contra não credita gol a ninguém nela.
+
+**O gol conta duas vezes para o autor da partida** em bola rolando, falta e olímpico, e **uma só vez**
+em pênalti (IAxIA) e gol contra. Consequência: um gol de bola rolando vale **+1,8** de nota, não
++0,9. Ver o item 13 da 3.15 e o item 51 do `OPEN-QUESTIONS.md`.
+
+**Peculiaridade do pênalti:** quando o tipo é pênalti e **algum dos dois times** é humano (não
+importa de quem é o gol), o gol **não** é somado ao placar - ele é entregue ao visualizador como
+pênalti interativo, que decide (seção 3.10). A condição do visualizador é a mesma - ele trata como ao
+vivo exatamente a partida que tem time humano -, então nenhum gol se perde: ou o pênalti interativo o
+confirma, ou o próprio visualizador o soma. Em IAxIA conta normalmente.
 
 ## 3.8 Disciplina, lesões e substituições CONFIRMADO
 
@@ -475,15 +524,30 @@ IA, gravidade da lesão, desempate na ordenação da escalação e o número de 
 
 **Não existe moral, forma nem confiança em lugar nenhum do motor.**
 
-## 3.10 Pênaltis
+## 3.10 Pênaltis CONFIRMADO
 
 - **Disputa em IAxIA (não é chute a chute):** `x = rand(2..8)`, `y = rand(2..8)`; se `x >= y` o
-  mandante vence por `(x, x-1)`, senão o visitante vence por `(x, x+1)`.
-- **Pênalti interativo (partida ao vivo com time humano):** conversão base **70%**; batedor com
-  **Finalização** ou "estrela vermelha" +10; "estrela" +5; goleiro com **Defesa Penalty** -10;
-  goleiro estrela vermelha -10; goleiro estrela -5.
-- **Disputa interativa:** **70% fixos por cobrança, sem nenhum atributo**. Melhor-de-5 e morte súbita;
-  ordem dos batedores = posição desc (atacantes primeiro), força desc, energia desc.
+  mandante vence por `(x, x-1)`, senão o visitante vence por `(x, x+1)`. `y` só serve para a
+  comparação: o placar sai todo de `x` e é **sempre de um gol de diferença**. Como o empate favorece
+  o mandante, o **mandante vence 28/49 = 57,1%** das disputas, e o placar do vencedor visitante pode
+  chegar a 9.
+- **Pênalti interativo (a via do gol de tipo pênalti em partida com time humano, seção 3.7):**
+  conversão base **70%**; batedor com **Finalização** ou "estrela vermelha" +10; "estrela" +5;
+  goleiro com **Defesa Penalty** -10; goleiro estrela vermelha -10; goleiro estrela -5. A moeda é
+  `rand(1..100) <= limiar`. **Esta via existe e é alcançada** em toda partida do time humano em que o
+  sorteio da 3.7 devolver pênalti - inclusive quando o pênalti é do adversário.
+  - **Convertido:** conta como chute e chute no alvo do time, soma o gol ao placar e dá **um** gol ao
+    batedor na contagem da partida.
+  - **Perdido:** conta como chute; um sorteio `rand(7)` escolhe o desfecho, e **3 dos 7 creditam o
+    goleiro com um pênalti defendido** (+1,2 na nota dele, seção 3.14), 2 dos 7 contam como chute
+    para fora e os outros 2 como chute no alvo. O batedor ganha um contador de **pênalti perdido**,
+    que a nota lê errado (item 13 da 3.15).
+- **Disputa interativa:** **70% fixos por cobrança, sem nenhum atributo**. Melhor-de-5 e morte súbita.
+  A ordem dos batedores de um time de IA sai de uma **regra de um lado só**: se o primeiro comparado
+  tem posição maior ele vai na frente, mas se tem posição menor **não vai atrás** - a comparação cai
+  para força desc e depois energia desc. O resultado não é "posição desc, força desc, energia desc",
+  e sim uma lista de força desc com atacantes empurrados para a frente de forma dependente da ordem
+  de partida. Time humano escolhe a ordem na mão. Esgotada a lista, ela **recomeça do primeiro**.
 
 ## 3.11 Mando de campo, público, árbitro, clima
 
@@ -514,7 +578,14 @@ Quatro valores por time: `[formação, estilo, marcação, lado do ataque]`.
 Posse %, chutes, no alvo (gols + defesas), para fora, desarmes, passes errados e **faltas - cujo
 contador existe mas nunca é incrementado (a linha de faltas é sempre 0x0)**.
 
-## 3.14 Notas dos jogadores (pós-partida)
+## 3.14 Notas dos jogadores (pós-partida) CONFIRMADO
+
+**Quem recebe nota:** os **titulares dos dois times** e **todo reserva que entrou em campo**. Quem
+ficou no banco a partida inteira não recebe nota nenhuma - não recebe 0, simplesmente não passa pelo
+cálculo.
+
+**Slot usado no cálculo:** o slot do jogador; se ele for `<= 0`, adota-se um slot padrão pela
+posição natural - **GOL 1, LAT 2, ZAG 7, MEI 15, ATA 23** - e esse valor fica **gravado** no jogador.
 
 Base por resultado e força:
 
@@ -524,24 +595,61 @@ Base por resultado e força:
 | Vitória | 6,0 | 6,0 | 6,7 | 7,2 |
 | Derrota | 5,0 | 5,2 | 5,5 | 6,0 |
 
-Ajustes: fora de posição -1,5 (-1,5 extra se foi ao gol); **meias (10-17)** com mais posse +0,8
-(ou +0,3 com prob. 1/3), +0,3 se volante, **+0,5 se a 1ª característica é Passe ou Armação**; com
-menos posse -0,8 (ou -0,3), -0,5 se volante. Gols x+0,9; gols contra x-1,5; amarelos x-0,2;
-vermelhos x-0,8; assistências x+0,4; chutes no alvo x+0,3. **Defensivos (1-13)**: venceu a conta de
-desarmes +0,6 (ou +0,9 com prob. 1/3), +0,6 extra com prob. 1/3 para zagueiros/volantes; perdeu -0,5.
-**Só goleiro**: -0,8 fixo; **+0,2 por chute no alvo sofrido**; +1,2 por pênalti defendido; +0,2/+0,2/+0,3
-se o adversário chutou >10/>15/>20; gols sofridos >=5 -> -2,0, >=4 -> -1,5, >=2 -> -1,0, >=1 -> -0,5,
-sem sofrer -> +1,0; se não enfrentou nenhum chute no alvo -> -1,5. **Slots 1-13**: jogo sem sofrer gol
-+0,5 (+0,5 zagueiros). Estrela +0,4; estrela vermelha +0,6.
-Teto 10; depois: < 15 min jogados -> -2,5, < 45 min -> -1,5; piso 2,0; e se jogou < 20 min e ficou em
-2,0 -> nota 0 ("sem nota").
+Os ajustes, **nesta ordem** (a ordem importa por causa do teto, do piso e do remendo do passo 9):
+
+1. **Fora de posição** (slot `<= 0` também conta como fora de posição): **-1,5**; e **-1,5 extra se o
+   slot é o 1**, isto é, se o deslocado foi para o gol.
+2. **Meias (slots 10-17)**, comparando o contador de posse dos dois times: com **mais** posse +0,8
+   (ou +0,3 com prob. 1/3), +0,3 se volante, **+0,5 se a 1ª característica é Passe ou Armação** (só a
+   primeira); com **menos** posse -0,8 (ou -0,3 com prob. 1/3), -0,5 se volante.
+3. **Eventos do jogador:** gols da partida **x+0,9**; gols contra **x-1,5**; **se perdeu algum
+   pênalti interativo, -1,2 x (gols contra)** - o termo existe, mas multiplica o contador errado e só
+   morde quem fez gol contra e perdeu pênalti na mesma partida (item 13 da 3.15); amarelos x-0,2;
+   vermelhos x-0,8; assistências x+0,4.
+4. **Defensivos (slots 1-13)**, comparando o contador de desarmes: **venceu** +0,6 (ou +0,9 com
+   prob. 1/3), mais +0,6 com prob. 1/3 se o slot é **2-9**, mais +0,6 com prob. 1/3 se o slot é
+   **11-13**; **perdeu** -0,5, mais **-0,6 com prob. 1/4 se o slot é 3-8**, mais **-0,6 com prob. 1/4
+   se o slot é 11-13**. (Os dois termos negativos faltavam na spec; note que a faixa premiada é 2-9 -
+   laterais inclusive - e a punida é 3-8, só zagueiros.)
+5. **x+0,3 por chute que o goleiro adversário defendeu.** Não é "chute no alvo": o contador do
+   jogador só sobe no ramo "defendido" da resolução de chute, então **gol não conta aqui** e chute
+   para fora também não. Ver o item 52 do `OPEN-QUESTIONS.md`.
+6. **Só o slot 1 (goleiro):** -0,8 fixo; **+0,2 por chute no alvo sofrido**; **+1,2 por pênalti
+   defendido** (só pela via interativa da 3.10 - e ela é alcançável); **+0,2 se o adversário chutou
+   > 10** - os ramos "> 15" (+0,2) e "> 20" (+0,3) estão numa cadeia de senão depois do "> 10" e são
+   **inalcançáveis**; gols sofridos >= 5 -> -2,0, >= 4 -> -1,5, >= 2 -> -1,0, >= 1 -> -0,5, sem
+   sofrer -> +1,0; **se não sofreu nenhum chute no alvo -> -1,5**.
+7. **Slots 1-13:** partida **sem sofrer gol** +0,5, mais +0,5 se o slot é **2-9**, mais +0,5 com
+   prob. 1/3 se o slot é **11-13**; **sofrendo 2 ou mais gols, -0,1 por gol sofrido** (sofrer
+   exatamente 1 não custa nada aqui); e, para os slots **2-13**, **-0,4 com prob. 1/3,
+   incondicionalmente** - um imposto que todo defensor e todo volante paga em 1/3 das partidas.
+8. Estrela **+0,4**; estrela vermelha **+0,6**.
+9. **Teto 10**; e, logo depois, **se a nota ficou negativa ela vira 1,0** (não 0, e não o piso 2,0 -
+   este passo é anterior ao piso e ao desconto de minutos).
+10. **Minutos jogados**: < 15 -> **-2,5**; senão < 45 -> **-1,5**.
+11. **Piso 2,0**; e se jogou < 20 min **e** a nota parou em 2,0 -> nota **0** ("sem nota").
+
+**Minutos jogados não são medidos.** Valem **90** por padrão e são **sobrescritos pelo último evento
+da partida em que o jogador aparece**, seja qual for o tipo do evento:
+- como **protagonista** do evento (autor creditado de um gol, cartão, saída em substituição):
+  `minuto` no 1º tempo, `48 + minuto` no 2º;
+- como **coadjuvante** (assistente, goleiro que pegou o pênalti interativo, entrada em substituição):
+  `98 - minuto` no 1º tempo, `50 - minuto` no 2º.
+
+Ou seja, **quem marca no 1º tempo é tratado como quem jogou só até ali**: um gol no minuto 20 do 1º
+tempo custa -1,5 ao autor, e um gol antes do minuto 15 custa -2,5. Simetricamente, **quem dá
+assistência tarde no 2º tempo** é tratado como quem entrou tarde: assistir depois do minuto 35 do 2º
+tempo custa -2,5. Ver o item 53 do `OPEN-QUESTIONS.md`.
 
 ## 3.15 Bugs e esquisitices - decidir explicitamente ao reimplementar
 
 1. **Mando invertido na conversão de chutes** (seção 3.6c): mandante converte ~8,8%, visitante ~11,1%; e o peso "para fora" é sobrescrito em toda partida com mando.
 2. **Slot 18 não contribui para nenhum agregado** - um 3-4-3 tem o ataque calculado com 2 dos 3 atacantes, dividido por 3.
 3. **Divisores fixos** (5/3/5) punem qualquer formação que não tenha exatamente 5 meias / 3 atacantes / 5 defensores.
-4. **Peso de assistência inconsistente**: Velocidade vale +1 numa passagem e +2 na outra.
+4. **Peso de assistência inconsistente**: Velocidade vale +1 na passagem que soma o total e +2 na
+   passagem que caminha até o sorteado. CONFIRMADO. Não é só cosmético: a caminhada acumula mais peso
+   do que o total, então quem tem Velocidade puxa assistências dos jogadores que vêm depois dele na
+   lista de escalados, e o fim da lista pode nunca ser alcançado. Ver a seção 3.6.
 5. **Sobrescritas do limiar de cartão**: após 2 vermelhos vira `2 x limiarVermelho`; após 1 lesão vira `5 x limiarLesão` - ambos derrubam drasticamente os cartões no resto do jogo. Há ainda um ramo inalcançável (`> 10 amarelos`).
 6. **Força exibida** usa `round(energia/100 x força)` com divisão inteira -> só mostra a força real com energia exatamente 100; caso contrário **exibe 0**. (Só display; o motor não usa.)
 7. Um passe de relaxamento da escalação é inalcançável (limite do laço).
@@ -550,6 +658,26 @@ Teto 10; depois: < 15 min jogados -> -2,5, < 45 min -> -1,5; piso 2,0; e se jogo
 10. Prorrogação nunca é simulada; empates em mata-mata vão direto para a fórmula abstrata de pênaltis.
 11. **A janela de substituição do visitante é engolida pela do mandante.** As duas janelas do mesmo minuto são avaliadas na mesma passagem, o mandante primeiro; se o mandante **efetivamente trocou** naquele minuto, a janela do visitante nem é examinada. Como os minutos dos dois lados saem do mesmo pool sem reposição, isso só morde quando um minuto de "correndo atrás"/rotina do visitante coincide com o do mandante ou no intervalo, onde os dois são avaliados juntos - ali o visitante perde a janela sempre que o mandante trocou. CONFIRMADO
 12. **A checagem de "não tire quem acabou de entrar" olha sempre a lista do mandante.** No sorteio aleatório das janelas de placar, o índice do time é comparado contra um valor que ele nunca assume, então a lista consultada é sempre a de substitutos que **entraram pelo mandante**. Efeito: o mandante nunca tira quem acabou de entrar (com uma única re-tentativa), e o visitante não tem proteção nenhuma - pode sacar num minuto o reserva que pôs em campo no minuto anterior. CONFIRMADO
+
+13. **Gol de bola rolando, falta e olímpico contam duas vezes para o autor da partida.** O contador
+    de gols da partida do finalizador sorteado é incrementado uma vez no início do sorteio de tipo
+    (para todo tipo que não seja pênalti nem gol contra) e outra vez ao somar o gol ao placar (para
+    todo tipo, quando o gol de fato entra). Efeito visível: um gol de bola rolando vale **+1,8** de
+    nota e não +0,9; pênalti em IAxIA e gol contra valem +0,9. A estatística de temporada não é
+    afetada - ela é montada a partir dos eventos. CONFIRMADO; ver o item 51 do `OPEN-QUESTIONS.md`.
+14. **Minutos jogados são o minuto do último evento do jogador**, e não o tempo em campo (seção
+    3.14). Como gols e cartões também são eventos, marcar cedo no 1º tempo aplica ao autor o desconto
+    de "entrou faltando pouco", e assistir tarde no 2º tempo aplica -2,5 ao assistente. CONFIRMADO.
+15. **O termo de pênalti perdido da nota multiplica o contador errado**: ele é ligado pelo contador de
+    pênaltis perdidos, mas o valor multiplicado por -1,2 é o de **gols contra**. Quem perdeu pênalti e
+    não fez gol contra perde 0,0; quem fez as duas coisas é punido duas vezes pelo gol contra.
+    CONFIRMADO.
+16. **Dois ramos inalcançáveis na nota do goleiro** (">15" e ">20" chutes sofridos, seção 3.14) e um
+    no sorteio de tipo de gol (o olímpico que viraria bola rolando por o sorteado ser goleiro, seção
+    3.7). Não portar nenhum dos três.
+17. **Existe uma segunda tabela de tipo de gol, mais generosa com faltas (80% bola rolando, 5%
+    pênalti, 13% falta), acoplada a um sorteio de cartão para o time que cometeu o pênalti. Nada a
+    chama** - é código morto de outra versão do motor. Não portar.
 
 ## 3.16 Sanity check (o que uma reimplementação fiel deve produzir)
 
@@ -963,14 +1091,34 @@ Recopa {500, 0}, regional {50, 0}, Finalíssima {1.000, 500}.
 Prêmios acima de 1.000 são multiplicados por **0,6** para clubes fora da Europa; título de liga em
 divisão inferior vale fixos 50.
 
-## 5.6 Jogadores designados
+## 5.6 Jogadores designados CONFIRMADO
+
+As quatro designações são **guardadas no time**, não derivadas na hora da partida.
 
 | Designação | Como é escolhida | Efeito real |
 |---|---|---|
-| **Capitão** | maior força, desempate por **maior idade** | **Nenhum** - só exibição |
-| **Batedor de falta/pênalti** | força desc, primeiro **titular** com característica Finalização; senão primeiro titular não-goleiro | Creditado como autor em gols de pênalti (5%) e falta (3%), se estiver em campo |
-| **Cobrador de escanteio** | só manual | Creditado em gol olímpico (0,5%) |
-| **"Falso 9"** | só manual | **Nenhum** |
+| **Capitão** | do **elenco inteiro**: maior força, desempate por **maior idade** | **Nenhum** - só exibição |
+| **Batedor de falta/pênalti** | do **elenco inteiro**, ordenado por força desc e energia desc: o primeiro com **status de titular** cuja **1ª** característica é Finalização; senão o primeiro com status de titular que não seja goleiro de posição; senão o primeiro não-goleiro, ignorando o status | Creditado como autor **do evento** em gols de pênalti (5%) e falta (3%), se estiver em campo |
+| **Cobrador de escanteio** | **só manual** | Creditado como autor do evento em gol olímpico (0,5%), se estiver em campo |
+| **"Falso 9"** | **só manual** | **Nenhum** |
+
+Detalhes que mudam a reimplementação:
+
+- **O batedor não sai da escalação, sai do elenco.** O pool é o elenco profissional inteiro, e
+  "titular" é o **atributo de dado** do jogador (`status == 1`, ver `FORMAT-SPEC.md`), não "estar no
+  time da partida". Um titular por atributo que ficou no banco continua sendo o batedor designado -
+  ele só não é creditado porque o sorteio de tipo de gol exige que ele esteja em campo (seção 3.7).
+- **A característica exigida é só a primeira.** Quem tem Finalização como 2ª característica não é
+  preferido; cai no ramo seguinte.
+- **Quando é recalculado:** na criação do mundo e a cada mudança de elenco. Não é recalculado por
+  partida. Existe ainda um caminho que recalcularia a designação a partir de uma lista dada (a
+  escalação, por exemplo) só quando o designado não estivesse nela, mas **nada o chama** - é código
+  morto, e a spec não deve portá-lo.
+- **A designação guardada só é apagada quando o jogador deixa o clube.** Lesão, suspensão e ficar
+  fora da escalação não a invalidam.
+- **Seleções zeram cobrador de escanteio e "falso 9"** a cada convocação, e recalculam batedor e
+  capitão. Como **a IA nunca preenche o cobrador de escanteio**, na prática só o time humano tem um -
+  ver o item 2 da seção 3.7.
 
 ## 5.7 Constantes de gestão de elenco da IA
 

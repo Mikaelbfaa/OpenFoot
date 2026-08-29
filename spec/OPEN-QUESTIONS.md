@@ -1680,3 +1680,171 @@ muda. A questão é de **vocabulário** - quantas "janelas" nomear ao descrever 
 registrada porque a validação usa a contagem de quatro: o docstring do teste de motivos do
 `BenchedSanityCheckTest` diz que a 3.8 nomeia quatro janelas que chegam ao log sob três motivos, e um
 leitor que conte os marcadores acharia que é engano.
+
+## Seções 3.7, 3.10, 3.14 e 5.6
+
+### 51. Quantas vezes um gol conta para o autor da partida
+
+A 3.14 diz "gols x+0,9" e a 3.7 diz que o gol é do finalizador sorteado. As duas frases juntas
+sugerem uma coisa só: um gol, +0,9. Mas a contagem de gols **da partida** - a que a nota lê - é
+incrementada em **dois pontos diferentes** do sorteio de tipo de gol, e nem sempre nos dois.
+
+**Resolução (CONFIRMADO): depende do tipo.** Bola rolando, falta direta e gol olímpico incrementam
+**duas** vezes o contador do finalizador sorteado; pênalti em IAxIA e gol contra incrementam **uma**.
+O primeiro incremento acontece logo depois do sorteio do tipo, para todo tipo que não seja pênalti nem
+gol contra; o segundo acontece junto com a soma ao placar, para todo tipo, e só é pulado quando o gol
+não é somado - isto é, no pênalti de partida com time humano, que vira o pênalti interativo.
+
+Em nota isso vale **+1,8 por gol de bola rolando** (que são 90,5% deles), +1,8 por gol de falta,
++1,8 por gol olímpico, +0,9 por pênalti em IAxIA e +0,9 pelo gol que o time atacante ganha num gol
+contra (item 57). O pênalti convertido na via interativa vale +0,9, porque quem soma ali é o
+visualizador e ele incrementa uma vez só.
+
+**Leitura alternativa, não adotada: é um gol e o segundo incremento é o mesmo evento contado de novo,
+logo deve ser deduplicado.** A favor dela: a estatística de temporada e o relato da partida mostram
+um gol só, e um leitor que confira "quantos gols o artilheiro fez" nunca vê o dobro. Contra: o
+contador dobrado é o **da partida**, é outro contador, e é ele - e só ele - que a 3.14 lê. Deduplicar
+mudaria a distribuição de notas de todo jogo de ataque, que é justamente o que a validação compara.
+
+### 52. O que a nota chama de "chute no alvo" do jogador de linha
+
+A 3.14 dizia "chutes no alvo x+0,3" e a 3.13 define "no alvo" como **gols + defesas**. Lidas juntas,
+um gol daria +0,9 e mais +0,3. O contador do **jogador**, porém, não é o mesmo da linha de
+estatísticas do time.
+
+**Resolução (CONFIRMADO): o +0,3 é por chute que o goleiro adversário defendeu.** O contador
+individual sobe **só** no ramo "defendido" da resolução de chute da 3.6c. Gol não soma nada aqui, e
+chute para fora também não. O contador do **time** continua sendo gols + defesas, como a 3.13 diz;
+são duas contas diferentes com o mesmo nome.
+
+A consequência prática é pequena mas sistemática: o finalizador que converte ganha só o termo de gol,
+e um atacante que chutou seis vezes e marcou uma ganha +0,3 x 5, não x 6. Um time que chuta muito e
+converte pouco distribui mais nota que um time eficiente, o que é o contrário do que o nome do termo
+sugere.
+
+**Leitura alternativa, não adotada: somar também os gols, para casar com a 3.13.** A favor dela: o
+nome do termo, e a coerência com a linha de estatísticas exibida. Contra: seria inventar +0,3 por gol
+que o original não dá, ainda por cima em cima de um termo de gol que já conta em dobro (item 51).
+
+### 53. Como se conta o tempo jogado para o desconto de minutos da 3.14
+
+A 3.14 aplica -2,5 a quem jogou menos de 15 minutos e -1,5 a quem jogou menos de 45, e zera a nota de
+quem jogou menos de 20 e ficou no piso. Isso pressupõe uma definição de "minutos jogados" que a spec
+nunca deu. O original **não mede tempo em campo**.
+
+**Resolução (CONFIRMADO): o valor é 90, sobrescrito pelo minuto do último evento da partida em que o
+jogador aparece** - qualquer evento, não só substituição. Quando ele é o protagonista do evento (autor
+creditado de um gol, cartão, saída em substituição) o valor é `minuto` no 1º tempo e `48 + minuto` no
+2º. Quando é o coadjuvante (assistente, goleiro que defendeu o pênalti interativo, entrada em
+substituição) o valor é `98 - minuto` no 1º tempo e `50 - minuto` no 2º. Vence o **último** evento da
+lista, então quem entrou e depois saiu fica com o valor da saída, não com o tempo que jogou.
+
+As constantes 48 e 50 são as do relógio do modo ao vivo (seção 3.1), não 45 e 45, e por isso as duas
+metades não somam 90.
+
+Os efeitos são grandes e contra-intuitivos, e a validação precisa esperá-los:
+- **todo autor de gol no 1º tempo** leva -1,5 (ou -2,5 antes do minuto 15), porque passa a "ter
+  jogado" só até o gol;
+- **todo assistente depois do minuto 35 do 2º tempo** leva -2,5;
+- um titular advertido ou expulso cedo recebe o mesmo desconto por causa do cartão;
+- quem não aparece em evento nenhum joga 90 e nunca é descontado.
+
+**Leitura alternativa, não adotada: contar de verdade o tempo entre entrada e saída.** A favor dela: é
+o que "minutos jogados" quer dizer, e é o que um leitor da 3.14 assume. Contra: produz outra
+distribuição de notas - some o desconto do artilheiro do 1º tempo, que é frequente - e a 3.14 não tem
+nenhum outro número que sustente uma medição de tempo.
+
+### 54. O termo de pênalti perdido da nota: qual contador ele multiplica
+
+A lista de eventos da 3.14 tinha cinco termos (gol, gol contra, amarelo, vermelho, assistência). Há um
+sexto, que a spec não registrava: um desconto de **1,2**, ligado pelo contador de **pênaltis
+perdidos**.
+
+**Resolução (CONFIRMADO): o termo é `-1,2 x (gols contra do jogador)`, ligado por "perdeu pelo menos
+um pênalti".** O gatilho e o valor multiplicado são contadores diferentes. Como só a via interativa da
+3.10 registra pênalti perdido, e como gol contra é 1% dos gols, o termo é quase sempre 0,0: ele só
+morde o jogador que, na mesma partida, perdeu um pênalti interativo **e** marcou contra - e aí ele
+apanha por -1,5 e por -1,2 pelo mesmo gol contra.
+
+Não é um ramo inalcançável (as duas coisas podem acontecer juntas), e por isso entra na spec em vez de
+ir para a lista de "não portar".
+
+**Leitura alternativa, não adotada: portar a intenção, `-1,2 por pênalti perdido`.** A favor dela: é
+obviamente o que o termo queria dizer, e o número 1,2 é o mesmo do bônus do goleiro que defende.
+Contra: mudaria a nota de todo batedor que erra um pênalti na partida do humano, que é justamente a
+partida que o jogador vê; a spec grava o que o original faz, não o que ele quis fazer.
+
+### 55. O bônus de pênalti defendido da 3.14 é alcançável?
+
+A 3.14 dá **+1,2 por pênalti defendido** ao goleiro. Há um argumento forte para dizer que ninguém
+nunca ganha esse bônus: na 3.7 o pênalti é um **tipo de gol**, sorteado quando o gol **já foi feito** -
+não é um chute que possa ser defendido. Se o pênalti nunca é uma cobrança, o goleiro nunca defende
+nada, e o termo seria letra morta.
+
+**Resolução (CONFIRMADO): é alcançável, e a via é o pênalti interativo da 3.10.** O argumento acima
+descreve corretamente a simulação IAxIA - ali um gol de tipo pênalti é somado ao placar e ninguém o
+defende -, mas não a partida com time humano. Nela o gol de tipo pênalti **não** é somado (a
+peculiaridade que a 3.7 já registrava): ele é entregue ao visualizador, que o transforma numa cobrança
+de verdade, com a conversão de 70% mais ou menos os modificadores da 3.10. A condição do visualizador
+para tratar a partida como ao vivo é exatamente a mesma do motor para suprimir o gol - haver time
+humano na partida -, então as duas metades sempre se encontram.
+
+Errada a cobrança, um sorteio de 7 desfechos decide o relato; **3 dos 7 são defesa do goleiro** e são
+esses que creditam o pênalti defendido. Logo, por pênalti sorteado na partida do humano, o goleiro tem
+cerca de `0,30 x 3/7 ~ 13%` de ganhar +1,2 - e isso vale para os **dois** goleiros, porque o pênalti
+pode ser de qualquer um dos lados.
+
+**Consequência para a reimplementação:** um motor que só simule partidas de forma abstrata (sem a via
+interativa) nunca produzirá o termo, e está certo em não produzi-lo - mas ele **não** deve ser
+removido da spec, e a partida do time humano não é fiel sem ele. Enquanto não houver a via interativa,
+o pênalti de partida com time humano é um gol que **desaparece**, e é isso que precisa ser registrado
+como divergência conhecida, não o bônus.
+
+### 56. De que lista sai o batedor designado de falta e pênalti
+
+A 5.6 dizia "primeiro **titular** com característica Finalização". "Titular" tem dois sentidos no
+jogo: o atributo de dado do jogador (`status == 1` no `FORMAT-SPEC.md`) e "estar na escalação desta
+partida".
+
+**Resolução (CONFIRMADO): o pool é o elenco profissional inteiro, e "titular" é o atributo de dado.**
+A escolha ordena o elenco por força desc e energia desc e pega o primeiro com o atributo de titular
+cuja **primeira** característica é Finalização; se não houver, o primeiro com o atributo de titular
+que não seja goleiro de posição; se ainda não houver, o primeiro não-goleiro, agora ignorando o
+atributo. A escalação da partida não entra na conta em nenhum momento.
+
+Onde a escalação entra é **depois**: no sorteio de tipo de gol (3.7), o designado só é creditado se
+estiver em campo naquele momento. Ou seja, o designado é uma propriedade estável do clube e a
+escalação é só um filtro de crédito.
+
+A designação é recalculada na criação do mundo e a cada mudança de elenco, e é apagada apenas quando o
+jogador deixa o clube - lesão, suspensão e ficar de fora não a invalidam. Existe ainda um caminho que
+recalcularia a designação a partir de uma lista dada, e só quando o designado não estivesse nela, mas
+**nada o chama**: não portar.
+
+**Leitura alternativa, não adotada: escolher entre os onze da partida.** A favor dela: é o que a frase
+antiga da 5.6 sugeria e é o que um leitor esperaria de um "batedor". Contra: mudaria o autor exibido
+de 8% dos gols em todo jogo em que o melhor finalizador do elenco não seja titular naquele dia, e o
+filtro "se estiver em campo" da 3.7 ficaria sem sentido - ele existe exatamente porque o designado
+pode não estar.
+
+### 57. Quem é creditado num gol redirecionado: o evento e a estatística divergem
+
+A 3.7 dizia que em pênalti, falta e gol olímpico o batedor designado "é creditado no lugar do
+sorteado", e que no gol contra "o autor é substituído por um jogador do time que defende". Fica
+implícito que o crédito é um só e vai inteiro para o substituto.
+
+**Resolução (CONFIRMADO): são dois créditos diferentes e eles divergem.**
+- O **evento** (o que aparece no relato e o que alimenta a artilharia da temporada) fica com o
+  substituto: o batedor designado no pênalti, na falta e no olímpico; o defensor no gol contra - e no
+  gol contra a artilharia da temporada não credita ninguém.
+- A **contagem de gols da partida**, que é a que a 3.14 lê para dar +0,9, fica com o **finalizador
+  sorteado** do time atacante, em todos os quatro casos. Inclusive no gol contra: o atacante sorteado
+  ganha um gol na partida que não aparece em lugar nenhum, enquanto o defensor leva o -1,5.
+
+Então, num gol de pênalti em IAxIA com batedor designado em campo, o relato diz que o batedor marcou e
+a nota de +0,9 vai para outro jogador. Num gol contra, o time atacante distribui um +0,9 anônimo.
+
+**Leitura alternativa, não adotada: unificar, dando os dois créditos ao substituto.** A favor dela: é a
+leitura natural da 3.7 antiga e a única que faz "autor do gol" significar uma coisa só. Contra: move
+0,9 de nota entre dois jogadores em 8,5% dos gols e some com o +0,9 anônimo do gol contra, os dois
+observáveis na distribuição de notas.

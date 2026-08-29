@@ -153,6 +153,19 @@ Ficam registrados aqui para quando o código chegar nessas partes.
 - Prorrogação nunca é simulada. Empate em mata-mata vai direto para uma fórmula abstrata de
   pênaltis (seção 3.10).
 - Clubes da IA não têm dinheiro (seção 6.0). Esse é o mais estrutural de todos.
+- Um gol de bola rolando, de falta ou olímpico conta **duas vezes** na contagem de gols da partida do
+  seu autor, e por isso vale +1,8 de nota em vez de +0,9. Pênalti em IAxIA e gol contra contam uma vez
+  (seção 3.15, item 13).
+- Os "minutos jogados" que descontam nota não são tempo em campo: são o minuto do último evento em que
+  o jogador aparece. Marcar no 1º tempo custa -1,5, ou -2,5 antes do minuto 15; assistir depois do
+  minuto 35 do 2º tempo custa -2,5 (seção 3.15, item 14).
+- O desconto de pênalti perdido da nota multiplica o contador de **gols contra** em vez do de pênaltis
+  perdidos, e por isso quase nunca desconta nada (seção 3.15, item 15).
+- Num gol de pênalti, falta ou olímpico redirecionado para o batedor designado, o relato e a artilharia
+  ficam com o designado e o **+0,9 de nota fica com o finalizador sorteado**. Num gol contra, o
+  finalizador sorteado do time atacante ganha um +0,9 que não aparece em lugar nenhum (seção 3.7).
+- Os ramos "+0,2 se o adversário chutou mais de 15" e "+0,3 se chutou mais de 20" da nota do goleiro
+  estão atrás do ramo "mais de 10" numa cadeia de senão e nunca são alcançados (seção 3.14).
 
 ## Não são defeitos
 
