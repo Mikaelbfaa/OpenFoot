@@ -15,26 +15,52 @@ import org.openfoot.model.SplitMix64Rng
 import java.io.File
 import kotlin.system.exitProcess
 
-/**
- * Entry point for the headless tools. Subcommands are added as the engine grows.
- * See the roadmap in README.md.
- */
 fun main(args: Array<String>) {
-    when (args.firstOrNull()) {
-        "worldgen" -> worldgen(args.drop(1))
-        "match" -> match(args.drop(1))
-        "import" -> importInstallation(args.drop(1))
-        "help", "--help" -> println(USAGE)
-        null -> {
-            println(USAGE)
-            exitProcess(1)
-        }
+    exitProcess(dispatch(args))
+}
 
-        else -> {
-            System.err.println("openfoot-cli: unknown subcommand '${args[0]}'")
-            System.err.println(USAGE)
-            exitProcess(1)
+/**
+ * Runs one subcommand and reports how the process should exit, without
+ * exiting. Keeping the exit in main and nowhere else is what lets a test
+ * call this with a broken command line and read the answer.
+ */
+internal fun dispatch(args: Array<String>): Int {
+    return try {
+        when (args.firstOrNull()) {
+            "worldgen" -> {
+                worldgen(args.drop(1))
+                0
+            }
+
+            "match" -> {
+                match(args.drop(1))
+                0
+            }
+
+            "import" -> {
+                importInstallation(args.drop(1))
+                0
+            }
+
+            "help", "--help" -> {
+                println(USAGE)
+                0
+            }
+
+            null -> {
+                println(USAGE)
+                1
+            }
+
+            else -> {
+                System.err.println("openfoot-cli: unknown subcommand '${args[0]}'")
+                System.err.println(USAGE)
+                1
+            }
         }
+    } catch (mistake: CliError) {
+        System.err.println("openfoot-cli: ${mistake.message}")
+        1
     }
 }
 
@@ -249,9 +275,15 @@ private fun parseOptions(args: List<String>): Map<String, String> {
     return options
 }
 
+/**
+ * A command line mistake: a missing flag, a bad number, a path that is not
+ * there. Thrown instead of exiting so every failure path can be exercised by
+ * a test; main is the only place that turns it into a process exit.
+ */
+internal class CliError(message: String) : RuntimeException(message)
+
 private fun fail(message: String): Nothing {
-    System.err.println("openfoot-cli: $message")
-    exitProcess(1)
+    throw CliError(message)
 }
 
 /**
