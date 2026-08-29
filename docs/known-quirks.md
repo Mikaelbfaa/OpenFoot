@@ -161,6 +161,10 @@ Ficam registrados aqui para quando o código chegar nessas partes.
   minuto 35 do 2º tempo custa -2,5 (seção 3.15, item 14).
 - O desconto de pênalti perdido da nota multiplica o contador de **gols contra** em vez do de pênaltis
   perdidos, e por isso quase nunca desconta nada (seção 3.15, item 15).
+- Num pênalti interativo perdido, **5 dos 7 desfechos sobem o contador de "no alvo"** e só 3 deles
+  creditam uma defesa ao goleiro. Os outros 2 - a bola na trave e o batedor que escorrega - contam
+  como chute no alvo sem que o goleiro tenha tocado na bola, então a linha "no alvo" da súmula não é
+  exatamente "gols + defesas" quando houve pênalti interativo (seções 3.10 e 3.13).
 - Num gol de pênalti, falta ou olímpico redirecionado para o batedor designado, o relato e a artilharia
   ficam com o designado e o **+0,9 de nota fica com o finalizador sorteado**. Num gol contra, o
   finalizador sorteado do time atacante ganha um +0,9 que não aparece em lugar nenhum (seção 3.7).

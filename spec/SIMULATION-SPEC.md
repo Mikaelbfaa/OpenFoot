@@ -527,10 +527,14 @@ IA, gravidade da lesão, desempate na ordenação da escalação e o número de 
 ## 3.10 Pênaltis CONFIRMADO
 
 - **Disputa em IAxIA (não é chute a chute):** `x = rand(2..8)`, `y = rand(2..8)`; se `x >= y` o
-  mandante vence por `(x, x-1)`, senão o visitante vence por `(x, x+1)`. `y` só serve para a
-  comparação: o placar sai todo de `x` e é **sempre de um gol de diferença**. Como o empate favorece
-  o mandante, o **mandante vence 28/49 = 57,1%** das disputas, e o placar do vencedor visitante pode
-  chegar a 9.
+  mandante vence por `(x, x-1)`, senão o visitante vence por `(x, x+1)`. **Os dois lados do placar
+  saem de `x` nos dois ramos** - `y` só serve para a comparação, inclusive no ramo do visitante - e a
+  diferença é **sempre de um gol**. Como o empate favorece o mandante, o **mandante vence
+  28/49 = 57,1%** das disputas. O placar do vencedor **nunca passa de 8**: no ramo do mandante
+  `x <= 8`, e no ramo do visitante a própria condição `x < y` obriga `x <= 7`, logo `x + 1 <= 8`.
+  Faixas observáveis: **vencedor 2 a 8, perdedor 1 a 7**. Uma redação anterior desta seção dizia que
+  o vencedor visitante podia chegar a 9; era um deslize de prosa, a fórmula é que está certa - ver o
+  item 59 do `OPEN-QUESTIONS.md`.
 - **Pênalti interativo (a via do gol de tipo pênalti em partida com time humano, seção 3.7):**
   conversão base **70%**; batedor com **Finalização** ou "estrela vermelha" +10; "estrela" +5;
   goleiro com **Defesa Penalty** -10; goleiro estrela vermelha -10; goleiro estrela -5. A moeda é
@@ -538,10 +542,13 @@ IA, gravidade da lesão, desempate na ordenação da escalação e o número de 
   sorteio da 3.7 devolver pênalti - inclusive quando o pênalti é do adversário.
   - **Convertido:** conta como chute e chute no alvo do time, soma o gol ao placar e dá **um** gol ao
     batedor na contagem da partida.
-  - **Perdido:** conta como chute; um sorteio `rand(7)` escolhe o desfecho, e **3 dos 7 creditam o
-    goleiro com um pênalti defendido** (+1,2 na nota dele, seção 3.14), 2 dos 7 contam como chute
-    para fora e os outros 2 como chute no alvo. O batedor ganha um contador de **pênalti perdido**,
-    que a nota lê errado (item 13 da 3.15).
+  - **Perdido:** conta como chute; um sorteio `rand(7)` escolhe o desfecho. A partição de alvo é de
+    **duas vias, não três**: **2 dos 7 contam como chute para fora e os outros 5 como chute no
+    alvo**. Cruzando com essa partição, e independente dela, **3 dos 7 creditam o goleiro com um
+    pênalti defendido** (+1,2 na nota dele, seção 3.14) - e esses 3 estão todos **dentro** dos 5 no
+    alvo. Sobram, portanto, **2 desfechos que contam no alvo sem creditar defesa nenhuma** (a bola
+    que bate na trave e o batedor que escorrega). O batedor ganha um contador de **pênalti
+    perdido**, que a nota lê errado (item 15 da 3.15). CONFIRMADO
 - **Disputa interativa:** **70% fixos por cobrança, sem nenhum atributo**. Melhor-de-5 e morte súbita.
   A ordem dos batedores de um time de IA sai de uma **regra de um lado só**: se o primeiro comparado
   tem posição maior ele vai na frente, mas se tem posição menor **não vai atrás** - a comparação cai
@@ -575,8 +582,13 @@ Quatro valores por time: `[formação, estilo, marcação, lado do ataque]`.
   (gol olímpico), **capitão** (sem efeito encontrado) e **"falso 9"** (**nunca lido - recurso morto**).
 
 ## 3.13 Estatísticas produzidas
-Posse %, chutes, no alvo (gols + defesas), para fora, desarmes, passes errados e **faltas - cujo
-contador existe mas nunca é incrementado (a linha de faltas é sempre 0x0)**.
+Posse %, chutes, no alvo, para fora, desarmes, passes errados e **faltas - cujo contador existe mas
+nunca é incrementado (a linha de faltas é sempre 0x0)**.
+
+O contador de **no alvo** é "gols + defesas" apenas no jogo corrido. O pênalti interativo da 3.10
+acrescenta uma exceção: dos 7 desfechos de uma cobrança perdida, **5 sobem o contador de no alvo** e
+só 3 desses creditam uma defesa, de modo que 2 desfechos entram como "no alvo" sem gol e sem defesa.
+Os outros 2 sobem o contador de para fora. CONFIRMADO
 
 ## 3.14 Notas dos jogadores (pós-partida) CONFIRMADO
 
@@ -604,7 +616,7 @@ Os ajustes, **nesta ordem** (a ordem importa por causa do teto, do piso e do rem
    primeira); com **menos** posse -0,8 (ou -0,3 com prob. 1/3), -0,5 se volante.
 3. **Eventos do jogador:** gols da partida **x+0,9**; gols contra **x-1,5**; **se perdeu algum
    pênalti interativo, -1,2 x (gols contra)** - o termo existe, mas multiplica o contador errado e só
-   morde quem fez gol contra e perdeu pênalti na mesma partida (item 13 da 3.15); amarelos x-0,2;
+   morde quem fez gol contra e perdeu pênalti na mesma partida (item 15 da 3.15); amarelos x-0,2;
    vermelhos x-0,8; assistências x+0,4.
 4. **Defensivos (slots 1-13)**, comparando o contador de desarmes: **venceu** +0,6 (ou +0,9 com
    prob. 1/3), mais +0,6 com prob. 1/3 se o slot é **2-9**, mais +0,6 com prob. 1/3 se o slot é

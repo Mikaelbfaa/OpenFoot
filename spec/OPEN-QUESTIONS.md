@@ -1851,27 +1851,49 @@ observáveis na distribuição de notas.
 
 ### 58. Os 3 dos 7 desfechos de pênalti defendido da 3.10 contam como chute no alvo
 
-A 3.10 particiona os sete desfechos de um pênalti interativo perdido em três grupos: 3 creditam o
+A 3.10 particionava os sete desfechos de um pênalti interativo perdido em três grupos: 3 creditam o
 goleiro com pênalti defendido, 2 contam como chute para fora, e os outros 2 como chute no alvo. A
-frase só rotula explicitamente de "chute no alvo" o segundo par de 2; os 3 que creditam a defesa não
-recebem rótulo de alvo ou fora, só o de pênalti defendido.
+frase só rotulava explicitamente de "chute no alvo" o segundo par de 2; os 3 que creditam a defesa
+não recebiam rótulo de alvo ou fora, só o de pênalti defendido.
 
-**Resolução (INFERIDO): os 3 desfechos de defesa também contam como chute no alvo**, junto com os 2
-que a 3.10 já nomeia assim - cinco dos sete no alvo, dois para fora. A base é a definição da própria
-3.13: chute no alvo é gol mais defesa, e um pênalti defendido é por construção um chute que o goleiro
-tocou, o que não é diferente de uma defesa comum de um chute em campo aberto. `InteractivePenaltyResult`
-em `PenaltyResolution.kt` (seção 3.10, `engine`) implementa esta leitura: `onTarget` é verdadeiro nos 3
-desfechos de defesa e nos 2 que a 3.10 já chama de chute no alvo, falso só nos 2 de chute para fora.
+**Resolução (CONFIRMADO): os 3 desfechos de defesa também contam como chute no alvo - cinco dos sete
+no alvo, dois para fora.** A leitura de "5 de 7", que a reimplementação já adotava, está certa.
 
-**Leitura alternativa, não adotada: só os 2 desfechos que a 3.10 rotula explicitamente de "chute no
-alvo" contam assim, e os 3 de defesa ficam fora dessa contagem** - dois dos sete no alvo, não cinco.
-A favor dela: é a leitura mais literal da frase da 3.10, que separa os três grupos e só rotula
-explicitamente um deles de "no alvo". Contra: ela deixaria uma cobrança que o goleiro efetivamente
-tocou e defendeu marcada como se não tivesse ido ao alvo, o que conflita com a definição de chute no
-alvo da própria 3.13; e não há uma leitura alternativa igualmente literal para o que aconteceria com o
-contador de chutes total do time nesses 3 casos, já que a 3.10 diz que os 7 desfechos "contam como
-chute" sem qualificar quais ficam de fora do alvo além dos 2 já rotulados.
+O ponto que a redação antiga errava não era o número e sim a forma: **não existe partição de três
+vias**. São duas decisões independentes sobre o mesmo sorteio de 7:
 
-Se a via interativa da 3.10 for verificada contra o binário original com a granularidade desta
-distinção, esta entrada deve virar CONFIRMADO ou trocar de leitura adotada, e `PenaltyResolution.kt` e
-`PenaltyResolutionTest.kt` devem ser revistos junto.
+1. **Alvo:** 2 dos 7 sobem o contador de **para fora**; os outros **5 sobem o de no alvo**. Não há
+   terceiro caso - todo desfecho perdido cai num dos dois contadores, e o contador de chutes do time
+   sobe nos 7.
+2. **Defesa:** 3 dos 7 creditam o goleiro com um **pênalti defendido** (+1,2 na nota, 3.14). Esses 3
+   estão contidos nos 5 do alvo.
+
+O resíduo são **2 desfechos que contam no alvo sem creditar defesa**: a bola que bate na trave e o
+batedor que escorrega. Ou seja, a intuição da 3.13 ("no alvo = gols + defesas") dá o número certo
+aqui por coincidência de tamanho, mas não pelo motivo certo: dois chutes que o goleiro não tocou
+entram no alvo assim mesmo. A 3.13 foi anotada com essa exceção.
+
+A leitura alternativa - "só os 2 desfechos rotulados de no alvo contam assim, e os 3 de defesa ficam
+de fora" - está **descartada**.
+
+### 59. Qual variável o ramo do visitante da disputa em IAxIA da 3.10 lê
+
+A 3.10 dava a fórmula `x = rand(2..8)`, `y = rand(2..8)`, mandante `(x, x-1)` se `x >= y` e visitante
+`(x, x+1)` caso contrário, e afirmava em seguida, em prosa, que "o placar do vencedor visitante pode
+chegar a 9". As duas coisas não cabem juntas: uma vitória do visitante exige `x < y`, logo `x <= 7` e
+`x + 1 <= 8`. Enumerando os 49 pares, **9 é inalcançável**. A parte de 28/49 para o mandante, essa,
+confere.
+
+Havia duas saídas. Ou a prosa estava certa e o ramo do visitante lia **`y`**, dando `(y+1, y)` - o que
+também preservaria 28/49 e a margem de um gol, e chegaria exatamente a 9 - ou a fórmula estava certa e
+o "9" era um deslize.
+
+**Resolução (CONFIRMADO): a fórmula está certa e o "9" é que estava errado.** Os dois lados do placar
+saem de `x` **nos dois ramos**; `y` é lido uma única vez, na comparação, e nunca entra no placar. As
+faixas verdadeiras são **vencedor 2 a 8, perdedor 1 a 7**, com o vencedor visitante indo no máximo a
+8 (`x = 7`, `y = 8`). A afirmação do 9 foi removida da 3.10 e substituída pelo limite de 8, com a
+derivação escrita.
+
+Consequência para validação: um teste que espere placares de disputa de pênalti até 9 está errado, e
+a distribuição do placar do vencedor **não é uniforme** - ela é a de `x` condicionada ao ramo, que
+pende para os valores altos no ramo do mandante e para os baixos no do visitante.
