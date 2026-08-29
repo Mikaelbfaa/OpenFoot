@@ -192,16 +192,21 @@ class BenchedSanityCheckTest {
 
     /**
      * The share of ratings landing exactly on the floor of 2,0, five times
-     * SanityCheckTest's own share of 7.795454545454545E-4, because a
-     * substitution arrival reaches the floor far more easily than a starter
-     * does: his own share of the supporting minutes formula, 98 minus the
-     * minute or 50 minus it, lands under the short appearance threshold
-     * whenever he comes on late, which section 3.8's own tiredness and
-     * chasing windows do constantly.
+     * SanityCheckTest's own share of 7.795454545454545E-4. Step 11's
+     * zeroing clause overwrites the floor value for anybody still under
+     * twenty minutes, so an arrival whose supporting minutes formula, 98
+     * minus the minute or 50 minus it, lands under twenty is zeroed rather
+     * than counted here; this share is driven instead by arrivals whose
+     * supporting minutes land in roughly the twenty to forty five minute
+     * range, high enough to clear the zeroing clause but still low enough
+     * to draw minutesAdjustment's smaller rung, the partial penalty of
+     * -1,5 rather than the short penalty of -2,5, which section 3.8's own
+     * tiredness and chasing windows hand out constantly by bringing men on
+     * late.
      */
     @Test
     fun `a larger share of ratings land exactly on the floor here than with an empty bench`() {
-        val share = RATED_VALUES.count { it == RuleSets.CLASSIC.ratings.limits.floor }.toDouble() / RATED_VALUES.size
+        val share = RATED_VALUES.count { it == BENCHED.setup.rules.ratings.limits.floor }.toDouble() / RATED_VALUES.size
         assertTrue(share in RATING_FLOOR_SHARE, "$share of ${RATED_VALUES.size} ratings sat on the floor")
     }
 

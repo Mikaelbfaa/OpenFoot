@@ -306,11 +306,14 @@ class SanityCheckTest {
     }
 
     /**
-     * The share of ratings that come to rest exactly on the floor of 2,0,
-     * whether or not the player also cleared the twenty minute mark that
-     * would zero it. This is distinct from the exact nought share below: a
-     * rating can land on the floor from playing the whole match badly, not
-     * only from a short appearance.
+     * The share of ratings that come to rest exactly on the floor of 2,0.
+     * Step 11's floor clamp runs before its zeroing clause, so a rating that
+     * lands on the floor and also cleared the twenty minute mark stays
+     * published at 2,0; one that lands on the floor without clearing it is
+     * overwritten to nought and leaves this count. Every rating counted here
+     * therefore cleared the twenty minute mark. This is distinct from the
+     * exact nought share below: a rating can land on the floor from playing
+     * the whole match badly, not only from a short appearance.
      */
     @Test
     fun `a share of ratings land exactly on the floor`() {
@@ -634,18 +637,22 @@ class SanityCheckTest {
         val ASSIST_SHARE = 0.792..0.830
 
         /**
-         * Measured nought of the 48302 open play goals. Section 3.7's own
-         * goal patch falls back to open play only when the conceding side
-         * has nobody left at all to blame, on ownGoalEligibleSlots = 1..25,
-         * which needs the whole eleven man side gone from the pitch with
-         * nobody to replace them on this fixture's empty bench. That is
-         * reachable in principle and unreachable in practice over twenty
-         * thousand matches, and the sample bears that out exactly: not one
-         * of the 521 own goals drawn in this sample found an empty side to
-         * blame. An exact nought here cannot tell the fallback branch apart
-         * from one that was deleted outright, so this figure names an
-         * interaction rather than pins a mechanism; GoalTypingTest's own
-         * scripted draws are what actually exercise the branch, the way
+         * Measured nought of the 48302 open play goals: every final open
+         * play goal in this sample was worth two match goal credits, none
+         * worth one. Section 3.7's own goal patch falls back to open play
+         * only when the conceding side has nobody left at all to blame, on
+         * ownGoalEligibleSlots = 1..25, which needs the whole eleven man
+         * side gone from the pitch with nobody to replace them on this
+         * fixture's empty bench. That is reachable in principle and
+         * unreachable in practice over twenty thousand matches, and the
+         * sample bears that out exactly: not one of the 521 own goals drawn
+         * in this sample found an empty side to blame. This constant cannot
+         * exercise the fallback branch itself, since a measured nought here
+         * reads the same whether the branch is merely unreached or was
+         * deleted outright; that branch, and its interaction with the
+         * assist coin, is what GoalTypingTest's own scripted draws pin
+         * directly, in its test an own goal that falls back to open play
+         * has no assister, because the assist came first, the way
          * DisciplineChainTest covers BenchedSanityCheckTest's own rare edge.
          */
         @SpecRef("3.7")
@@ -697,13 +704,19 @@ class SanityCheckTest {
          * Measured 7.795454545454545E-4 of 440000 ratings, 343 of them,
          * sitting exactly on the floor of 2,0. That is a player whose whole
          * eleven step sum landed at or below two before the floor caught it,
-         * whether or not he also cleared twenty minutes; SanityCheckTest's
-         * fixture has no bench, so a short appearance here can only come
-         * from an early sending off or an early own goal, never from a
-         * substitution. Ten standard errors wide around the measured share,
-         * and it would collapse to nought if step 11's floor clamp were
-         * removed, since nothing below it could then survive without being
-         * lifted.
+         * and who also cleared the twenty minute mark, since step 11's
+         * zeroing clause overwrites every floor rating that stayed under it
+         * and this count is read after that clause has already run.
+         * SanityCheckTest's fixture has no bench, so an early event that
+         * still leaves a player short of a full appearance can come from an
+         * early sending off, an early own goal blamed on its author, or an
+         * ordinary booking, since toPlayerTallies writes the same
+         * protagonist minute for all three; bookings, at roughly 1,3 a
+         * match, are the largest of the three sources in this fixture. It
+         * can never come from a substitution, since this fixture plays with
+         * no bench. Ten standard errors wide around the measured share, and
+         * it would collapse to nought if step 11's floor clamp were removed,
+         * since nothing below it could then survive without being lifted.
          */
         @SpecRef("3.14")
         val RATING_FLOOR_SHARE = 0.00035..0.00120
@@ -711,14 +724,14 @@ class SanityCheckTest {
         /**
          * Measured 0.001884090909090909 of 440000 ratings, 829 of them, a
          * genuine nought: a player under twenty minutes whose rating came to
-         * rest exactly on the floor. Necessarily a share of the floor share
-         * above, since every one of these players is also counted there,
-         * and it is larger because minutesAdjustment's short penalty of
-         * -2,5 pulls a great many more players down to the floor than reach
-         * it on the base table and its adjustments alone. Ten standard
-         * errors wide, and it would collapse to nought if step 11's zeroing
-         * clause were removed, leaving every one of these players published
-         * at 2,0 instead.
+         * rest exactly on the floor. Step 11's zeroing clause runs after the
+         * floor clamp and overwrites the floor value with nought, so every
+         * one of these players is absent from the floor share above rather
+         * than counted in it; the two shares are disjoint populations, which
+         * is exactly why this one can be larger than the floor share despite
+         * neither containing the other. Ten standard errors wide, and it
+         * would collapse to nought if step 11's zeroing clause were removed,
+         * leaving every one of these players published at 2,0 instead.
          */
         @SpecRef("3.14")
         val RATING_ZERO_SHARE = 0.0012..0.0026
