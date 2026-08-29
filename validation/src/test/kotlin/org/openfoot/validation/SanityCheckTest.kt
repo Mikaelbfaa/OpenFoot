@@ -630,8 +630,16 @@ class SanityCheckTest {
         /**
          * Measured 0.8107945840751936 of 48302 open play goals, against
          * section 3.6's rand(100) > 80, which is 81 per cent. Ten standard
-         * errors wide, and it would collapse to nought if the coin were
-         * never tossed at all.
+         * errors wide is about plus or minus 0,018, so this band corroborates
+         * the coin firing rather than pinning the exact threshold: flipping
+         * the comparison from draw > 80 to draw >= 80 would measure about
+         * 0,800, still inside this band, and the test would still pass. What
+         * it does catch is the coin never being tossed at all, which would
+         * collapse the measured share to nought. The threshold itself, that
+         * rand(100) > 80 is the draws 81 to 99 and not 80 to 99, is pinned
+         * exactly by AssistSelectionTest, which walks every one of the 100
+         * possible coin draws from both directions rather than sampling any
+         * of them.
          */
         @SpecRef("3.6")
         val ASSIST_SHARE = 0.792..0.830

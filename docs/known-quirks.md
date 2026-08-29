@@ -145,6 +145,63 @@ não +1,8, porque quem soma é o visualizador e ele incrementa uma vez só.
 
 Spec: seções 3.7 e 3.10, item 51 de `spec/OPEN-QUESTIONS.md`. Mantido nos dois conjuntos de regras.
 
+### Os minutos jogados são o minuto do último evento, não tempo em campo
+
+O desconto de minutos do passo 10 da seção 3.14 não mede quanto tempo um jogador ficou em campo: cada
+evento que a seção 3.14 lista como protagonista ou como coadjuvante sobrescreve `minutesPlayed` para o
+minuto daquele evento, e o valor que sobra depois do último evento do jogador é o que a nota usa.
+Marcar cedo no 1º tempo aplica ao autor o desconto de "entrou faltando pouco" - -1,5 ou -2,5 antes do
+minuto 15; assistir depois do minuto 35 do 2º tempo aplica -2,5 ao assistente.
+
+`toPlayerTallies`, em `PlayerTally.kt`, é o fold inteiro: `protagonistMinute` e `supportingMinute`
+calculam o minuto guardado a cada gol, cartão, substituição e pênalti interativo defendido, e o campo
+fica exatamente como o último desses eventos o deixou.
+
+Spec: seção 3.14, defeito 14 da seção 3.15. Reproduzido em `CLASSIC`.
+
+### O desconto de pênalti perdido da nota multiplica o contador errado
+
+O passo 3 da seção 3.14 liga o termo pelo contador de pênaltis perdidos, mas o valor que ele de fato
+multiplica por -1,2 é o de gols contra, e não o de pênaltis perdidos. Quem perdeu um pênalti e não fez
+gol contra nenhum não perde nada; quem fez as duas coisas na mesma partida é punido duas vezes pelo gol
+contra, uma pelo termo comum de -1,5 e outra por este.
+
+`eventAdjustment`, em `PlayerRating.kt`, é onde isso vive: `if (tally.missedPenalties > 0)` liga o
+termo, e o corpo do `if` multiplica `tally.ownGoals`, não `tally.missedPenalties`.
+
+Spec: seção 3.14, defeito 15 da seção 3.15. Reproduzido em `CLASSIC`.
+
+### Cinco dos sete desfechos de pênalti interativo perdido contam como chute no alvo
+
+Os sete desfechos do sorteio de erro da seção 3.10 não são uma partição em três: são duas leituras
+independentes do mesmo sorteio. Cinco dos sete contam como chute no alvo, e só três deles - os mesmos
+que creditam a defesa ao goleiro - de fato tocaram na bola. Os outros dois, a bola na trave e o batedor
+que escorrega, contam como chute no alvo sem que o goleiro tenha feito nada. A linha "no alvo" da
+súmula, então, não é exatamente "gols + defesas" numa partida com pênalti interativo.
+
+`interactivePenalty`, em `PenaltyResolution.kt`, é onde os dois contadores nascem: `onTarget` fica
+`true` para a conversão e para cinco dos sete desfechos de erro, e `keeperCreditedWithSave` fica `true`
+para só três deles.
+
+Spec: seções 3.10 e 3.13, item 58 de `spec/OPEN-QUESTIONS.md`. Mantido nos dois conjuntos de regras:
+não é um número mal lido a corrigir, é a leitura confirmada do original.
+
+### O degrau de goleiro "chutou mais de dez" lê chutes totais, e os dois de cima estão mortos
+
+O passo 6 da seção 3.14 dá ao goleiro +0,2 por chute no alvo sofrido e, na mesma frase, mais três
+degraus por volume de jogo: +0,2 se o adversário chutou mais de dez, +0,2 se chutou mais de quinze e
++0,3 se chutou mais de vinte. Os dois últimos estão atrás do primeiro numa cadeia de senão e nenhuma
+contagem os alcança. O único que sobra troca "chute no alvo" por "chutou": ele lê o total de chutes do
+adversário, e não o total no alvo, e como um lado bate uns dezesseis chutes totais por partida ele é
+pago em quase todo jogo, virando um bônus quase fixo em vez de um prêmio por partida movimentada.
+
+`keeperAdjustment`, em `PlayerRating.kt`, lê `context.opponentShots`, o total de chutes do lado
+adversário, contra `keeper.busyShotsAbove`; não há ramo nenhum para os dois degraus de cima.
+
+Spec: seção 3.14, defeito 16 da seção 3.15, item 61 de `spec/OPEN-QUESTIONS.md`. Mantido nos dois
+conjuntos de regras: a 3.15 manda não portar os dois ramos mortos, e o contador que o degrau restante
+lê é o comportamento confirmado do original.
+
 ## Nunca reproduzido, em nenhum conjunto de regras
 
 ### Os dois caminhos mortos do sorteio de tipo de gol
@@ -203,25 +260,12 @@ Ficam registrados aqui para quando o código chegar nessas partes.
 - Prorrogação nunca é simulada. Empate em mata-mata vai direto para uma fórmula abstrata de
   pênaltis (seção 3.10).
 - Clubes da IA não têm dinheiro (seção 6.0). Esse é o mais estrutural de todos.
-- Os "minutos jogados" que descontam nota não são tempo em campo: são o minuto do último evento em que
-  o jogador aparece. Marcar no 1º tempo custa -1,5, ou -2,5 antes do minuto 15; assistir depois do
-  minuto 35 do 2º tempo custa -2,5 (seção 3.15, item 14).
-- O desconto de pênalti perdido da nota multiplica o contador de **gols contra** em vez do de pênaltis
-  perdidos, e por isso quase nunca desconta nada (seção 3.15, item 15).
-- Num pênalti interativo perdido, **5 dos 7 desfechos sobem o contador de "no alvo"** e só 3 deles
-  creditam uma defesa ao goleiro. Os outros 2 - a bola na trave e o batedor que escorrega - contam
-  como chute no alvo sem que o goleiro tenha tocado na bola, então a linha "no alvo" da súmula não é
-  exatamente "gols + defesas" quando houve pênalti interativo (seções 3.10 e 3.13).
-- Os ramos "+0,2 se o adversário chutou mais de 15" e "+0,3 se chutou mais de 20" da nota do goleiro
-  estão atrás do ramo "mais de 10" numa cadeia de senão e nunca são alcançados (seção 3.14). O ramo
-  "mais de 10" que sobrou compara **chutes totais**, e não chutes no alvo como o +0,2 por chute da
-  mesma frase; com ~16 chutes totais por lado ele é pago em quase toda partida, virando um bônus
-  quase fixo em vez de um prêmio por partida movimentada (seção 3.14, item 61 de
-  `OPEN-QUESTIONS.md`).
-- A estrela vermelha implica a estrela comum ao criar o mundo e ao ler o `.ban`, mas a **promoção a
-  estrela vermelha durante a carreira não liga a estrela comum**. Como os dois bônus de nota são
-  cumulativos (+0,4 e +0,6), o jogador promovido soma +0,6 por partida e um jogador idêntico vindo do
-  arquivo soma +1,0 (seção 3.15, item 18).
+- A estrela vermelha implica a estrela comum ao criar o mundo e ao ler o `.ban`, e os dois bônus de
+  nota associados às marcas já são cumulativos no motor (`starAdjustment`, em `PlayerRating.kt`). O
+  que falta é a outra ponta: a **promoção a estrela vermelha ao fim de temporada não liga a estrela
+  comum**, e como o motor ainda não tem virada de temporada nenhuma, não há onde essa metade viver
+  ainda. Quando existir, um jogador promovido sem a estrela comum deve somar +0,6 por partida, e não
+  o +1,0 de um jogador idêntico vindo do arquivo com as duas marcas (seção 3.15, item 18).
 - O capitão e o "falso 9" da seção 5.6 são derivados pelo original e guardados no time, mas nada os
   lê: a própria seção marca o efeito real dos dois como nenhum, display no caso do capitão, manual e
   sem efeito nenhum no caso do falso 9. O motor não deriva nem guarda os dois por isso, e só o
