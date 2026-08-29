@@ -57,19 +57,27 @@ fun weightedPick(weights: DoubleArray, rng: Rng): Int =
  *
  * This exists only because the assist draw (section 3.6, "Quem finaliza e quem
  * da assistencia") cannot be expressed with weightedPick above. Section 3.15
- * item 4 is CONFIRMADO and asymmetric: a player with Velocidade (and none of
- * the earlier characteristics) contributes plus one to the total pass and
- * plus two to the walk pass. This is a reproduced defect, not a bug, and it
- * must not be "fixed" into a single shared weight function. Cite section 3.15
- * item 4 before touching this again.
+ * item 4 is CONFIRMADO: under the classic rules a player with Velocidade (and
+ * none of the earlier characteristics) contributes plus one to the total pass
+ * and plus two to the walk pass, an asymmetry that is a reproduced defect,
+ * not a bug. Under the modern rules the two bonuses agree, both at plus one,
+ * so no candidate's walk weight and total weight ever disagree there. Either
+ * way this function must keep the two weight functions genuinely separate
+ * rather than collapsed into one shared weight function: classic needs the
+ * asymmetry expressed and modern needs it to stay expressible even though
+ * modern never exercises it. Cite section 3.15 item 4 before touching
+ * this again.
  *
- * The consequence the spec spells out: because the walk accumulates weight
- * faster than the total that bounds the draw, the walk's running sum reaches
- * the draw's target earlier than a symmetric walk would, so every candidate
- * whose walk weight exceeds its total weight steals the draw from candidates
- * later in the list. With enough of that excess ahead of a candidate, his
- * slice of the draw range is pushed past the total entirely and he becomes
- * unreachable no matter what the draw is.
+ * The consequence the spec spells out, and which only the classic rules can
+ * trigger: because the walk accumulates weight faster than the total that
+ * bounds the draw, the walk's running sum reaches the draw's target earlier
+ * than a symmetric walk would, so every candidate whose walk weight exceeds
+ * its total weight steals the draw from candidates later in the list. With
+ * enough of that excess ahead of a candidate, his slice of the draw range
+ * is pushed past the total entirely and he becomes unreachable no matter
+ * what the draw is. Under the modern rules no candidate's walk weight can
+ * exceed its total weight, so this overrun, and the unreachable candidate
+ * it produces, cannot happen there.
  *
  * The draw itself is a single call to nextDouble, exactly as in weightedPick:
  * one random value scaled by the total from the first pass, then compared

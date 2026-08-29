@@ -184,13 +184,19 @@ data class PlayerTallies(
  * drops him from the lineup outright.
  *
  * One departure the log cannot show is the injury whose drawn duration comes
- * to nought days, which only a player of twenty or under can draw. That branch
- * logs no Injury event at all and still takes the player off, so if his side
- * also has nobody to bring on there is nothing in the log to close his span
- * and he is counted to the final whistle. It is recorded here rather than
- * approximated around: the alternative would be a rule invented in this fold
- * about an event that is not there, and the case needs an injury, a player of
- * twenty or under, a duration of nought and an empty bench all at once.
+ * to nought days, which only a player of twenty or under can draw. That
+ * branch logs no Injury event at all and still takes the player off, and
+ * Discipline.kt's injure then declines to bring anyone on through any of
+ * its own three silent paths: canSubstitute refusing the side altogether,
+ * whether because it is human managed, its bench is empty or its quota of
+ * changes is spent; chooseReplacement finding nobody who fits the vacated
+ * slot; or a reserve keeper turning up as the only fit for an outfielder and
+ * being refused rather than fielded out of position. Whichever of the three
+ * fires, there is nothing in the log to close his span and he is counted to
+ * the final whistle. It is recorded here rather than approximated around:
+ * the alternative would be a rule invented in this fold about an event that
+ * is not there, and the case needs an injury, a player of twenty or under,
+ * a duration of nought and one of those three declines all at once.
  */
 @SpecRef("3.14")
 fun List<MatchEvent>.toPlayerTallies(

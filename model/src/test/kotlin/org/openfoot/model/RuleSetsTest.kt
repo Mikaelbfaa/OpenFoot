@@ -101,6 +101,32 @@ class RuleSetsTest {
     }
 
     /**
+     * The fourth fixture section 3.15 item 15 needs, added beside the three
+     * above because none of them can rule out a mutant that reads the modern
+     * strategy as maxOf(missedPenalties, ownGoals) times the charge instead
+     * of missedPenalties times the charge alone. A missed penalty with no
+     * own goal, one missed penalty with one own goal, and three missed
+     * penalties with two own goals never once have more own goals than
+     * missed penalties, so maxOf agrees with missedPenalties on every one of
+     * the three and the mutant passes unnoticed.
+     *
+     * One missed penalty with two own goals breaks that: missedPenalties is
+     * now the smaller of the two counters, so the honest modern rule charges
+     * one point two for the single penalty while maxOf would charge two
+     * point four for the two own goals instead, and the two readings finally
+     * disagree. With this fixture in place the four together pin the modern
+     * rule at the unit level the same way PlayerRatingTest's own fixture of
+     * one missed penalty and two own goals already pins it one layer up.
+     */
+    @Test
+    fun `a missed penalty count below the own goal count separates the modern rule from a maxOf reading`() {
+        val charge = -1.2
+
+        assertEquals(2 * charge, ClassicMissedPenaltyRule.adjust(1, 2, charge), 1e-12)
+        assertEquals(charge, ModernMissedPenaltyRule.adjust(1, 2, charge), 1e-12)
+    }
+
+    /**
      * Section 3.15 item 14, read off the two strategy objects directly.
      *
      * The two arguments are deliberately unequal and neither is the smaller,

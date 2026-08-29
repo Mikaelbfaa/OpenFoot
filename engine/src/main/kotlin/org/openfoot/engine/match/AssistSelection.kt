@@ -74,11 +74,12 @@ internal fun assistCandidates(side: MatchSide, finisher: MatchPlayer, rules: Rul
  * Walks an already filtered, already known non empty candidate list with the
  * asymmetric draw of section 3.15 item 4.
  *
- * The two weight functions handed to asymmetricWeightedPick differ in
- * exactly one place, the Pace branch of assistWeight below, which is the
- * whole content of the Velocidade defect: everything else this function
- * reads is identical whether it is summing the total or walking for the
- * winner.
+ * The two weight functions handed to asymmetricWeightedPick can differ in
+ * exactly one place, the Pace branch of assistWeight below, which under the
+ * classic rules is the whole content of the Velocidade defect; under the
+ * modern rules the two bonuses of that branch agree and nothing here differs
+ * at all. Everything else this function reads is identical whether it is
+ * summing the total or walking for the winner.
  */
 @SpecRef("3.6")
 internal fun pickAssister(candidates: List<MatchPlayer>, side: MatchSide, rules: RuleSet, rng: Rng): MatchPlayer =

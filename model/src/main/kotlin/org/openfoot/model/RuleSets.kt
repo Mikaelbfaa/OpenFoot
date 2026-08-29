@@ -494,13 +494,13 @@ object RuleSets {
      * and both rule sets keep it.
      *
      * The sixth and seventh live in section 3.8's substitutions and are
-     * section 3.15's items 11 and 12. Item 11 is the away side's window being
-     * swallowed by the home side's: the two windows of one pass are run in one
-     * go, the home side first, and a pass in which the home side actually
-     * changed somebody
-     * never examines the away side's window at all. Classic allows one side
-     * per pass and modern allows both, which is a count rather than a flag
-     * because what the original limits is how many changes one pass can carry.
+     * section 3.15's items 11 and 12. Item 11 is the away side's window
+     * being swallowed by the home side's: the two windows of one pass are
+     * run in one go, the home side first, and a pass in which the home side
+     * actually changed somebody never examines the away side's window at
+     * all. Classic allows one side per pass and modern allows both, which
+     * is a count rather than a flag because what the original limits is
+     * how many changes one pass can carry.
      * Item 12 is the just came on check reading the home side's list of
      * arrivals whichever side it is protecting, so the home side is never
      * asked to take off a man it has just brought on and the away side has no

@@ -181,11 +181,16 @@ relógio daquela partida, com acréscimos, e não noventa fixo. Os dois números
 nos dois conjuntos de regras, e `RuleSet.minutesPlayedRule` escolhe qual deles a nota lê; o fold não
 pergunta em momento nenhum qual conjunto está rodando.
 
-Uma saída de campo o log não mostra, e fica registrada aqui em vez de aproximada: a lesão cujo
-sorteio de duração dá **zero dia**, que só um jogador de 20 anos ou menos consegue tirar, não gera
-evento nenhum e ainda assim tira o jogador. Se o time também não tiver ninguém no banco para
-substituí-lo, não há nada no log que feche o relógio dele e ele conta até o apito final. Inventar
-uma regra no fold sobre um evento que não está lá seria pior que registrar o caso.
+Uma saída de campo o log não mostra, e fica registrada aqui em vez de aproximada: a lesão
+cujo sorteio de duração dá **zero dia**, que só um jogador de 20 anos ou menos consegue
+tirar, não gera evento nenhum e ainda assim tira o jogador. A partir daí, `injure`, em
+`Discipline.kt`, ainda pode deixar de trazer um substituto por três caminhos silenciosos:
+`canSubstitute` recusa a troca por completo, seja porque o time é controlado por um humano, o
+banco está vazio ou a cota de trocas já foi usada; `chooseReplacement` não encontra ninguém
+que sirva na vaga; ou o único que serve é um goleiro reserva, recusado como substituto de
+um jogador de linha. Em qualquer um dos três casos não há nada no log que feche o relógio
+dele e ele conta até o apito final. Inventar uma regra no fold sobre um evento que não está
+lá seria pior que registrar o caso.
 
 ### O desconto de pênalti perdido da nota multiplica o contador errado
 
