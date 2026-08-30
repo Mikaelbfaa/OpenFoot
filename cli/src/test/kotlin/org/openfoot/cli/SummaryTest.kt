@@ -19,7 +19,7 @@ import kotlin.test.assertTrue
 class SummaryTest {
 
     private fun dataset(refs: List<String>) = WorldDataset(
-        countries = listOf(CountryEntry(index = Country.BRAZIL, name = "Brasil", level = 20)),
+        countries = listOf(CountryEntry(index = Country.BRAZIL, name = "Brasil", level = 20, continent = 1)),
         clubs = refs.map { ref ->
             ClubEntry(
                 ref = ref,
@@ -27,7 +27,6 @@ class SummaryTest {
                 country = Country.BRAZIL,
                 level = 18,
                 reputation = 4,
-                division = 1,
                 squad = List(3) { index ->
                     PlayerEntry(
                         name = "$ref jogador $index",

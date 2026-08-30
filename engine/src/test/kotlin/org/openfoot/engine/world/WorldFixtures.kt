@@ -22,7 +22,7 @@ object WorldFixtures {
 
     val countries = listOf(
         CountryEntry(index = Country.BRAZIL, name = "Brasil", level = 20, continent = 2),
-        CountryEntry(index = SPAIN, name = "Espanha", level = 20, majorLeague = true),
+        CountryEntry(index = SPAIN, name = "Espanha", level = 20, continent = Country.EUROPE_CONTINENT, majorLeague = true),
     )
 
     fun player(
@@ -53,7 +53,6 @@ object WorldFixtures {
         country: Int = Country.BRAZIL,
         level: Int = 18,
         reputation: Int = 4,
-        division: Int? = 1,
         squad: List<PlayerEntry> = listOf(player()),
     ) = ClubEntry(
         ref = ref,
@@ -61,7 +60,6 @@ object WorldFixtures {
         country = country,
         level = level,
         reputation = reputation,
-        division = division,
         squad = squad,
     )
 

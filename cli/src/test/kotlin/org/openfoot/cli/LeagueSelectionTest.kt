@@ -17,8 +17,8 @@ class LeagueSelectionTest {
 
     private fun twoCountryDataset() = WorldDataset(
         countries = listOf(
-            CountryEntry(index = 29, name = "BRA", level = 20),
-            CountryEntry(index = 65, name = "ESP", level = 20),
+            CountryEntry(index = 29, name = "BRA", level = 20, continent = 1),
+            CountryEntry(index = 65, name = "ESP", level = 20, continent = Country.EUROPE_CONTINENT),
         ),
         clubs = listOf(
             ClubEntry(ref = "um", name = "um", country = 29, level = 18, reputation = 4),

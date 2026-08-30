@@ -62,8 +62,13 @@ data class WorldDataset(
          * Bumped whenever a change would make an older file decode into the
          * wrong world rather than fail. Renaming a field or changing the
          * meaning of a value counts; adding an optional field does not.
+         *
+         * Version 1 is refused rather than read, because division and national
+         * team status became world properties assigned at generation time
+         * rather than dataset input: a version 1 file's division field would
+         * decode successfully and then silently mean nothing.
          */
-        const val CURRENT_VERSION = 1
+        const val CURRENT_VERSION = 2
     }
 }
 
@@ -97,7 +102,7 @@ data class CountryEntry(
     val index: Int,
     val name: String,
     @property:SpecRef("4.4") val level: Int,
-    val continent: Int = Country.EUROPE_CONTINENT,
+    val continent: Int,
     @property:SpecRef("4.8") val majorLeague: Boolean = false,
 ) {
     init {
@@ -123,12 +128,10 @@ data class CountryEntry(
  * cannot key anything. The ref also seeds this club's generator, which is why
  * the dataset rejects duplicates.
  *
- * Section 4.4 bands a national team by reputation and everyone else by
- * division, so the two are separate fields. A null division means the club
- * plays no league the dataset knows about, which is not the same thing as being
- * a national team, and lands on the weakest band rather than the reputation
- * path. Conflating the two would quietly promote every club of unknown division
- * to whatever its reputation deserves.
+ * Division and national team status are absent on purpose. Section 4.4 bands
+ * a national team by reputation and everyone else by division, but both are
+ * assigned by world generation rather than read from the dataset, so they
+ * live on the generated standing rather than here.
  */
 @Serializable
 data class ClubEntry(
@@ -137,8 +140,6 @@ data class ClubEntry(
     @property:SpecRef("FORMAT-SPEC, time") val country: Int,
     @property:SpecRef("FORMAT-SPEC, time") val level: Int,
     @property:SpecRef("FORMAT-SPEC, time") val reputation: Int,
-    @property:SpecRef("4.4") val division: Int? = null,
-    @property:SpecRef("4.4") val nationalTeam: Boolean = false,
     @property:SpecRef("FORMAT-SPEC, estados") val state: Int? = null,
     val stadium: String = "",
     val capacity: Int = 0,
@@ -153,12 +154,6 @@ data class ClubEntry(
         require(level in LEVEL_RANGE) { "club $ref level $level outside $LEVEL_RANGE" }
         require(reputation in REPUTATION_RANGE) {
             "club $ref reputation $reputation outside $REPUTATION_RANGE"
-        }
-        require(division == null || division >= 0) {
-            "club $ref division must not be negative, was $division"
-        }
-        require(!nationalTeam || division == null) {
-            "club $ref is a national team and also plays division $division"
         }
         require(state == null || country == Country.BRAZIL) {
             "club $ref carries state $state but country $country, and only Brazil has states"

@@ -9,6 +9,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * A dataset file is untrusted input, so these pin the boundary rather than the
@@ -45,7 +46,6 @@ class WorldDatasetTest {
         level: Int = 18,
         reputation: Int = 4,
         country: Int = Country.BRAZIL,
-        division: Int? = 1,
         state: Int? = 25,
         squad: List<PlayerEntry> = listOf(player()),
     ) = ClubEntry(
@@ -54,13 +54,12 @@ class WorldDatasetTest {
         country = country,
         level = level,
         reputation = reputation,
-        division = division,
         state = state,
         squad = squad,
     )
 
     private fun dataset(clubs: List<ClubEntry> = listOf(club())) = WorldDataset(
-        countries = listOf(CountryEntry(index = Country.BRAZIL, name = "Brasil", level = 20)),
+        countries = listOf(CountryEntry(index = Country.BRAZIL, name = "Brasil", level = 20, continent = 1)),
         clubs = clubs,
     )
 
@@ -85,7 +84,6 @@ class WorldDatasetTest {
                   "country": 29,
                   "level": 18,
                   "reputation": 4,
-                  "division": 1,
                   "state": 25,
                   "stadium": "Estadio",
                   "capacity": 45000,
@@ -114,7 +112,6 @@ class WorldDatasetTest {
         assertEquals(WorldDataset.CURRENT_VERSION, decoded.version)
         assertEquals(20, decoded.country(Country.BRAZIL)?.level)
         assertEquals("clube_bra", onlyClub.ref)
-        assertEquals(1, onlyClub.division)
         assertEquals(Country.BRAZIL, onlyClub.coachCountry)
         assertEquals(Position.GOALKEEPER, keeper.position)
         assertEquals(Side.RIGHT, keeper.side)
@@ -191,6 +188,32 @@ class WorldDatasetTest {
                 clubs = listOf(club()),
             )
         }
+    }
+
+    @Test
+    fun `a version one file is refused with the version in the message`() {
+        val document = """
+            {
+              "version": 1,
+              "countries": [
+                { "index": 29, "name": "Brasil", "level": 20, "continent": 1 }
+              ],
+              "clubs": [
+                {
+                  "ref": "clube_bra",
+                  "name": "Clube",
+                  "country": 29,
+                  "level": 18,
+                  "reputation": 4
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val failure = assertFailsWith<IllegalArgumentException> {
+            Json.decodeFromString<WorldDataset>(document)
+        }
+        assertTrue(failure.message.orEmpty().contains("version 1"))
     }
 
     @Test
