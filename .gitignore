@@ -3,6 +3,8 @@ build/
 out/
 bin/
 .gradle/
+.gradle-temp/
+.claude/
 !gradle/wrapper/gradle-wrapper.jar
 
 # IDE
