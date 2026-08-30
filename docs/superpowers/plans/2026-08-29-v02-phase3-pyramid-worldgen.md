@@ -943,7 +943,7 @@ git commit -m "test(validation): sanidade de mundo da 1.9 e vetor dourado do wor
 `./cli/build/install/openfoot-cli/bin/openfoot-cli import --install C:/Brasfoot22-23 --out <scratchpad>/base2.json`
 Expected: 703 clubs; countries carry table levels (spot check in the JSON: country 29 level 20 continent 1); `leagues` holds the BRA and ESP entries; NO note about clubs without division.
 - [ ] **Step 3:** `worldgen --dataset <scratchpad>/base2.json --seed 42 --leagues all` and `--leagues BRA`:
-  - with `all`: Bayern's (`bayern_ale` or similar ref) best player and Real Madrid's best player within a handful of points of each other; German clubs carry `div` markers.
+  - with `all`: Bayern's (`bayern_ale` or similar ref) best player and Real Madrid's best player within a handful of points of each other. CORRECTION (post-acceptance): the original expectation here said German clubs would carry `div` markers, but the shipped installation has only 8 German team files, below the 16-club candidate threshold of section 1.9, so German clubs correctly render `rep` even under `all`. Only BRA (196 files) and ESP (46) reach their thresholds in the distributed data. Do not "fix" the `rep` rendering against this stale expectation.
   - with `BRA` only: German clubs appear with `rep` marking and only the top 15 German clubs exist; Brazilian clubs carry `div 1..4` (or as many divisions as fit).
   - Same command twice: byte-identical output (`diff`).
 - [ ] **Step 4:** Report the observed numbers in the completion report. Delete nothing from the repo; the scratchpad dataset stays out of git.
