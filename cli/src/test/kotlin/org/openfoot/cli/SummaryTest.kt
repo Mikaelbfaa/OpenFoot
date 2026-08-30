@@ -84,4 +84,26 @@ class SummaryTest {
             summarise(generateWorld(dataset(listOf("dois", "um")), 42)),
         )
     }
+
+    @Test
+    fun `a club too few to fill a division prints the reputation path`() {
+        val world = generateWorld(dataset(listOf("um", "dois")), 42)
+        val best = world.club("um")!!.squad.maxByOrNull { it.strength }
+        assertEquals(
+            "  um  level 18  rep  players 3  best ${best?.strength ?: 0} ${best?.name.orEmpty()}",
+            summarise(world).lineSequence().first { it.trim().startsWith("um ") },
+        )
+    }
+
+    @Test
+    fun `a club large enough to fill a division prints its division`() {
+        val refs = (1..10).map { "clube$it" }
+        val world = generateWorld(dataset(refs), 42)
+        val target = world.club("clube1")!!
+        val best = target.squad.maxByOrNull { it.strength }
+        assertEquals(
+            "  clube1  level 18  div 1  players 3  best ${best?.strength ?: 0} ${best?.name.orEmpty()}",
+            summarise(world).lineSequence().first { it.trim().startsWith("clube1 ") },
+        )
+    }
 }

@@ -5,10 +5,12 @@ import org.openfoot.dataset.WorldDataset
 import org.openfoot.engine.lineup.Availability
 import org.openfoot.engine.lineup.assembleMatch
 import org.openfoot.engine.match.simulateMatch
+import org.openfoot.engine.world.Standing
 import org.openfoot.engine.world.World
 import org.openfoot.engine.world.generateWorld
 import org.openfoot.importer.InstallationImporter
 import org.openfoot.model.CompetitionKind
+import org.openfoot.model.Country
 import org.openfoot.model.RuleSets
 import org.openfoot.model.SpecRef
 import org.openfoot.model.SplitMix64Rng
@@ -66,8 +68,8 @@ internal fun dispatch(args: Array<String>): Int {
 
 private val USAGE = """
     usage: openfoot-cli import   --install <path> --out <path>
-           openfoot-cli worldgen --dataset <path> --seed <number>
-           openfoot-cli match    --dataset <path> --seed <number> --home <ref> --away <ref>
+           openfoot-cli worldgen --dataset <path> --seed <number> [--leagues BRA,ESP|all]
+           openfoot-cli match    --dataset <path> --seed <number> --home <ref> --away <ref> [--leagues BRA,ESP|all]
 
       import   reads your own installation of the original game and writes a
                dataset. Nothing is copied but numbers, and the files stay put.
@@ -76,6 +78,10 @@ private val USAGE = """
       match    generates a world from a dataset and a seed, then plays one
                match between the two named clubs and prints a report. The
                same dataset, seed and clubs always print the same match.
+
+      --leagues names the countries whose leagues take part, by dataset name,
+               comma separated, or the word all for every one; the default is
+               Brazil alone, the box the original pre ticks at a new game.
 """.trimIndent()
 
 /**
@@ -164,8 +170,9 @@ private fun worldgen(args: List<String>) {
     } catch (failure: Exception) {
         fail("dataset at $path is not usable: ${failure.message}")
     }
+    val activeLeagues = parseLeagues(options["--leagues"], dataset)
 
-    print(summarise(generateWorld(dataset, seed)))
+    print(summarise(generateWorld(dataset, seed, activeLeagues)))
 }
 
 /**
@@ -221,8 +228,9 @@ private fun match(args: List<String>) {
     } catch (failure: Exception) {
         fail("dataset at $path is not usable: ${failure.message}")
     }
+    val activeLeagues = parseLeagues(options["--leagues"], dataset)
 
-    val world = generateWorld(dataset, seed)
+    val world = generateWorld(dataset, seed, activeLeagues)
     val home = world.club(homeRef) ?: fail("no club '$homeRef' in this world")
     val away = world.club(awayRef) ?: fail("no club '$awayRef' in this world")
 
@@ -276,6 +284,25 @@ internal fun parseOptions(args: List<String>): Map<String, String> {
 }
 
 /**
+ * Which countries' leagues this world plays, from the --leagues flag.
+ *
+ * Absent means Brazil, because that is the box the original pre ticks at
+ * new game. Names are the dataset's country names, which the importer
+ * derives from the file suffixes, so BRA and ESP name the shipped leagues.
+ * The word all plays every league the pyramid generator finds eligible.
+ */
+@SpecRef("1.9")
+internal fun parseLeagues(value: String?, dataset: WorldDataset): Set<Int> {
+    if (value == null) return setOf(Country.BRAZIL)
+    if (value == "all") return dataset.countries.map { it.index }.toSet()
+    return value.split(',').map { name ->
+        val trimmed = name.trim().uppercase()
+        dataset.countries.firstOrNull { it.name.uppercase() == trimmed }?.index
+            ?: fail("no country named '$trimmed' in this dataset")
+    }.toSet()
+}
+
+/**
  * A command line mistake: a missing flag, a bad number, a path that is not
  * there. Thrown instead of exiting so every failure path can be exercised by
  * a test; main is the only place that turns it into a process exit.
@@ -310,8 +337,9 @@ internal fun summarise(world: World): String {
 
     for (club in world.clubs.sortedBy { it.entry.ref }) {
         val best = club.squad.maxByOrNull { it.strength }
+        val standing = if (club.standing == Standing.ByReputation) "rep" else "div ${club.division ?: "-"}"
         builder.appendLine(
-            "  ${club.entry.ref}  level ${club.entry.level}  players ${club.squad.size}  " +
+            "  ${club.entry.ref}  level ${club.entry.level}  $standing  players ${club.squad.size}  " +
                 "best ${best?.strength ?: 0} ${best?.name.orEmpty()}",
         )
     }
