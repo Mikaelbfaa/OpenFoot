@@ -70,8 +70,8 @@ object LeagueConfigReader {
 
 /**
  * Turns for a league of a given size, per section 1.3: the formula field of
- * a national league configuration is really the turn count, and it only
- * overrides the default for leagues of ten, twelve or fourteen teams.
+ * a national league configuration is really the turn count, and formula 2
+ * or 3 overrides the default for leagues of ten, twelve or fourteen teams.
  */
 @SpecRef("1.3")
 internal fun resolveTurns(teamCount: Int, formula: Int): Int {
@@ -81,7 +81,7 @@ internal fun resolveTurns(teamCount: Int, formula: Int): Int {
         26, 28, 30, 36 -> 1
         else -> 2
     }
-    return if (teamCount in listOf(10, 12, 14) && formula in 2..4) formula else default
+    return if (teamCount in listOf(10, 12, 14) && formula in 2..3) formula else default
 }
 
 @SpecRef("1.9")

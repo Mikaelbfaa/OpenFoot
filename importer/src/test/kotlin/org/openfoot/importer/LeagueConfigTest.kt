@@ -82,6 +82,23 @@ class LeagueConfigTest {
     }
 
     @Test
+    fun `formula 4 is not an override, a 12 team league keeps the default 3 turns`() {
+        // FORMAT-SPEC's formula field only overrides the default for 10, 12
+        // or 14 team leagues when it is 2 or 3; 4 is not an override, so a
+        // 12 team tier with formula 4 falls through to the default of 3.
+        val entries = LeagueConfigReader.read(
+            bytes(
+                ImportFixtures.Pyramid(
+                    arrayListOf(
+                        ImportFixtures.Tier(pais = 65, divisao = 2, nTimes = 12, formula = 4),
+                    ),
+                ),
+            ),
+        )
+        assertEquals(3, entries.single().turns)
+    }
+
+    @Test
     fun `desempate zero means penalties on and one means off`() {
         val entries = LeagueConfigReader.read(
             bytes(
