@@ -1,25 +1,21 @@
 package org.openfoot.importer
 
-import org.openfoot.dataset.ClubEntry
+import org.openfoot.dataset.LeagueConfigEntry
 import org.openfoot.model.SpecRef
-
-/** One tier of a national league, as its configuration file describes it. */
-data class DivisionShape(
-    val country: Int,
-    val division: Int,
-    val teamCount: Int,
-)
 
 /**
  * Reads a national league configuration file.
  *
- * These files say how a country's pyramid is shaped, not who is in it. There is
- * no team list anywhere in them, which is the whole reason division membership
- * has to be worked out rather than read.
+ * These files say how a country's pyramid is shaped: how many teams per
+ * division, how many relegate, how many turns the schedule runs and whether
+ * knockout ties go to penalties. There is no team list anywhere in them,
+ * and none is derived here either - the pyramid generator of section 1.9
+ * (engine module) is the one place that turns a shape plus a country's clubs
+ * into division membership, first match by (country, division) winning.
  */
 object LeagueConfigReader {
 
-    fun read(bytes: ByteArray): List<DivisionShape> {
+    fun read(bytes: ByteArray): List<LeagueConfigEntry> {
         val root = SerializedStreamReader(bytes).readRoot()
         val tiers = root.records(TIERS)
         require(tiers.isNotEmpty()) {
@@ -28,8 +24,25 @@ object LeagueConfigReader {
         return tiers.mapNotNull { tier ->
             val country = tier.intOrNull(COUNTRY) ?: return@mapNotNull null
             val division = tier.intOrNull(DIVISION) ?: return@mapNotNull null
+            if (division !in 1..LeagueConfigEntry.MAX_DIVISION) return@mapNotNull null
             val teamCount = tier.intOrNull(TEAM_COUNT) ?: return@mapNotNull null
-            if (teamCount <= 0) null else DivisionShape(country, division, teamCount)
+            if (teamCount <= 0) return@mapNotNull null
+
+            val relegated = (tier.intOrNull(RELEGATED) ?: 0).let {
+                if (teamCount <= SMALL_LEAGUE_TEAMS && it > SMALL_LEAGUE_RELEGATED_CAP) {
+                    SMALL_LEAGUE_RELEGATED_CAP
+                } else {
+                    it.coerceIn(0, teamCount)
+                }
+            }
+            LeagueConfigEntry(
+                country = country,
+                division = division,
+                teamCount = teamCount,
+                relegated = relegated,
+                turns = resolveTurns(teamCount, tier.intOrNull(FORMULA) ?: 0),
+                penaltiesTiebreak = (tier.intOrNull(TIEBREAK) ?: 0) == 0,
+            )
         }
     }
 
@@ -44,52 +57,35 @@ object LeagueConfigReader {
 
     @SpecRef("FORMAT-SPEC, configuracoes")
     private const val TEAM_COUNT = "nTimes"
+
+    @SpecRef("FORMAT-SPEC, configuracoes")
+    private const val RELEGATED = "nRebaixados"
+
+    @SpecRef("FORMAT-SPEC, configuracoes")
+    private const val FORMULA = "formula"
+
+    @SpecRef("FORMAT-SPEC, configuracoes")
+    private const val TIEBREAK = "desempate"
 }
 
 /**
- * Works out which division each club plays in.
- *
- * The data files do not say. Team files carry no division and configuration
- * files carry no team list, so membership has to be derived, and the only
- * ordering the data offers is the club level.
- *
- * Sorting a country's clubs by level and filling each tier in turn reproduces
- * the real world exactly where it can be checked: the twenty strongest
- * Brazilian clubs in the distributed data are precisely the twenty that played
- * the 2022 first division, and the next twenty are precisely the second. See
- * OPEN-QUESTIONS item 24, which also records that this is observable in game
- * and therefore settleable by observation rather than argument.
- *
- * Ties are broken by reference. Levels repeat heavily in the lower tiers, so
- * without a tie break the same dataset would produce different pyramids on
- * different runs, and every seed would stop reproducing.
+ * Turns for a league of a given size, per section 1.3: the formula field of
+ * a national league configuration is really the turn count, and it only
+ * overrides the default for leagues of ten, twelve or fourteen teams.
  */
-@SpecRef("4.4")
-fun assignDivisions(clubs: List<ClubEntry>, shapes: List<DivisionShape>): List<ClubEntry> {
-    val tiersByCountry = shapes.groupBy { it.country }
-        .mapValues { (_, tiers) -> tiers.sortedBy { it.division } }
-
-    val assigned = LinkedHashMap<String, Int?>()
-
-    for ((country, tiers) in tiersByCountry) {
-        val ranked = clubs.asSequence()
-            .filter { it.country == country && !it.nationalTeam }
-            .sortedWith(compareByDescending<ClubEntry> { it.level }.thenBy { it.ref })
-            .toList()
-
-        var index = 0
-        for (tier in tiers) {
-            repeat(tier.teamCount) {
-                if (index < ranked.size) {
-                    assigned[ranked[index].ref] = tier.division
-                    index += 1
-                }
-            }
-        }
+@SpecRef("1.3")
+internal fun resolveTurns(teamCount: Int, formula: Int): Int {
+    val default = when (teamCount) {
+        8, 10 -> 4
+        12, 14 -> 3
+        26, 28, 30, 36 -> 1
+        else -> 2
     }
-
-    return clubs.map { club ->
-        val division = assigned[club.ref]
-        if (division == null) club else club.copy(division = division)
-    }
+    return if (teamCount in listOf(10, 12, 14) && formula in 2..4) formula else default
 }
+
+@SpecRef("1.9")
+private const val SMALL_LEAGUE_TEAMS = 10
+
+@SpecRef("1.9")
+private const val SMALL_LEAGUE_RELEGATED_CAP = 2

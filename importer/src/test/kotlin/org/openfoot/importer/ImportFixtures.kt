@@ -48,7 +48,14 @@ object ImportFixtures {
         val l: ArrayList<Squadman>,
     ) : Serializable
 
-    class Tier(val pais: Int, val divisao: Int, val nTimes: Int) : Serializable
+    class Tier(
+        val pais: Int,
+        val divisao: Int,
+        val nTimes: Int,
+        val nRebaixados: Int = 0,
+        val formula: Int = 0,
+        val desempate: Int = 0,
+    ) : Serializable
 
     class Pyramid(val a: ArrayList<Tier>) : Serializable
 

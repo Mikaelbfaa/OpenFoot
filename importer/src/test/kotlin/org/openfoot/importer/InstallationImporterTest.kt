@@ -1,5 +1,6 @@
 package org.openfoot.importer
 
+import org.openfoot.dataset.CountryEntry
 import org.openfoot.importer.ImportFixtures.installation
 import org.openfoot.importer.ImportFixtures.squadman
 import org.openfoot.importer.ImportFixtures.team
@@ -22,8 +23,6 @@ class InstallationImporterTest {
     private fun root(): File = createTempDirectory("openfoot").toFile()
 
     private val brazil = 29
-    private val spain = 65
-    private val angola = 5
 
     @Test
     fun `an installation of one club imports`() {
@@ -35,36 +34,39 @@ class InstallationImporterTest {
     }
 
     @Test
-    fun `a country is rated by the strongest club it holds`() {
+    fun `a country is rated from the embedded table`() {
         val result = InstallationImporter.importFrom(
-            installation(
-                root(),
-                listOf(
-                    team(ref = "grande_bra", country = brazil, level = 19),
-                    team(ref = "pequeno_bra", country = brazil, level = 7),
-                    team(ref = "unico_ang", country = angola, state = 0, level = 12),
-                ),
-            ),
+            installation(root(), listOf(team(ref = "clube_bra"))),
         )
 
-        assertEquals(19, result.dataset.country(brazil)?.level)
-        assertEquals(12, result.dataset.country(angola)?.level)
+        // "clube_bra" carries country 29 by default, Brazil in the table, whose
+        // row is level 20, continent 1 (South America). The club's own level
+        // (18 by default, well below 20) plays no part now that the table
+        // supplies the country level directly.
+        assertEquals(
+            CountryEntry(index = brazil, name = "BRA", level = 20, continent = 1),
+            result.dataset.country(brazil),
+        )
     }
 
     @Test
-    fun `a country holding no club falls back rather than being rated zero`() {
+    fun `a country outside the table falls back rather than being rated zero`() {
+        val outsideTable = 300
         val result = InstallationImporter.importFrom(
             installation(
                 root(),
-                listOf(team(ref = "clube_bra", squad = listOf(squadman(country = spain)))),
+                listOf(team(ref = "clube_bra", squad = listOf(squadman(country = outsideTable)))),
             ),
         )
 
         assertEquals(
             InstallationImporter.UNRATEABLE_COUNTRY_LEVEL,
-            result.dataset.country(spain)?.level,
+            result.dataset.country(outsideTable)?.level,
         )
-        assertTrue(result.notes.any { it.contains("hold no club") }, result.notes.toString())
+        assertTrue(
+            result.notes.any { it.contains("outside the embedded table") },
+            result.notes.toString(),
+        )
     }
 
     @Test
@@ -129,45 +131,33 @@ class InstallationImporterTest {
     }
 
     @Test
-    fun `divisions come from the pyramid when one is configured`() {
+    fun `league configurations reach the dataset`() {
         val result = InstallationImporter.importFrom(
             installation(
                 root(),
-                listOf(
-                    team(ref = "forte_bra", level = 19),
-                    team(ref = "fraco_bra", level = 8),
-                ),
+                listOf(team(ref = "forte_bra", level = 19), team(ref = "fraco_bra", level = 8)),
                 pyramids = listOf(
                     ImportFixtures.Pyramid(
                         arrayListOf(
-                            ImportFixtures.Tier(brazil, 1, 1),
-                            ImportFixtures.Tier(brazil, 2, 1),
+                            ImportFixtures.Tier(pais = brazil, divisao = 1, nTimes = 18),
+                            ImportFixtures.Tier(pais = brazil, divisao = 2, nTimes = 18),
                         ),
                     ),
                 ),
             ),
         )
 
-        assertEquals(1, result.dataset.clubs.single { it.ref == "forte_bra" }.division)
-        assertEquals(2, result.dataset.clubs.single { it.ref == "fraco_bra" }.division)
+        assertTrue(result.dataset.leagues.isNotEmpty(), result.dataset.leagues.toString())
+        val first = result.dataset.leagues.first()
+        assertEquals(brazil, first.country)
+        assertEquals(1, first.division)
     }
 
     @Test
-    fun `no pyramid at all is reported rather than left to be noticed`() {
+    fun `no pyramid at all is only informational, since the pyramid generator has embedded defaults`() {
         val result = InstallationImporter.importFrom(installation(root(), listOf(team())))
-        assertTrue(
-            result.notes.any { it.contains("no league configuration") },
-            result.notes.toString(),
-        )
-    }
-
-    @Test
-    fun `the no-division note states generation, growth and decline`() {
-        val result = InstallationImporter.importFrom(installation(root(), listOf(team())))
-        val note = result.notes.single { it.contains("no division") }
-        assertTrue(note.contains("one against twenty"), note)
-        assertTrue(note.contains("ceiling of 30"), note)
-        assertTrue(note.contains("floor of 1"), note)
+        val note = result.notes.single { it.contains("no league configuration") }
+        assertTrue(note.contains("embedded defaults of section 1.9"), note)
     }
 
     @Test
