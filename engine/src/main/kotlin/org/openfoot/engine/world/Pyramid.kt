@@ -1,6 +1,7 @@
 package org.openfoot.engine.world
 
 import org.openfoot.dataset.ClubEntry
+import org.openfoot.dataset.LeagueConfigEntry
 import org.openfoot.dataset.WorldDataset
 import org.openfoot.model.Rng
 import org.openfoot.model.SpecRef
@@ -76,7 +77,7 @@ private fun assignDivisions(
     standings: LinkedHashMap<String, Standing>,
 ) {
     var index = 0
-    for (division in 1..MAX_DIVISIONS) {
+    for (division in 1..LeagueConfigEntry.MAX_DIVISION) {
         val remaining = ranked.size - index
         val configured = dataset.leagues.firstOrNull {
             it.country == country && it.division == division
@@ -109,9 +110,6 @@ private const val CANDIDATE_MINIMUM = 10
 
 @SpecRef("1.9")
 private const val HIGH_CANDIDATE_MINIMUM = 16
-
-@SpecRef("1.9")
-private const val MAX_DIVISIONS = 4
 
 /** Division sizes tried largest first, the default when no configuration fits. */
 @SpecRef("1.9")
