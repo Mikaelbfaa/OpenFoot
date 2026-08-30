@@ -22,10 +22,15 @@ import org.openfoot.model.SpecRef
  * seven draws and cannot be observed when the option is off, because the match
  * engine reads the single strength in that mode and never looks at them. It
  * buys a player who is the same player whichever way the option is set.
+ *
+ * The standing comes from the pyramid of section 1.9, built once per world, and
+ * replaces the dataset's former division field as the source of the bands: a
+ * club stands wherever the pyramid ranked it, not wherever its own entry claims.
  */
 @SpecRef("4")
 internal fun generatePlayer(
     entry: PlayerEntry,
+    standing: Standing,
     club: ClubEntry,
     countryLevel: Int,
     majorLeagueCountry: Boolean,
@@ -33,7 +38,11 @@ internal fun generatePlayer(
     options: DatasetOptions,
     rng: Rng,
 ): Player {
-    val bands = ClubBands.bands(club.division, club.reputation, club.nationalTeam)
+    val bands = when (standing) {
+        is Standing.InDivision -> ClubBands.bands(standing.division, club.reputation)
+        Standing.WithoutDivision -> ClubBands.bands(null, club.reputation)
+        Standing.ByReputation -> ClubBands.bands(null, club.reputation, reputationPath = true)
+    }
     val qualitySeed = ClubBands.qualitySeed(club.level)
 
     val style = playerStyle(entry.position, entry.firstTrait, entry.secondTrait)
@@ -90,7 +99,7 @@ internal fun generatePlayer(
             star = entry.star,
             topWorld = entry.topWorld,
             clubLevel = club.level,
-            division = club.division,
+            division = (standing as? Standing.InDivision)?.division,
             majorLeagueCountry = majorLeagueCountry,
             monthlyWages = options.monthlyWages,
         ),
@@ -120,10 +129,14 @@ internal fun generatePlayer(
  * a default, because the country level scales the strength of every player in
  * it. A player whose own nationality is missing is not: it selects only between
  * star value rungs that need a club level no data file can express.
+ *
+ * The standing comes from the pyramid of section 1.9, built once per world, and
+ * replaces the dataset's former division field as the source of the bands.
  */
 @SpecRef("4")
 fun generateSquad(
     club: ClubEntry,
+    standing: Standing,
     dataset: WorldDataset,
     options: DatasetOptions,
     clubRng: Rng,
@@ -138,6 +151,7 @@ fun generateSquad(
         val nationality = dataset.country(entry.country)
         generatePlayer(
             entry = entry,
+            standing = standing,
             club = club,
             countryLevel = country.level,
             majorLeagueCountry = country.majorLeague,

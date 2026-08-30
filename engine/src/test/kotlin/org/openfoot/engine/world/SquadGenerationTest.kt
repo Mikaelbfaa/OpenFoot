@@ -26,8 +26,8 @@ class SquadGenerationTest {
         val club = WorldFixtures.club()
         val data = WorldFixtures.dataset(listOf(club))
 
-        val first = generateSquad(club, data, options, SplitMix64Rng(42))
-        val second = generateSquad(club, data, options, SplitMix64Rng(42))
+        val first = generateSquad(club, Standing.InDivision(1), data, options, SplitMix64Rng(42))
+        val second = generateSquad(club, Standing.InDivision(1), data, options, SplitMix64Rng(42))
 
         assertEquals(first, second)
     }
@@ -37,8 +37,8 @@ class SquadGenerationTest {
         val club = WorldFixtures.club()
         val data = WorldFixtures.dataset(listOf(club))
 
-        val first = generateSquad(club, data, options, SplitMix64Rng(42))
-        val second = generateSquad(club, data, options, SplitMix64Rng(43))
+        val first = generateSquad(club, Standing.InDivision(1), data, options, SplitMix64Rng(42))
+        val second = generateSquad(club, Standing.InDivision(1), data, options, SplitMix64Rng(43))
 
         assertNotEquals(first, second)
     }
@@ -49,11 +49,12 @@ class SquadGenerationTest {
         val club = WorldFixtures.club(squad = entries)
         val data = WorldFixtures.dataset(listOf(club))
 
-        val whole = generateSquad(club, data, options, SplitMix64Rng(7))
+        val whole = generateSquad(club, Standing.InDivision(1), data, options, SplitMix64Rng(7))
 
         val shortened = WorldFixtures.club(squad = entries.take(3))
         val prefix = generateSquad(
             shortened,
+            Standing.InDivision(1),
             WorldFixtures.dataset(listOf(shortened)),
             options,
             SplitMix64Rng(7),
@@ -65,7 +66,13 @@ class SquadGenerationTest {
     @Test
     fun `every generated player carries seven abilities`() {
         val club = WorldFixtures.club(squad = List(5) { WorldFixtures.player() })
-        val squad = generateSquad(club, WorldFixtures.dataset(listOf(club)), options, SplitMix64Rng(1))
+        val squad = generateSquad(
+            club,
+            Standing.InDivision(1),
+            WorldFixtures.dataset(listOf(club)),
+            options,
+            SplitMix64Rng(1),
+        )
 
         assertEquals(5, squad.size)
         for (player in squad) {
@@ -85,7 +92,13 @@ class SquadGenerationTest {
                 WorldFixtures.player(name = "Reserva", starter = false),
             ),
         )
-        val squad = generateSquad(club, WorldFixtures.dataset(listOf(club)), options, SplitMix64Rng(11))
+        val squad = generateSquad(
+            club,
+            Standing.InDivision(1),
+            WorldFixtures.dataset(listOf(club)),
+            options,
+            SplitMix64Rng(11),
+        )
         assertTrue(
             squad[0].strength > squad[1].strength,
             "a starter takes eight to nine more than a substitute before anything else",
@@ -100,7 +113,13 @@ class SquadGenerationTest {
                 WorldFixtures.player(position = Position.MIDFIELDER, first = org.openfoot.model.Trait.PASSING),
             ),
         )
-        val squad = generateSquad(club, WorldFixtures.dataset(listOf(club)), options, SplitMix64Rng(3))
+        val squad = generateSquad(
+            club,
+            Standing.InDivision(1),
+            WorldFixtures.dataset(listOf(club)),
+            options,
+            SplitMix64Rng(3),
+        )
         assertEquals(PlayerStyle.DEFENSIVE, squad[0].style)
         assertEquals(PlayerStyle.OFFENSIVE, squad[1].style)
     }
@@ -111,7 +130,7 @@ class SquadGenerationTest {
         val data = WorldFixtures.dataset(listOf(club), countries = WorldFixtures.countries)
 
         val failure = assertFailsWith<IllegalArgumentException> {
-            generateSquad(club, data, options, SplitMix64Rng(1))
+            generateSquad(club, Standing.InDivision(1), data, options, SplitMix64Rng(1))
         }
         assertTrue(failure.message.orEmpty().contains("country level"))
     }
@@ -119,7 +138,13 @@ class SquadGenerationTest {
     @Test
     fun `a generated player adapts into a lineup entry the match engine accepts`() {
         val club = WorldFixtures.club(squad = listOf(WorldFixtures.player(position = Position.MIDFIELDER)))
-        val player = generateSquad(club, WorldFixtures.dataset(listOf(club)), options, SplitMix64Rng(5)).single()
+        val player = generateSquad(
+            club,
+            Standing.InDivision(1),
+            WorldFixtures.dataset(listOf(club)),
+            options,
+            SplitMix64Rng(5),
+        ).single()
 
         val entry = player.inSlot(Slot(11), PlayerId(0))
 

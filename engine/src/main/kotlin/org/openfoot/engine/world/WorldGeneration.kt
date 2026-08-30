@@ -2,6 +2,7 @@ package org.openfoot.engine.world
 
 import org.openfoot.dataset.ClubEntry
 import org.openfoot.dataset.WorldDataset
+import org.openfoot.model.Country
 import org.openfoot.model.Designated
 import org.openfoot.model.Rng
 import org.openfoot.model.SeedDomain
@@ -9,14 +10,18 @@ import org.openfoot.model.SpecRef
 import org.openfoot.model.SplitMix64Rng
 
 /**
- * A club, the squad generated for it, and the designations of section 5.6
- * that club stores alongside it.
+ * A club, the standing the pyramid gave it, the squad generated for it, and
+ * the designations of section 5.6 that club stores alongside it.
  */
 data class GeneratedClub(
     val entry: ClubEntry,
+    @property:SpecRef("1.9") val standing: Standing,
     val squad: List<Player>,
     @property:SpecRef("5.6") val designated: Designated,
-)
+) {
+    /** The division standing carries, or null on any other standing. */
+    val division: Int? get() = (standing as? Standing.InDivision)?.division
+}
 
 /**
  * A generated world, and the seed it came from.
@@ -45,16 +50,28 @@ data class World(
  * The options come from the dataset rather than from a parameter. A world built
  * with different options is a different world, so which options were in force is
  * a property of the data and not of the call.
+ *
+ * The active league set defaults to Brazil, because that is the one league the
+ * original pre-ticks at a new game. A club the pyramid does not instantiate is
+ * simply absent from the world, not present in it weakly, so its ref is missing
+ * from World.club rather than mapping to a diminished entry.
  */
 @SpecRef("4")
-fun generateWorld(dataset: WorldDataset, seed: Long): World {
+fun generateWorld(
+    dataset: WorldDataset,
+    seed: Long,
+    activeLeagues: Set<Int> = setOf(Country.BRAZIL),
+): World {
     val worldRng: Rng = SplitMix64Rng(seed).fork(SeedDomain.WORLDGEN)
+    val standings = assemblePyramids(dataset, activeLeagues, worldRng)
 
-    val clubs = dataset.clubs.map { club ->
+    val clubs = dataset.clubs.mapNotNull { club ->
+        val standing = standings[club.ref] ?: return@mapNotNull null
         val clubRng = worldRng.fork(clubKey(club.ref))
-        val squad = generateSquad(club, dataset, dataset.options, clubRng)
+        val squad = generateSquad(club, standing, dataset, dataset.options, clubRng)
         GeneratedClub(
             entry = club,
+            standing = standing,
             squad = squad,
             designated = deriveDesignated(squad, DesignationEnergy.FULL_SQUAD),
         )
