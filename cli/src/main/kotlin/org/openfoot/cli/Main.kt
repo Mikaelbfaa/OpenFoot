@@ -1,6 +1,9 @@
 package org.openfoot.cli
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.openfoot.dataset.WorldDataset
 import org.openfoot.engine.lineup.Availability
 import org.openfoot.engine.lineup.assembleMatch
@@ -160,16 +163,7 @@ private fun worldgen(args: List<String>) {
     val seedText = options["--seed"] ?: fail("worldgen needs --seed <number>")
     val seed = seedText.toLongOrNull() ?: fail("seed '$seedText' is not a number")
 
-    val file = File(path)
-    if (!file.isFile) {
-        fail("no dataset file at $path")
-    }
-
-    val dataset = try {
-        Json.decodeFromString<WorldDataset>(file.readText())
-    } catch (failure: Exception) {
-        fail("dataset at $path is not usable: ${failure.message}")
-    }
+    val dataset = loadDataset(path)
     val activeLeagues = parseLeagues(options["--leagues"], dataset)
 
     print(summarise(generateWorld(dataset, seed, activeLeagues)))
@@ -218,16 +212,7 @@ private fun match(args: List<String>) {
     val awayRef = options["--away"] ?: fail("match needs --away <ref>")
     val seed = seedText.toLongOrNull() ?: fail("seed '$seedText' is not a number")
 
-    val file = File(path)
-    if (!file.isFile) {
-        fail("no dataset file at $path")
-    }
-
-    val dataset = try {
-        Json.decodeFromString<WorldDataset>(file.readText())
-    } catch (failure: Exception) {
-        fail("dataset at $path is not usable: ${failure.message}")
-    }
+    val dataset = loadDataset(path)
     val activeLeagues = parseLeagues(options["--leagues"], dataset)
 
     val world = generateWorld(dataset, seed, activeLeagues)
@@ -252,6 +237,37 @@ private fun match(args: List<String>) {
     )
 
     print(describe(report, homeRef, awayRef))
+}
+
+/**
+ * Reads and decodes a dataset file, checking the schema version before the
+ * strict decode. A version one file still carries the club fields that left
+ * the schema, so the strict decoder would refuse it by unknown key with
+ * advice aimed at library authors. Reading the version first turns that
+ * into the message a person can act on.
+ */
+internal fun loadDataset(path: String): WorldDataset {
+    val file = File(path)
+    if (!file.isFile) {
+        fail("no dataset file at $path")
+    }
+    val text = file.readText()
+    val version = try {
+        Json.parseToJsonElement(text).jsonObject["version"]?.jsonPrimitive?.intOrNull
+    } catch (failure: Exception) {
+        fail("dataset at $path is not usable: ${failure.message}")
+    } ?: WorldDataset.CURRENT_VERSION
+    if (version != WorldDataset.CURRENT_VERSION) {
+        fail(
+            "dataset at $path is version $version, and this build reads version " +
+                "${WorldDataset.CURRENT_VERSION}; re-import the installation to produce a current dataset",
+        )
+    }
+    return try {
+        Json.decodeFromString<WorldDataset>(text)
+    } catch (failure: Exception) {
+        fail("dataset at $path is not usable: ${failure.message}")
+    }
 }
 
 /**
@@ -294,7 +310,7 @@ internal fun parseOptions(args: List<String>): Map<String, String> {
 @SpecRef("1.9")
 internal fun parseLeagues(value: String?, dataset: WorldDataset): Set<Int> {
     if (value == null) return setOf(Country.BRAZIL)
-    if (value == "all") return dataset.countries.map { it.index }.toSet()
+    if (value.trim().uppercase() == "ALL") return dataset.countries.map { it.index }.toSet()
     return value.split(',').map { name ->
         val trimmed = name.trim().uppercase()
         dataset.countries.firstOrNull { it.name.uppercase() == trimmed }?.index

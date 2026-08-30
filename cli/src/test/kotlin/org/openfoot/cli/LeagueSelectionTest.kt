@@ -41,6 +41,11 @@ class LeagueSelectionTest {
     }
 
     @Test
+    fun `the all keyword works in any case`() {
+        assertEquals(setOf(29, 65), parseLeagues("ALL", twoCountryDataset()))
+    }
+
+    @Test
     fun `an unknown name is refused by name`() {
         assertFailsWith<CliError> { parseLeagues("BRA,XYZ", twoCountryDataset()) }
     }
