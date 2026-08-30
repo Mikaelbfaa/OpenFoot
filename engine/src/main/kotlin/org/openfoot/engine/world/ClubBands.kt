@@ -57,21 +57,19 @@ object ClubBands {
     }
 
     /**
-     * The bands for a squad: by reputation for a national team, by division for
-     * everyone else.
+     * The bands for a squad: by reputation on the reputation path, by
+     * division for a club of a country whose league is played.
      *
-     * Only a national team reads reputation. A club whose division is unknown
-     * lands on the weakest pair rather than on the reputation path, because a
-     * missing division is not evidence of standing and treating it as one would
-     * quietly promote every such club.
-     *
-     * A division outside the top three lands on the weakest pair too, which
-     * covers the fourth tier and the division zero of a country with no league
-     * pyramid alike. Reputation below four is indistinguishable here.
+     * The reputation path covers national teams and every club of a country
+     * whose league is not played in this world, per section 1.9. That is why
+     * a Bayern of a world where Germany's league is off still generates a
+     * strong squad: it stands on reputation five, not on the divisionless
+     * row. Reputation zero lands on the weakest pair; OPEN-QUESTIONS item 18
+     * records that the earlier reading of this row was wrong.
      */
     @SpecRef("4.4")
-    fun bands(division: Int?, reputation: Int, nationalTeam: Boolean = false): GenerationBands =
-        if (nationalTeam) nationalTeamBands(reputation) else leagueBands(division)
+    fun bands(division: Int?, reputation: Int, reputationPath: Boolean = false): GenerationBands =
+        if (reputationPath) reputationBands(reputation) else leagueBands(division)
 
     @SpecRef("4.4")
     private fun leagueBands(division: Int?): GenerationBands = when (division) {
@@ -82,10 +80,11 @@ object ClubBands {
     }
 
     @SpecRef("4.4")
-    private fun nationalTeamBands(reputation: Int): GenerationBands = when (reputation) {
+    private fun reputationBands(reputation: Int): GenerationBands = when (reputation) {
         5 -> GenerationBands(strengthBase = 22, abilityBand = 7)
         4 -> GenerationBands(strengthBase = 15, abilityBand = 4)
-        else -> GenerationBands(strengthBase = 5, abilityBand = 1)
+        3, 2, 1 -> GenerationBands(strengthBase = 5, abilityBand = 1)
+        else -> GenerationBands(strengthBase = 1, abilityBand = 1)
     }
 
     /** Levels at or below this map to themselves. */
