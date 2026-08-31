@@ -5,6 +5,7 @@ bin/
 .gradle/
 .gradle-temp/
 .claude/
+CLAUDE.md
 !gradle/wrapper/gradle-wrapper.jar
 
 # IDE
