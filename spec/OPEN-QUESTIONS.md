@@ -2156,3 +2156,22 @@ abertura da tela pelo humano). Um país que tinha jogadores suficientes na cria�
 depois por aposentadoria **não gera avulsos** pela IA, e convoca com o que tem; um país que não
 tinha e ganhou depois, por promoção de juniores, gera assim mesmo, se o teste (b) também falhar. O motor sem interface
 gráfica calcula a marca na criação do mundo e nunca a atualiza, o que reproduz o caminho da IA.
+
+## FORMAT-SPEC - campeonatos estaduais (`.ces`)
+
+### 69. Divisão estadual cujo preset pede mais times do que restam na fila
+
+A carga dos `.ces` (FORMAT-SPEC, "Carga na criação do mundo") só troca o preset de uma divisão pelo
+formato padrão de 6 times quando o `nTimes` do preset é maior que o **total** de times do estado. A
+checagem nunca olha o que **resta** na fila depois das divisões anteriores. Uma divisão 2 com preset
+de 10 times num estado de 20 times (12 na divisão 1, 8 restantes) passa na checagem e recebe só os 8
+que restam, com um formato dimensionado para 10.
+
+**Resolução (CONFIRMADO): o original não trata o caso e falha** ao montar a divisão, porque tenta ler
+mais times da lista do que ela tem. Nenhum arquivo distribuído provoca isso (as divisões 2-4 pedem
+sempre 6, e nenhum estado chega a ter uma divisão 2), então não há comportamento a reproduzir. Para
+o `CLASSIC`, a reimplementação deve rejeitar a configuração na carga (erro claro citando estado e
+divisão) em vez de falhar no meio da criação do mundo; para o `MODERN`, o preset deve ser trocado
+pelo padrão de 6 times quando pedir mais do que resta, que é o que a checagem contra o total
+claramente pretendia. As duas escolhas são INFERIDO quanto à intenção; o fato de o original falhar é
+CONFIRMADO.

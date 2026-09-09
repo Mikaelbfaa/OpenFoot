@@ -124,23 +124,35 @@ SIMULATION-SPEC). Regras de carga:
 
 ### `formula` (campeonatos estaduais - `ConfigEstadualType`) - CONFIRMADO
 
-Índice num preset de estrutura de fase final (rótulos do array `best.aq.sN`, e parâmetros em `best.aq.sL[formula]`). `sL[formula] = [nTimes, nGrupos, nClassificados, flagPlayoff, pernas]`:
+Índice num preset de estrutura do campeonato. O preset é uma linha de cinco números:
+`[nTimes, nGrupos, classificados, doisTurnos, nRebaixados]`. Tudo o que o jogo precisa saber sobre o
+tamanho e a forma do campeonato vem dessa linha; o `.ces` só guarda o índice.
 
-| # | Rótulo | nTimes | nGrupos | Classificados |
-|---|---|---|---|---|
-| 0 | 6 times - padrão | 6 | - | 2 |
-| 1 | 8 times - 4 classificados | 8 | - | 4 |
-| 2 | 10 times - 4 classificados | 10 | - | 4 |
-| 3 | 11 times - 4 classificados | 11 | - | 4 |
-| 4 | 12 times - 4 classificados | 12 | - | 4 |
-| 5 | 12 times - 8 classificados | 12 | - | 8 |
-| 6 | 14 times - 8 classificados | 14 | - | 8 |
-| 7 | 16 times - 4 grupos - SP 2021 | 16 | 4 | (8) |
-| 8 | 16 times - 4 classificados | 16 | - | 4 |
-| 9 | 16 times - 8 classificados | 16 | - | 8 |
-| 10 | 20 times - 4 grupos | 20 | 4 | (8) |
+| # | Rótulo na interface | nTimes | nGrupos | Classificados | doisTurnos | nRebaixados |
+|---|---|---|---|---|---|---|
+| 0 | 6 times - padrão | 6 | 0 | 2 | sim | 2 |
+| 1 | 8 times - 4 classificados | 8 | 0 | 4 | sim | 2 |
+| 2 | 10 times - 4 classificados | 10 | 0 | 4 | não | 2 |
+| 3 | 11 times - 4 classificados | 11 | 0 | 4 | não | 2 |
+| 4 | 12 times - 4 classificados | 12 | 0 | 4 | não | 2 |
+| 5 | 12 times - 8 classificados | 12 | 0 | 8 | não | 2 |
+| 6 | 14 times - 8 classificados | 14 | 0 | 8 | não | 2 |
+| 7 | 16 times - 4 grupos - SP 2021 | 16 | 4 | 2 por grupo (8) | não | 2 |
+| 8 | 16 times - 4 classificados | 16 | 0 | 4 | não | 2 |
+| 9 | 16 times - 8 classificados | 16 | 0 | 8 | não | 2 |
+| 10 | 20 times - 4 grupos | 20 | 4 | 2 por grupo (8) | não | 4 |
 
-Nos dados distribuídos, a divisão 1 usa fórmulas variadas (0,1,2,4,7 conforme o estado) e as divisões 2/3/4 usam sempre `formula=0` (pontos corridos simples).
+"Classificados" é quantos times saem da primeira fase para o mata-mata; nos presets com grupos é por
+grupo. "doisTurnos" diz se a primeira fase tem dois turnos (só nos formatos de 6 e 8 times) ou um.
+"nRebaixados" é o número de rebaixados **efetivamente usado pelo jogo** (ver seção `.ces` abaixo: o
+campo `nRebaixados` do arquivo é ignorado).
+
+Nos dados distribuídos, a divisão 1 usa fórmulas variadas (0,1,2,4,7 conforme o estado) e as divisões
+2/3/4 usam sempre `formula=0`.
+
+> **Correção:** versões anteriores desta spec descreviam a quarta e a quinta coluna do preset como
+> "flag de playoff" e "pernas". Não são: a quarta é o número de turnos da primeira fase e a quinta é
+> o número de rebaixados. As pernas do mata-mata vêm de `finaisIdaVolta`.
 
 ### `desempate` - CONFIRMADO (corrigido)
 
@@ -164,9 +176,229 @@ ligas pequenas. Turnos padrão por tamanho: 8 times -> 4, 10 -> 4, 12 -> 3, 14 -
 (ESP divisão 3: 10 times, `formula=4` -> 4 turnos.) Nos `.ces` estaduais, `formula` continua sendo o
 índice de preset de fase final da tabela acima.
 
-### `finaisIdaVolta` (estaduais)
+### `finaisIdaVolta` (estaduais) - CONFIRMADO (corrigido)
 
-Array de 3 ints (semifinal, quartas?, final - índices 0-2 selecionados na UI +1). Valor por posição: 1 = jogo único, 2 = ida e volta.
+Array de exatamente 3 ints. A posição é a **rodada do mata-mata, contada da primeira rodada disputada
+até a final**, e qual rodada cada posição representa depende de quantos times o preset manda ao
+mata-mata: com 2 classificados só a posição 0 conta (final); com 4, posição 0 = semifinal e 1 = final;
+com 8, posição 0 = quartas, 1 = semifinal e 2 = final. Valor `2` = ida e volta; **qualquer outro
+valor** (o `1` gravado pelo editor, ou o `0` que aparece no RJ) = jogo único. As posições além da
+final não são lidas. Detalhes na seção seguinte.
+
+> **Correção:** versões anteriores desta spec davam a ordem "semifinal, quartas?, final". A ordem é
+> crescente por rodada, e a rodada de cada posição muda com o tamanho do mata-mata.
+
+## Campeonatos estaduais - `.ces`
+
+Esta seção descreve o formato com precisão suficiente para escrever um leitor sem ver os arquivos.
+Tudo aqui é **CONFIRMADO**: a estrutura e os valores foram lidos dos 25 arquivos distribuídos (marcado
+"lido dos arquivos distribuídos" onde essa é a única fonte) e as regras de carga e uso foram lidas da
+lógica do jogo.
+
+### Contêiner e classes
+
+- Um `.ces` é um stream de serialização Java (magic `AC ED 00 05`), sem cabeçalho próprio e **sem
+  campo de versão**: diferente do `.cfg`, não existe `versaoArquivo` no estadual.
+- A raiz é um único objeto `est.ArrayLigaEType` (`serialVersionUID=1`) com **um só campo
+  serializado**, chamado `a`, do tipo `java.util.ArrayList`. Cada elemento da lista é um
+  `est.ConfigEstadualType`.
+- `est.ConfigEstadualType` (`serialVersionUID=1`) tem **seis campos serializados**, na ordem em que a
+  serialização padrão os grava (primitivos em ordem alfabética, depois os campos de objeto):
+  `desempate` (int), `divisao` (int), `formula` (int), `id` (int), `nRebaixados` (int),
+  `finaisIdaVolta` (int[]). Nenhuma das duas classes tem escrita customizada: é serialização de
+  campos pura, e qualquer parser genérico de serialização Java lê o arquivo inteiro.
+- **Uma entrada é uma divisão de um estado.** Lido dos arquivos distribuídos: os 25 arquivos têm
+  **exatamente 4 entradas cada**, divisões 1 a 4 do mesmo estado, nessa ordem, e por isso todos têm o
+  mesmo tamanho (432 bytes). Isso é consequência do editor, que sempre grava as quatro divisões (ver
+  "Editor" abaixo), não uma exigência do leitor: o jogo aceita qualquer número de entradas.
+- Campos que **não existem** no `.ces`, apesar de existirem no `.cfg`: `nTimes`, `nGrupos`,
+  `melhoresTerceiros`, `doisTurnos`, `nPromovidos`, `pais`, `versaoArquivo`. Tamanho, grupos e turnos
+  são derivados do preset de `formula`; "melhores terceiros" e promoção não são configuráveis no
+  estadual.
+
+### Campos da entrada
+
+| Campo | Tipo | Significado | Faixa que o editor grava | Observado nos 25 arquivos |
+|---|---|---|---|---|
+| `id` | int | Estado, índice 0-26 da tabela "Estados brasileiros" (o mesmo índice do campo `b` do time) | 0..26; fora disso o editor grava -1 | sempre igual ao estado do nome do arquivo |
+| `divisao` | int | Número da divisão dentro do estado | qualquer valor até 4 (o editor não rejeita 0 nem negativos); o jogo só consulta 1..4 | 1, 2, 3, 4 (uma de cada por arquivo) |
+| `formula` | int | Índice do preset da tabela de `formula` acima | 0..10; valor 11 ou maior vira 0 | divisão 1: 0, 1, 2, 4 ou 7; divisões 2-4: sempre 0 |
+| `nRebaixados` | int | Número de rebaixados **declarado**. **O jogo nunca lê este campo**: o número de rebaixados usado vem da quinta coluna do preset | 1..4 (outro valor é ignorado e fica o anterior; padrão 2) | sempre 2 |
+| `desempate` | int | 0 = disputa de pênaltis ligada; 1 = desligada (ver seção `desempate`) | 0 ou 1 | sempre 0 |
+| `finaisIdaVolta` | int[3] | Pernas de cada rodada do mata-mata, da primeira rodada à final; 2 = ida e volta, qualquer outro valor = jogo único | cada posição 1 ou 2; o editor só regrava as posições visíveis para o preset | `[2,2,2]` em 97 entradas; SP div 1 `[1,1,2]`; SC div 1 `[2,2,1]`; RJ div 1 `[2,2,0]` |
+
+Valores padrão de uma entrada nova (o que o editor cria para uma divisão sem entrada): `formula=0`,
+`nRebaixados=2`, `desempate=0`, `finaisIdaVolta=[2,2,2]`, `id` e `divisao` da posição no editor.
+
+**O leitor do jogo não valida nada na carga.** As faixas acima são impostas pelo editor ao gravar;
+a desserialização escreve os campos diretamente, então um arquivo editado à mão com `formula` fora
+de 0..10 chega inteiro à criação do mundo e faz o jogo indexar fora da tabela de presets (falha).
+Um leitor de reimplementação deve rejeitar `formula` fora de 0..10 e tratar `id` fora de 0..26 ou
+`divisao` fora de 1..4 como entrada inerte (nunca casa numa consulta).
+
+### Mapa arquivo -> estado
+
+O **nome do arquivo é irrelevante para a carga**: cada entrada carrega o próprio estado em `id`. O
+nome só importa para o editor, que grava um arquivo por estado chamado `<SIGLA>.ces`, com a sigla
+tirada desta tabela (índice 0-26, na mesma ordem da tabela "Estados brasileiros"):
+
+AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO
+
+Lido dos arquivos distribuídos: existem 25 arquivos, e o `id` de todas as entradas de cada um é o
+índice da sigla do nome. **Faltam `PI.ces` (16) e `SE.ces` (24)**; esses dois estados caem no formato
+padrão (ver carga).
+
+### Dados distribuídos por estado (lido dos arquivos distribuídos)
+
+Em todos os 25 arquivos, as entradas das **divisões 2, 3 e 4 são idênticas**: `formula=0`,
+`nRebaixados=2`, `desempate=0`, `finaisIdaVolta=[2,2,2]`. A divisão 1 varia:
+
+| Arquivo | `id` | `formula` | Times | Mata-mata | `finaisIdaVolta` | Pernas resultantes |
+|---|---|---|---|---|---|---|
+| AC | 0 | 1 | 8 | 4 | 2,2,2 | semi ida e volta, final ida e volta |
+| AL | 1 | 1 | 8 | 4 | 2,2,2 | idem |
+| AM | 2 | 1 | 8 | 4 | 2,2,2 | idem |
+| AP | 3 | 1 | 8 | 4 | 2,2,2 | idem |
+| BA | 4 | 2 | 10 | 4 | 2,2,2 | idem |
+| CE | 5 | 2 | 10 | 4 | 2,2,2 | idem |
+| DF | 6 | 1 | 8 | 4 | 2,2,2 | idem |
+| ES | 7 | 1 | 8 | 4 | 2,2,2 | idem |
+| GO | 8 | 4 | 12 | 4 | 2,2,2 | idem |
+| MA | 9 | 1 | 8 | 4 | 2,2,2 | idem |
+| MG | 10 | 4 | 12 | 4 | 2,2,2 | idem |
+| MS | 11 | 1 | 8 | 4 | 2,2,2 | idem |
+| MT | 12 | 2 | 10 | 4 | 2,2,2 | idem |
+| PA | 13 | 1 | 8 | 4 | 2,2,2 | idem |
+| PB | 14 | 0 | 6 | 2 | 2,2,2 | final ida e volta |
+| PE | 15 | 2 | 10 | 4 | 2,2,2 | semi ida e volta, final ida e volta |
+| PR | 17 | 4 | 12 | 4 | 2,2,2 | idem |
+| RJ | 18 | 4 | 12 | 4 | 2,2,0 | idem (a posição 2 não é lida) |
+| RN | 19 | 1 | 8 | 4 | 2,2,2 | idem |
+| RO | 20 | 1 | 8 | 4 | 2,2,2 | idem |
+| RR | 21 | 1 | 8 | 4 | 2,2,2 | idem |
+| RS | 22 | 4 | 12 | 4 | 2,2,2 | idem |
+| SC | 23 | 4 | 12 | 4 | 2,2,1 | semi ida e volta, final jogo único |
+| SP | 25 | 7 | 16 em 4 grupos | 8 | 1,1,2 | quartas jogo único, semi jogo único, final ida e volta |
+| TO | 26 | 1 | 8 | 4 | 2,2,2 | semi ida e volta, final ida e volta |
+
+`desempate=0` e `nRebaixados=2` em todas as 100 entradas.
+
+### Carga na criação do mundo - CONFIRMADO
+
+1. **Quando.** Os estaduais só existem se o país do jogo é o Brasil (29) e a opção `jogaEstadual`
+   de `est.Options` (padrão ligada) está ligada. São montados depois das ligas nacionais do Brasil.
+2. **Leitura.** Todos os arquivos de `conf_estadual/` cuja extensão (sem distinguir maiúsculas) é
+   `.ces` são lidos, na ordem em que o sistema operacional lista o diretório, e as entradas de todos
+   eles são **concatenadas numa lista global única**, como no `.cfg`. Se um arquivo falha ao
+   desserializar, a leitura **para nesse arquivo**: as entradas já lidas ficam, os arquivos ainda não
+   lidos são pulados. Não há validação de faixa na leitura.
+3. **Quais estados ganham campeonato.** Contam-se os times brasileiros (país 29) por estado
+   (índice 0..26; time com estado fora dessa faixa é ignorado). Um estado ganha campeonato se tem
+   **6 ou mais times**. Não existe lista de estados no arquivo: um `.ces` **não cria campeonato**,
+   só configura o de um estado que já é elegível.
+4. **Fila de times do estado.** Os times do estado são ordenados por **nível decrescente**, com
+   empate desfeito pelo mesmo número aleatório por clube usado na montagem das ligas nacionais
+   (seção 1.9 da SIMULATION-SPEC). Seja `T` o total de times do estado.
+5. **Divisões.** Para `divisao` = 1, 2, 3, 4, nessa ordem, **enquanto restarem 6 ou mais times na
+   fila**:
+   - Consulta-se na lista global a **primeira** entrada com `id` igual ao estado e `divisao` igual
+     ao número da divisão. Entradas duplicadas para o mesmo par são ignoradas a partir da segunda;
+     entradas com outros pares nunca são lidas.
+   - **Formato padrão** se não há entrada, **ou** se o `nTimes` do preset da entrada é maior que
+     `T` (o total do estado, **não** o que resta na fila). O padrão é o preset 0 com as opções
+     iniciais: 6 times, sem grupos, 2 classificados, dois turnos, 2 rebaixados, **final ida e volta
+     e pênaltis ligados**. Nesse caso `finaisIdaVolta` e `desempate` da entrada são ignorados mesmo
+     que ela exista.
+   - Senão, o formato vem do preset (`nTimes`, `nGrupos`, classificados, `doisTurnos`,
+     `nRebaixados`) e da entrada (`finaisIdaVolta`, `desempate`). Nos presets 7 e 10 a primeira
+     fase é só de jogos entre grupos diferentes.
+   - A divisão toma os primeiros `nTimes` da fila e os remove. Como a checagem de tamanho é contra
+     `T` e não contra o que resta, uma entrada de divisão 2 ou mais cujo preset pede mais times do
+     que restam na fila não é tratada pelo original (ver item 69 de OPEN-QUESTIONS); com os
+     arquivos distribuídos isso não ocorre, porque as divisões 2-4 pedem 6.
+6. **Grupos reais de SP.** Se a divisão é a 1, o estado é SP (25), o preset é o 7 e a opção
+   `usaGrupoPadraoEstadual` de `est.Options` (checkbox "Usar grupos reais se possível", padrão
+   ligada) está ligada, o jogo procura entre os times do estado, **pela referência de arquivo do
+   time** (campo `d` do `.ban`), esta lista fixa de 16, nesta ordem: corinthians_bra, santoandre_sp,
+   interlimeirasp_bra, botafogosp_bra, saopaulo_bra, ferroviaria_sp, pontepreta_bra, saobento_bra,
+   bragantino_bra, palmeiras, ituano_sp, novorinzontino_sp, miirassol_sp, santos, guaranisp_bra,
+   saocaetano_bra (as duas grafias erradas são as do jogo e dos arquivos de time distribuídos). Se
+   **todos os 16** são encontrados, são eles que formam a divisão 1, independentemente do nível, e
+   os grupos são preenchidos **em sequência** na ordem da lista (4 consecutivos por grupo: A, B, C,
+   D). Se faltar qualquer um, vale a regra geral (16 melhores da fila) e os grupos são distribuídos
+   **em rodízio**: o k-ésimo time da fila vai para o grupo `k mod 4`.
+7. **Sobras.** Quem sobra depois da última divisão criada fica na **reserva do estado** (sem divisão
+   estadual), na ordem da fila. A reserva alimenta a promoção para a última divisão ao fim da
+   temporada.
+8. **Consequência com os dados distribuídos.** Nenhum estado tem times suficientes para uma segunda
+   divisão (o maior é SP, com 19: 16 na divisão 1 e 3 na reserva), então **as 75 entradas de
+   divisões 2-4 nunca são consultadas**. 18 estados têm 6 ou mais times (AL, AM, BA, CE, GO, MA, MG,
+   MT, PA, PB, PE, PR, RJ, RN, RS, SC, SE, SP) e cada um ganha só a divisão 1. SE (sem arquivo) e
+   AM (arquivo pede 8, o estado tem 6) caem no formato padrão de 6 times. Os nove estados sem times
+   suficientes (AC, AP, DF, ES, MS, PI, RO, RR, TO) não têm campeonato, embora oito deles tenham
+   arquivo.
+
+### Editor - CONFIRMADO
+
+O editor do jogo trabalha sobre a mesma lista global. Ao abrir um estado ele reconstrói a lista a
+partir dos arquivos, filtra as entradas daquele `id` e, para cada divisão 1-4, fica com a **última**
+entrada que casa (o carregador fica com a primeira: uma duplicata só é observável se as duas
+divergirem). Divisões sem entrada ganham uma entrada nova com os valores padrão, adicionada à lista
+global. O painel de cada divisão expõe apenas o preset (`formula`), a checkbox de pênaltis
+(`desempate`) e as caixas de pernas visíveis para o preset (só a final; semifinal e final; ou quartas,
+semifinal e final, sendo que os presets 7 e 10 mostram as três). `nRebaixados` não tem controle
+nenhum, o que explica ser 2 em todas as entradas. "Salvar" grava **todas** as entradas da lista
+global com aquele `id` em `<SIGLA>.ces` - daí os quatro registros por arquivo.
+
+### O que a temporada faz com cada campo - CONFIRMADO
+
+**Preset sem grupos (formulas 0-6, 8, 9).** Primeira fase em pontos corridos entre os `nTimes`
+times, em dois turnos quando o preset diz `doisTurnos` (6 e 8 times) e em turno único nos demais,
+classificação pelo critério fixo da seção `desempate`. Os `classificados` primeiros vão ao
+mata-mata, emparelhados pela posição: com 2, a final é 1o x 2o; com 4, semifinais 1o x 4o e 2o x 3o;
+com 8, quartas 2o x 7o, 4o x 5o, 1o x 8o e 3o x 6o, nessa ordem de chave. Nos jogos únicos o melhor
+colocado é o mandante; na rodada de ida e volta o pior colocado recebe a ida e o melhor colocado
+recebe a volta. Os vencedores seguem na ordem da chave (vencedor do 1o confronto x vencedor do 2o,
+e assim por diante) até a final. A regra do gol fora de casa **não** se aplica aos estaduais.
+
+**Preset com grupos (formulas 7 e 10).** Os 16 (ou 20) times formam 4 grupos de 4 (ou 5). Na
+primeira fase cada time joga **uma vez contra cada time dos outros grupos** e nunca contra o próprio
+grupo: um calendário fixo de 12 rodadas de 8 jogos (preset 7) ou 15 rodadas de 10 jogos (preset 10).
+Classifica-se por grupo, com o critério fixo, e os 2 primeiros de cada grupo vão às quartas de final
+**dentro do próprio grupo** (1o do grupo x 2o do grupo, para os grupos A, B, C, D nessa ordem);
+depois as semifinais entre vencedores de A e B e de C e D, e a final. Em jogo único o 1o do grupo é
+mandante; em ida e volta ele recebe a volta. Uma tabela geral com todos os times continua sendo
+mantida ao lado dos grupos, e é ela que decide o rebaixamento.
+
+**Melhores terceiros.** Não é configurável nem ativo em estadual: o carregador deixa a opção
+desligada. Só existe nas ligas do `.cfg`.
+
+**Pernas (`finaisIdaVolta`).** O jogo converte o array em sete booleanos: as posições 0-2 valem
+"ida e volta" quando o inteiro correspondente é exatamente 2, e as posições 3-6 são sempre "ida e
+volta". A rodada `r` do mata-mata (0 = primeira rodada disputada) usa a posição `r`. Como nenhum
+preset estadual manda mais de 8 times ao mata-mata, só as posições 0-2 têm efeito, e num preset de 4
+classificados só a 0 e a 1.
+
+**Rebaixados e promovidos (`nRebaixados` do preset).** Ao fim da temporada, os rebaixados de uma
+divisão são os `nRebaixados` **últimos da tabela geral** da primeira fase (também nos presets com
+grupos: não é por grupo). Os promovidos da divisão de baixo são os `nRebaixados` da divisão de cima
+tirados da sua **lista de mérito**: campeão, vice, depois os eliminados das rodadas anteriores do
+mata-mata em ordem de chave, completando pela tabela geral se faltar. A troca entre duas divisões
+adjacentes só acontece se as duas listas têm o mesmo tamanho (com os presets distribuídos, sempre
+têm). A última divisão troca com a reserva do estado: saem os `min(nRebaixados, tamanho da reserva)`
+últimos e entram os primeiros da reserva; os rebaixados vão para o **fim** da reserva e os promovidos
+saem do **início** (fila). O campo `nRebaixados` do arquivo não participa de nada disso.
+
+**Pênaltis (`desempate`).** Só age no mata-mata. Um confronto está empatado quando, contando cada
+perna como um jogo, nenhum lado venceu mais jogos que o outro e o placar agregado é igual (sem gol
+fora de casa). Com `desempate=0`, o jogo decisivo (o jogo único, ou a volta) vai a uma disputa de
+pênaltis sorteada no fim da partida: cada lado sorteia um número de 2 a 8; se o do mandante é maior ou
+igual ao do visitante, o mandante vence a disputa por `N x N-1`, onde `N` é o número sorteado pelo
+mandante; senão o visitante vence por `N+1 x N`, com o mesmo `N`. Com `desempate=1` não há disputa, e **avança o time listado em segundo
+no confronto**: em ida e volta é quem recebe a volta (o melhor colocado, ou o 1o do grupo); em jogo
+único é o **visitante**, ou seja, o pior colocado. A intenção do original era claramente "vantagem
+do melhor colocado", mas a comparação que decide isso confronta um valor com ele mesmo e cai sempre
+no segundo listado; reproduza o efeito, não a intenção, no conjunto de regras `CLASSIC`.
 
 ## O que ainda falta identificar
 
