@@ -267,4 +267,47 @@ class WorldDatasetTest {
         assertEquals(listOf(sampleLeague()), decoded.leagues)
         assertEquals(emptyList(), dataset().leagues)
     }
+
+    private fun sampleState(
+        state: Int = 25,
+        division: Int = 1,
+        preset: Int = 7,
+        penaltiesTiebreak: Boolean = true,
+        twoLeggedRounds: List<Boolean> = listOf(false, false, true),
+    ) = StateChampionshipEntry(
+        state = state,
+        division = division,
+        preset = preset,
+        penaltiesTiebreak = penaltiesTiebreak,
+        twoLeggedRounds = twoLeggedRounds,
+    )
+
+    @Test
+    fun `a state championship entry validates its ranges`() {
+        val entry = sampleState()
+        assertEquals(7, entry.preset)
+        assertFailsWith<IllegalArgumentException> { entry.copy(state = -1) }
+        assertFailsWith<IllegalArgumentException> { entry.copy(state = 27) }
+        assertFailsWith<IllegalArgumentException> { entry.copy(division = 0) }
+        assertFailsWith<IllegalArgumentException> { entry.copy(division = 5) }
+        assertFailsWith<IllegalArgumentException> { entry.copy(preset = -1) }
+        assertFailsWith<IllegalArgumentException> { entry.copy(preset = 11) }
+        assertFailsWith<IllegalArgumentException> { entry.copy(twoLeggedRounds = listOf(true, true)) }
+    }
+
+    @Test
+    fun `state championships survive a round trip and default to none`() {
+        val original = dataset().copy(stateChampionships = listOf(sampleState()))
+        val encoded = Json.encodeToString(original)
+        val decoded = Json.decodeFromString<WorldDataset>(encoded)
+        assertEquals(listOf(sampleState()), decoded.stateChampionships)
+        assertEquals(emptyList(), dataset().stateChampionships)
+    }
+
+    @Test
+    fun `the state options default to what the original ships with`() {
+        val options = DatasetOptions()
+        assertTrue(options.playStateChampionships)
+        assertTrue(options.realStateGroups)
+    }
 }

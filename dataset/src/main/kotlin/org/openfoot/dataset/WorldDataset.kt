@@ -31,6 +31,7 @@ data class WorldDataset(
     val countries: List<CountryEntry>,
     val clubs: List<ClubEntry>,
     val leagues: List<LeagueConfigEntry> = emptyList(),
+    val stateChampionships: List<StateChampionshipEntry> = emptyList(),
 ) {
     init {
         require(version == CURRENT_VERSION) {
@@ -78,12 +79,19 @@ data class WorldDataset(
  *
  * These are read from the installation rather than chosen, because a world built
  * with different options is a different world and a dataset should say which one
- * it describes. Both defaults are what the original ships with.
+ * it describes. Every default is what the original ships with.
+ *
+ * The two state championship flags are carried for the season that will read
+ * them: whether Brazil's state championships are played at all, and whether
+ * the Sao Paulo first division uses the real groups of FORMAT-SPEC's load rule
+ * six when every listed club is present. Nothing in v0.2 consults either.
  */
 @Serializable
 data class DatasetOptions(
     @property:SpecRef("FORMAT-SPEC, habilidadeIndividual") val individualAbilities: Boolean = false,
     @property:SpecRef("4.8") val monthlyWages: Boolean = true,
+    @property:SpecRef("FORMAT-SPEC, ces") val playStateChampionships: Boolean = true,
+    @property:SpecRef("FORMAT-SPEC, ces") val realStateGroups: Boolean = true,
 )
 
 /**
@@ -281,5 +289,64 @@ data class LeagueConfigEntry(
 
         @SpecRef("1.3")
         const val MAX_TURNS = 4
+    }
+}
+
+/**
+ * One configured division of a Brazilian state championship, read from the
+ * state configuration files of FORMAT-SPEC.
+ *
+ * The shape of the championship is not stored here because the file does not
+ * store it either: a preset index selects the size, the groups, the number of
+ * qualifiers, the turn count and the relegated count from the eleven row table
+ * of FORMAT-SPEC's formula section. The season that builds the championship
+ * expands the preset; this entry only carries what the file said.
+ *
+ * Only the fields the game reads are kept. The file also stores a relegated
+ * count, and FORMAT-SPEC is explicit that nothing ever reads it, the preset's
+ * own count winning, so carrying it would only invite a reader to trust it.
+ *
+ * As with LeagueConfigEntry, order is preserved and duplicates are legal: the
+ * loader takes the first entry matching a state and division and never reaches
+ * a later one, exactly as the original's concatenated list behaves.
+ */
+@Serializable
+data class StateChampionshipEntry(
+    @property:SpecRef("FORMAT-SPEC, ces") val state: Int,
+    @property:SpecRef("FORMAT-SPEC, ces") val division: Int,
+    @property:SpecRef("FORMAT-SPEC, formula") val preset: Int,
+    @property:SpecRef("FORMAT-SPEC, desempate") val penaltiesTiebreak: Boolean,
+    @property:SpecRef("FORMAT-SPEC, finaisIdaVolta") val twoLeggedRounds: List<Boolean>,
+) {
+    init {
+        require(state in ClubEntry.STATE_RANGE) {
+            "state championship for state $state, outside ${ClubEntry.STATE_RANGE}"
+        }
+        require(division in 1..LeagueConfigEntry.MAX_DIVISION) {
+            "state championship division $division, and the loader consults 1 to " +
+                "${LeagueConfigEntry.MAX_DIVISION}"
+        }
+        require(preset in PRESET_RANGE) {
+            "state championship preset $preset for state $state division $division, outside $PRESET_RANGE"
+        }
+        require(twoLeggedRounds.size == KNOCKOUT_ROUNDS) {
+            "state championship legs for state $state division $division list " +
+                "${twoLeggedRounds.size} rounds, and the file always carries $KNOCKOUT_ROUNDS"
+        }
+    }
+
+    companion object {
+        /** The eleven presets of FORMAT-SPEC's formula table, indexed zero to ten. */
+        @SpecRef("FORMAT-SPEC, formula")
+        val PRESET_RANGE = 0..10
+
+        /**
+         * The legs array is exactly three long, one flag per knockout round
+         * from the first round played to the final; no preset sends more than
+         * eight clubs to the knockout, so three rounds is the most any of them
+         * plays.
+         */
+        @SpecRef("FORMAT-SPEC, finaisIdaVolta")
+        const val KNOCKOUT_ROUNDS = 3
     }
 }
