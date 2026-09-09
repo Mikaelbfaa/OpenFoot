@@ -854,6 +854,19 @@ Desarme -> Des `+B+rnd(3)`; Drible -> Tec `+B+rnd(3)`; Finalização -> Fin `+B+
 Marcação -> Des `+B+rnd(5)`; Passe -> Pas `+B+rnd(2)`; Resistência -> Des `+3+rnd(3)`;
 Velocidade -> Vel `+A+rnd(3)`. (Atacantes recebem **A** em vez de B em Armação e Passe.)
 
+**Bônus de goleiro** CONFIRMADO - a lista acima é só de linha. O goleiro tem bônus próprio, e nele
+**c1 e c2 são testadas separadamente** (não vale o "qualquer das duas"): c1 em {Colocação, Saída
+Gol} -> Tec `+2+rnd(5)`; c2 em {Colocação, Saída Gol} -> Tec `+rnd(2)`; c1 = Reflexo -> Vel
+`+2+rnd(5)`; c2 = Reflexo -> Vel `+rnd(2)`; c1 = Defesa Penalty -> Gol `+1+rnd(3)`;
+c2 = Defesa Penalty -> Gol `+rnd(2)`. Um goleiro com Colocação e Saída Gol soma os dois termos de
+Tec.
+
+**O gerador lê estilo e características como estão gravados no momento da chamada** CONFIRMADO.
+As linhas de lateral e meia escolhem a fórmula pelo `ex` da 4.3 já guardado no jogador, e os bônus
+leem c1 e c2 já guardadas. Quem chama o gerador antes de gravar estilo e características (o
+complemento sintético da 4.12) recebe as fórmulas do estilo 0 e o bônus do índice 0 - ver o passo 5
+dos jogadores avulsos na 4.12 e o item 65 de OPEN-QUESTIONS.
+
 **Consequência de design a preservar:** só o **atributo primário** (Gol para goleiros, Des para
 zagueiros/laterais defensivos/volantes, Arm para armadores, Fin para atacantes) deriva da força do
 próprio jogador. Todos os secundários derivam da **qualidade do clube** - logo são quase
@@ -891,8 +904,12 @@ escala por país (nível do país do CLUBE):
    senão, se nívelClube < 10: <3 -> x0.50 ; <5 -> x0.60 ; senão x0.70
 teto 100 ; contrato = 210 + rnd(30) dias
 ```
-Elenco inicial montado com **3 GOL, 4 LAT, 4 ZAG, 5 MEI, 4 ATA**, `força = nívelMapeado - 5 + rnd(8)`,
-talento `es = 7 + rnd(4)`, idade `18 + rnd(12)`, contrato 180 dias.
+**Não existe elenco sintético de clube** CONFIRMADO. O parágrafo que aqui descrevia um "elenco
+inicial" de 3 GOL, 4 LAT, 4 ZAG, 5 MEI e 4 ATA com `força = nívelMapeado - 5 + rnd(8)`, talento
+`es = 7 + rnd(4)`, idade `18 + rnd(12)` e contrato de 180 dias é o **gerador de jogadores avulsos
+da seleção**, e só a convocação da 4.12 o chama. Um clube que chega sem elenco não recebe elenco
+nenhum. A descrição completa, sorteio a sorteio, está na 4.12 ("Jogadores avulsos"); fecha o item
+12 de OPEN-QUESTIONS.
 
 ### 4.4.1 Tabela de países: continente e nível CONFIRMADO
 
@@ -973,6 +990,32 @@ mas o topo real tem sete. No nível 19: BEL, CRO, HOL, MEX, POR, URU.
 FRA, ING, ITA} - o índice da Inglaterra é **97**, como o item 21 de OPEN-QUESTIONS inferiu. É essa
 lista que a 4.8 (salário) e o teto de país da 4.5 consultam. Não confundir com a lista de limiar de
 liga da 1.9, que troca a Espanha pela Argentina.
+
+### 4.4.2 Sorteio de características por posição CONFIRMADO
+
+Onde a spec diz "características sorteadas por posição" (juniores da 4.6, jogadores avulsos da
+4.12 e as telas de edição manual de jogador), o sorteio é **um único `rnd(n)` sobre uma tabela de
+pares (c1, c2) da posição**, com n = número de linhas da tabela. As duas características **não**
+são sorteadas separadamente: saem juntas de uma linha, na ordem em que a linha as lista (a
+primeira é c1, a segunda é c2). Nenhuma linha repete a mesma característica nas duas casas; uma
+linha repetida na tabela é a forma de dar peso maior àquele par. Índices como na FORMAT-SPEC
+(0 Colocação, 1 Defesa Penalty, 2 Reflexo, 3 Saída Gol, 4 Armação, 5 Cabeceio, 6 Cruzamento,
+7 Desarme, 8 Drible, 9 Finalização, 10 Marcação, 11 Passe, 12 Resistência, 13 Velocidade).
+
+| Posição | n | Linhas (c1, c2), na ordem da tabela |
+|---|---|---|
+| GOL | 6 | (0,3) (0,1) (2,0) (1,2) (3,1) (0,2) |
+| LAT | 7 | (6,10) (6,13) (10,11) (10,13) (10,6) (10,9) (6,11) |
+| ZAG | 12 | (7,10) (7,12) (7,5) (10,13) (7,13) (7,10) (7,5) (7,13) (7,12) (7,9) (7,10) (5,12) |
+| MEI | 19 | (4,11) (4,9) (9,11) (11,9) (4,8) (4,13) (7,10) (7,11) (7,5) (7,13) (10,13) (10,11) (9,4) (10,12) (4,11) (8,11) (7,9) (11,13) (7,11) |
+| ATA | 12 | (9,5) (13,9) (9,5) (8,9) (9,13) (9,5) (9,8) (5,13) (8,11) (9,11) (9,12) (13,8) |
+
+Lido junto com a 4.3, o sorteio fixa a proporção de estilos dos jogadores gerados: um lateral
+sai ofensivo (`ex = 1`) em 3 das 7 linhas (as de c1 = Cruzamento) e defensivo nas outras 4; um
+meia sai volante (`ex = 0`) em 9 das 19 linhas (as de c1 em {Desarme, Marcação}) e armador nas
+outras 10; um atacante sai ponta (`ex = 2`) em 4 das 12 linhas (c1 em {Drible, Velocidade}) e
+centroavante nas outras 8. Nenhuma linha de ATA começa por Desarme ou Marcação, logo um atacante
+gerado nunca tem `ex = 0`.
 
 ## 4.5 Evolução semanal (todo domingo)
 
@@ -1205,34 +1248,148 @@ jogadores, e há chance de **virar treinador** (1/25 a 1/125 conforme divisão; 
 imagens (escudos e camisas). A seleção é um objeto de time criado **sob demanda** quando uma
 competição precisa dela, e o elenco é **convocado** dos jogadores que já existem no mundo.
 
-**O time.** Criado com o nível do país (tabela da 4.4.1), cores de camisa embutidas na mesma tabela
-de países, e **reputação derivada do nível do país**:
+**O time.** Criado com o nome e o nível do país (tabela da 4.4.1), cores de camisa embutidas na
+mesma tabela de países, e **reputação derivada do nível do país**:
 `>= 20 -> 5 ; 19 -> 4 ; 17-18 -> 3 ; 15-16 -> 2 ; senão 1`.
-É essa reputação que a força de criação da 4.4 (caminho de reputação) e a escala de competição da
-3.3 leem para jogos de seleção.
+O objeto nasce **sem técnico e sem elenco** (os dois chegam na convocação), marcado como seleção,
+sem estádio e sem arquivo de origem. É essa reputação que a escala de competição da
+3.3 lê em jogo de seleção, e o teste da 3.3 é por **nacionalidade**, não por pertencer ao elenco:
+um jogador cuja nacionalidade é o país do mandante é escalado pela reputação do mandante; senão,
+se a nacionalidade é o país do visitante, pela reputação do visitante; senão fica sem escala. Como
+o pool da convocação é filtrado pela nacionalidade, **todo convocado recebe a escala da própria
+seleção**. A seleção nunca é dona de jogador: cada convocado continua sendo do seu clube, e os
+avulsos não têm clube; por isso nenhum caminho da 4.4 roda com uma seleção no papel de clube (a
+seleção não carrega jogadores de arquivo nem promove base).
 
-**A convocação** monta uma lista de 23 assim:
+**Quando acontece.** A convocação da IA roda quando uma competição de seleções precisa do time; a
+do time humano roda pela tela de convocação. As duas chamam a mesma rotina, que começa
+**esvaziando o elenco anterior** e, se o time não é humano e está sem técnico (ou se a competição
+pedir a troca), escolhe o técnico (abaixo).
 
-1. **Pool**: todos os jogadores do mundo com a nacionalidade do país que têm clube, mais os
-   jogadores avulsos daquela nacionalidade (piscina de agentes livres nacionais, abaixo).
-2. **Complemento sintético**: se o país não tem jogadores de verdade suficientes, o jogo gera
-   **20 jogadores avulsos** da nacionalidade - 3 GOL, 4 LAT, 4 ZAG, 5 MEI, 4 ATA. "Suficientes"
-   são dois testes quase iguais, e os dois precisam falhar: **15 de linha e 2 goleiros** contando
-   só jogadores com clube, e **16 de linha e 2 goleiros** contando também os avulsos. Cada
-   jogador gerado sai com
-   `força = nívelMapeado(nívelPaís) - 5 + rnd(8)`, idade `18 + rnd(12)`, talento `es = 7 + rnd(4)`,
-   lado `rnd(2)`, características sorteadas por posição, contrato 180 dias, nome gerado por país.
-   Eles entram na piscina de avulsos e **persistem** (podem ser convocados de novo e contratados).
-3. **Ordenação**: o pool é ordenado por **força decrescente**; empate favorece o jogador estrela.
-4. **Cotas**, preenchidas na ordem do pool (D = lado direito, E = esquerdo):
-   `GOL 3 ; LAT 2D + 2E ; ZAG 2D + 2E ; MEI ofensivo 2D + 3E ; volante 2D + 1E ; ATA 2D + 2E`
-   (3 + 4 + 4 + 5 + 3 + 4 = 23; o meia conta pela posição MEI e pelo estilo da 4.3).
-5. **Preenchimento final**: com menos de 23 no pool, completa por posição ignorando lado e estilo,
-   e depois com quem sobrar.
+**A convocação** monta a lista assim:
 
-**Técnico da seleção**: escolhido entre os técnicos desempregados, preferindo o da mesma
-nacionalidade com reputação 5, depois 4; depois qualquer nacionalidade com reputação 5, depois 4;
-depois compatriota de reputação 3, depois qualquer um de reputação 3.
+1. **Complemento sintético**, antes de montar o pool. O jogo gera **20 jogadores avulsos** da
+   nacionalidade se dois testes falharem: (a) **15 de linha e 2 goleiros** contando só a lista
+   mundial de jogadores (os que vieram de arquivo ou subiram da base; a piscina de avulsos não
+   conta, nem mesmo um avulso que já foi contratado por clube), e (b) **16 de linha e 2
+   goleiros** contando a lista mundial mais a piscina de avulsos. O teste (a) é uma **marca
+   guardada no país**, calculada na criação do mundo e recalculada só quando o humano abre a tela
+   de convocação; o teste (b) é calculado na hora. A tela do humano aplica só o teste (b). A
+   geração acontece a cada convocação em que os testes falham; como uma leva de 20 já satisfaz
+   (b) sozinha (17 de linha e 3 goleiros), na prática cada país gera **uma leva só**. Os gerados
+   entram na piscina de avulsos e **persistem**: a piscina nunca é podada, um avulso contratado
+   por clube continua nela (e é enumerado por ela, não pela lista mundial), e o que passa dos 35
+   anos é reciclado como diz a 4.11. Como cada um é gerado: "Jogadores avulsos", abaixo.
+2. **Pool**: primeiro, na ordem da lista mundial de jogadores, os que têm a nacionalidade do país
+   **e têm clube**; depois, na ordem de criação, todos os da piscina de avulsos com a
+   nacionalidade, com ou sem clube. A lista mundial está na ordem em que os clubes foram
+   carregados e, dentro de cada clube, na ordem do elenco no arquivo; promovidos da base entram
+   no fim, na ordem da promoção; aposentados saem dela.
+3. **Ordenação**: **força guardada** decrescente (a da 4.4/4.5, não a efetiva da 3.3: energia,
+   slot, escala de competição e atributos individuais não entram); empate favorece o jogador
+   **estrela** (a comum da 4.10; topMundial não é lido, exceto por implicar estrela na entrada);
+   empate completo mantém a ordem do pool, porque a ordenação é **estável**. Ver item 67 de
+   OPEN-QUESTIONS sobre essa ordem no motor.
+4. **Cotas**, percorrendo o pool ordenado uma única vez; cada jogador entra se a cota da sua
+   célula ainda tem vaga, senão é **pulado** (a vaga fica aberta e só o passo 5 pode preenchê-la).
+   Células, com D = lado 0 (direita) e E = lado 1 (esquerda), estilo pela 4.3:
+   `GOL 3 (sem lado) ; LAT 2D + 2E ; ZAG 2D + 2E ; MEI armador (ex = 1) 2D + 3E ;
+   MEI volante (ex = 0) 2D + 1E ; ATA 2D + 2E`
+   (3 + 4 + 4 + 5 + 3 + 4 = 23). O estilo do atacante **não é lido**: centroavante (ex = 1) e
+   ponta (ex = 2) disputam a mesma cota de ATA.
+5. **Preenchimento final**, executado **só se o pool inteiro tem menos de 23 jogadores**: a
+   condição lê o tamanho do pool, não o da lista montada. Primeiro, para cada célula na ordem
+   GOL, LAT, ZAG, MEI armador, ATA, MEI volante, se a cota da célula não foi esgotada, entram
+   **todos** os jogadores do pool daquela posição que ainda não estão na lista, ignorando lado e
+   estilo e sem limite de quantidade; depois entram todos os que sobraram, na ordem do pool. O
+   resultado líquido é que **o pool inteiro é convocado**. O passo não completa até 23 nem até a
+   cota: com pool de 20 (só os avulsos) a lista fica com 20. Corolário: com 23 ou mais no pool
+   mas alguma célula sem candidato (um país sem lateral de lado 1, por exemplo), a lista fica
+   **com menos de 23** e ninguém a completa. Ver item 64 de OPEN-QUESTIONS.
+6. **Ordem final e designações**: a lista é ordenada por posição crescente (GOL, LAT, ZAG, MEI,
+   ATA), depois estilo crescente (volante antes de armador; centroavante antes de ponta), depois
+   força decrescente, depois estrela na frente, e vira o elenco da seleção. Em seguida cobrador
+   de escanteio e "falso 9" são **zerados**, e batedor de falta/pênalti e capitão são
+   **recalculados** pelas regras da 5.6 sobre os convocados: o batedor pela ordem força desc,
+   energia desc (primeiro titular por atributo cuja 1ª característica é Finalização, senão
+   primeiro titular de linha, senão primeiro jogador de linha), o capitão por força desc, idade
+   desc. As duas rotinas reordenam o elenco no lugar e a do capitão roda por último, logo o
+   elenco guardado fica em **força desc, idade desc** (estável sobre a ordem anterior). O
+   "titular" é o atributo de dado que o convocado traz do clube; os avulsos nascem com status 0.
+
+**Jogadores avulsos (o complemento sintético).** São criados na ordem **3 GOL, 4 LAT, 4 ZAG,
+5 MEI, 4 ATA** (posição por posição, na ordem da tabela de posições), e cada jogador é construído
+nesta sequência, com estes sorteios:
+
+1. **Nacionalidade** = o país da seleção, e **nome** gerado por país (mecanismo abaixo). O jogador
+   é acrescentado à piscina de avulsos já aqui, antes de qualquer outro campo.
+2. **Posição** da vez.
+3. **Força** = `nívelMapeado(nívelPaís) - 5 + rnd(8)`, com o nível do país passado pela **mesma
+   tabela de nível mapeado da 4.4** (<= 15 -> o próprio; 16 -> 17; 17 -> 18; 18 -> 19; 19 -> 21;
+   20 -> 25; 21 a 25 -> 26 a 30; acima de 25 daria 0, mas a 4.4.1 vai só até 20). Sem escala por
+   país e sem teto: o intervalo é `[nívelMapeado - 5, nívelMapeado + 2]`, ou seja 20 a 27 para um
+   país de nível 20 e 6 a 13 para um de nível 11.
+4. Marca de júnior desligada; **temporada de chegada = temporada atual**; um campo auxiliar de
+   média, sem leitor conhecido, zerado; **contrato de 180 dias** a partir da data da rodada atual.
+5. **Atributos individuais** (só com a opção ligada), pelo gerador da 4.2 com
+   `A = nívelMapeado(nívelPaís)`, menos 4 se maior que 4, e `B = 7 se nívelPaís >= 20 ; 4 se 19 ;
+   senão 1`, isto é, as faixas da linha de reputação da 4.2 lidas pelo nível em vez da reputação,
+   o que dá no mesmo pela tabela de reputação acima. **Defeito de ordem a reproduzir**: o gerador
+   roda **antes** de estilo e características serem gravados, e lê os dois como estão no jogador
+   recém-criado, ou seja `ex = 0` e c1 = c2 = índice 0. Logo laterais e meias avulsos recebem
+   **sempre as fórmulas defensivas** (lateral def. e volante) da 4.2, mesmo os que no passo 8 saem
+   ofensivos; goleiros avulsos recebem sempre o bônus de Colocação da 4.2 (Tec `+2+rnd(5)` por c1
+   e `+rnd(2)` por c2); nenhum jogador de linha avulso recebe bônus de característica, porque o
+   índice 0 não é característica de linha. Ver item 65 de OPEN-QUESTIONS.
+6. **Características**: um sorteio de par pela tabela da posição na 4.4.2.
+7. **Talento** `es = 7 + rnd(4)`; **idade** `18 + rnd(12)`; **lado** `rnd(2)` (0 = direita,
+   1 = esquerda, como na FORMAT-SPEC); **status** = 0 (reserva por atributo).
+8. **Estilo** da 4.3, calculado agora a partir das características do passo 6.
+9. **Valor de mercado** (4.9) e **salário** (4.8), calculados sem clube. No salário, base 350 sem
+   ajuste de país, divisão ou nível (só o ajuste por posição e o resto da fórmula: núcleo, idade,
+   piso 500, x4 mensal). No valor, o nível do clube ausente vale **10**, logo `baseNível = 366`;
+   sem x1,2 de titular (status 0); x1,3 se atacante; e como a temporada de chegada é a atual entra
+   o desconto **x0,18** de "chegou nesta temporada", sem teto de preço pedido porque não há nenhum.
+10. Estrela, topMundial e as demais marcas ficam **desligadas**; nenhum registro de carreira.
+
+**Nome gerado por país.** O gerador de nomes é **dado embutido do jogo**, não do formato de dados:
+dentro do executável há **dois arquivos de texto por país**, um de primeiros nomes e um de
+sobrenomes, cada um com uma entrada por linha e nomeado pela **sigla de 3 letras** da tabela da
+4.4.1. São 221 arquivos em cada pasta (uma sigla sem país correspondente; quatro países sem
+arquivo: ESS, BON, SMF, SMH). A maioria dos arquivos tem entre 50 e 100 entradas; o total é da
+ordem de 32 mil primeiros nomes e 27 mil sobrenomes, e o Brasil é a exceção, com cerca de 1.700
+primeiros nomes e 700 sobrenomes. Uma entrada pode ter mais de uma palavra ("João Carlos",
+"Carlos de Jesus"). O mecanismo:
+
+1. Ao carregar, linhas vazias, com ponto ou com dígito são descartadas, e a lista fica em cache
+   por país. A primeira linha de cada arquivo repete a segunda com uma marca de codificação na
+   frente, e o índice 0 **nunca é sorteado** (0 vira 1).
+2. Primeiro nome: índice `rnd(n)`; se a lista tem 1000 ou mais entradas (só o Brasil), com 50% o
+   índice é ressorteado como `rnd(500)`, o que favorece o começo do arquivo.
+3. Pelo número de palavras da entrada sorteada: **uma palavra** -> anexa um sobrenome (índice
+   `rnd(m)`, 0 vira 1) se a lista de sobrenomes tem mais de 2 entradas e o sobrenome difere do
+   nome; **duas palavras** -> com 50%, e só se a entrada tem até 12 caracteres, anexa um sobrenome
+   de até 6 caracteres (mesmo sorteio; se o sorteado é maior, fica sem); **três ou mais** -> fica
+   como está.
+4. Se o país não tem arquivo, vale uma **lista global de reserva** de cerca de 37 mil nomes (outro
+   arquivo embutido), lida por janelas contíguas `[início, início + tamanho)` escolhidas pelo
+   continente e por grupos de países, com índice `início + rnd(tamanho)`.
+
+O mesmo gerador nomeia os juniores da 4.6, os avulsos reciclados da 4.11 e qualquer jogador de
+arquivo com nome vazio ou com o nome reservado "TESTE". O projeto **não copia essas listas**; ver
+item 63 de OPEN-QUESTIONS.
+
+**Técnico da seleção**: escolhido na convocação, se o time não é humano e está sem técnico (ou se
+a competição pedir a troca), entre os técnicos **desempregados e não humanos** da lista mundial de
+técnicos, na ordem dessa lista: primeiro o da mesma nacionalidade com reputação 5, depois 4;
+depois qualquer nacionalidade com reputação 5, depois 4; depois compatriota de reputação 3,
+depois qualquer um de reputação 3. Reputação abaixo de 3 nunca é escolhida, e sem candidato a
+seleção fica sem técnico. **Não existe piscina de técnicos desempregados na criação do mundo**:
+o mundo nasce só com o técnico de cada clube, lido do arquivo do clube, todos empregados. A
+piscina se forma durante o jogo, com as demissões da 1.5 e com os jogadores que se aposentam e
+viram técnicos (4.11), que entram desempregados com a nacionalidade do jogador e a reputação e a
+divisão do último clube. Na primeira temporada, portanto, toda seleção da IA joga sem técnico.
+Ver item 66 de OPEN-QUESTIONS.
 
 ---
 
@@ -1345,8 +1502,11 @@ Detalhes que mudam a reimplementação:
 - **A designação guardada só é apagada quando o jogador deixa o clube.** Lesão, suspensão e ficar
   fora da escalação não a invalidam.
 - **Seleções zeram cobrador de escanteio e "falso 9"** a cada convocação, e recalculam batedor e
-  capitão. Como **a IA nunca preenche o cobrador de escanteio**, na prática só o time humano tem um -
-  ver o item 2 da seção 3.7.
+  capitão **com as mesmas regras desta tabela, sobre a lista de convocados** (passo 6 da 4.12).
+  O "titular" continua sendo o atributo de dado que o convocado traz do clube; os avulsos
+  sintéticos nascem com status 0, então só caem no terceiro ramo do batedor. Como **a IA nunca
+  preenche o cobrador de escanteio**, na prática só o time humano tem um - ver o item 2 da
+  seção 3.7.
 
 ## 5.7 Constantes de gestão de elenco da IA
 

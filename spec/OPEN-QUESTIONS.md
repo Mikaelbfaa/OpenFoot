@@ -142,6 +142,12 @@ elenco do zero com 3 GOL, 4 LAT, 4 ZAG, 5 MEI, 4 ATA. Não está dito quando cad
 é para clubes sem elenco. Nesta versão só o primeiro é implementado, e o segundo fica registrado
 para quando existir clube sem dados.
 
+**Resolução no original (CONFIRMADO). A primeira metade está certa; a segunda está ERRADA.** O
+caminho principal vale para todo jogador que vem de arquivo. O "elenco sintético" **não é de
+clube nenhum**: é o gerador de jogadores avulsos da seleção, chamado só pela convocação da 4.12
+(e por nada mais), e um clube sem elenco simplesmente fica sem elenco. A 4.4 foi corrigida para
+apontar para a 4.12, que agora descreve o gerador sorteio a sorteio.
+
 ### 13. "base/faixa" na 4.4 contra "teto/piso" na FORMAT-SPEC
 
 Os mesmos números (div1 20 e 7, reputação 5 dá 22 e 7) aparecem como base e faixa na SIMULATION-SPEC
@@ -2054,3 +2060,99 @@ na entrada**. Ao criar o mundo e ao ler um jogador do `.ban`, ligar a estrela co
 quando a vermelha já está - mas a **promoção a estrela vermelha ao fim de temporada liga só a marca
 vermelha**. Um jogador promovido que nunca ganhou a estrela comum soma **+0,6**, não +1,0, e portanto
 vale menos por partida do que um jogador idêntico que chegou pelo arquivo. A 4.10 foi anotada.
+
+## Seção 4.12 - seleções
+
+### 63. As listas de nomes são dado embutido do original, e o projeto não as copia
+
+A 4.12 descreve o gerador de nomes dos jogadores avulsos (e dos juniores da 4.6 e dos avulsos
+reciclados da 4.11): dois arquivos de texto por país, embutidos no executável, com cerca de 32 mil
+primeiros nomes e 27 mil sobrenomes no total, mais uma lista global de reserva de cerca de 37 mil
+nomes. Nenhum desses arquivos faz parte do formato de dados que a FORMAT-SPEC cobre: não estão na
+instalação como dado do usuário, estão dentro do programa.
+
+**Resolução (CONFIRMADO):** as listas são dado do original e **não serão copiadas**. O mecanismo
+de sorteio (índice `rnd(n)`, viés para as 500 primeiras entradas em listas grandes, composição por
+número de palavras) está na 4.12 para registro, mas nada nele faz sentido sem as listas, e a spec
+não pede que seja reproduzido.
+
+**Resolução (INFERIDO):** o projeto precisa de uma fonte própria de nomes e, até tê-la, usa um
+**nome de espaço reservado determinístico**: a sigla de 3 letras do país (tabela da 4.4.1) seguida
+de um contador por país, formatado com largura fixa, por exemplo `BRA-0001`. O contador é o índice
+de criação do avulso dentro do país, o que o torna reproduzível pela semente sem consumir sorteio
+nenhum. Quando existir uma fonte de nomes livre, ela entra como dado do conjunto de dados (não do
+motor), e a troca não muda nenhum sorteio, porque o nome nunca alimenta a simulação. Um jogador de
+arquivo com nome vazio ou "TESTE" recebe o mesmo espaço reservado, com um contador à parte.
+
+### 64. O preenchimento final da convocação lê o tamanho do pool, não o da lista
+
+O passo 5 da 4.12 só roda quando **o pool** tem menos de 23 jogadores. Quando o pool tem 23 ou
+mais mas alguma célula das cotas do passo 4 não tem candidato (nenhum lateral de lado 1, por
+exemplo), as vagas dessa célula ficam abertas e a lista de convocados sai com menos de 23. Nada
+depois disso completa a lista.
+
+**Resolução (CONFIRMADO):** é assim no original, e a 4.12 descreve o comportamento como está.
+Uma lista com menos de 23 é um estado válido; a escalação automática da 5.4 monta o time a partir
+do que existe. O conjunto de regras `CLASSIC` reproduz; se `MODERN` quiser completar a lista até
+23 com os melhores do pool ignorando lado e estilo, isso vira um campo do `RuleSet`, e o
+comportamento deve entrar em `docs/known-quirks.md` quando a convocação for implementada.
+
+### 65. Os atributos do jogador avulso são gerados antes do estilo e das características
+
+O gerador de atributos da 4.2 escolhe a fórmula de lateral e meia pelo estilo já gravado e aplica
+bônus pelas características já gravadas. O gerador de avulsos da 4.12 chama esse gerador com o
+jogador ainda sem estilo e sem características, e só depois sorteia o par da 4.4.2 e calcula o
+estilo.
+
+**Resolução (CONFIRMADO):** no momento da chamada o jogador tem `ex = 0` e c1 = c2 = índice 0.
+Consequências, todas a reproduzir em `CLASSIC`: todo lateral avulso recebe as fórmulas de lateral
+defensivo e todo meia avulso as de volante, mesmo quando o par sorteado em seguida os faz
+ofensivos; todo goleiro avulso recebe o bônus de Colocação da 4.2 (Tec `+2+rnd(5)` por c1 e
+`+rnd(2)` por c2) sem ter a característica; nenhum jogador de linha avulso recebe bônus de
+característica. Os juniores da 4.6 **não** sofrem disso: lá o par é sorteado antes e os atributos
+vêm na promoção. Se `MODERN` quiser gerar na ordem natural (par, estilo, atributos), isso vira um
+campo do `RuleSet`.
+
+### 66. Não existe piscina de técnicos desempregados na criação do mundo
+
+A 4.12 escolhe o técnico da seleção entre os desempregados, mas a spec não dizia de onde eles
+vêm nem se existem no começo.
+
+**Resolução (CONFIRMADO):** na criação do mundo existem só os técnicos dos clubes, um por clube,
+lidos do arquivo de cada clube, todos empregados. Nenhum técnico desempregado é gerado. A piscina
+nasce durante o jogo: técnicos demitidos pela 1.5 ficam na lista mundial de técnicos sem clube, e
+jogadores que se aposentam e viram técnicos (4.11) entram sem clube, com a nacionalidade do
+jogador e a reputação e a divisão do último clube. Enquanto a piscina está vazia, a seleção fica
+sem técnico, e a convocação segue normalmente. A implementação pode adiar a escolha de técnico
+sem perder nada na primeira temporada, porque o resultado dela é sempre "sem técnico".
+
+### 67. Em que ordem os empates da ordenação da convocação ficam
+
+O passo 3 da 4.12 ordena o pool por força decrescente e estrela, com ordenação estável. Dois
+jogadores de mesma força e mesma marca de estrela ficam na ordem em que o pool os enumerou, e
+essa ordem no original é a da lista mundial de jogadores (ordem de carga dos clubes, depois ordem
+do elenco no arquivo, depois promovidos da base no fim), seguida da piscina de avulsos na ordem
+de criação. O motor não tem uma lista mundial nessa forma, e o item 10 diz que a ordem de geração
+não pode influir no resultado.
+
+**Resolução (CONFIRMADO):** a ordem de desempate do original é a descrita acima, e ela é
+observável: dois jogadores empatados são convocados na ordem em que aparecem no mundo.
+
+**Resolução (INFERIDO):** o motor enumera o pool numa ordem definida só pelos dados: clubes pela
+ordem de `fileRef`, e dentro do clube pela ordem do elenco no conjunto de dados; promovidos da base
+atrás dos jogadores de arquivo do mesmo clube, pela ordem de promoção; depois a piscina de avulsos
+pela ordem de criação (país, depois contador do item 63). Isso reproduz o original sempre que os
+clubes são carregados em ordem de `fileRef`, e não depende de paralelismo.
+
+### 68. O primeiro teste de suficiência da convocação é uma marca guardada
+
+O passo 1 da 4.12 exige que dois testes falhem para gerar avulsos. O teste (a), "15 de linha e 2
+goleiros com clube", não é calculado na convocação: é uma marca guardada no país, calculada na
+criação do mundo e recalculada só quando o humano abre a tela de convocação. O teste (b) é
+calculado na hora.
+
+**Resolução (CONFIRMADO):** para a IA a marca vale a do momento da criação do mundo (ou da última
+abertura da tela pelo humano). Um país que tinha jogadores suficientes na criação e os perdeu
+depois por aposentadoria **não gera avulsos** pela IA, e convoca com o que tem; um país que não
+tinha e ganhou depois, por promoção de juniores, gera assim mesmo, se o teste (b) também falhar. O motor sem interface
+gráfica calcula a marca na criação do mundo e nunca a atualiza, o que reproduz o caminho da IA.
