@@ -105,17 +105,57 @@ class TraitBonusesTest {
     }
 
     @Test
-    fun `the four goalkeeping characteristics are worth nothing`() {
-        val keeperTraits = listOf(
+    fun `a keeper reads his first characteristic for the large draw and his second for the small one`() {
+        // Positioning first, rushing out second: both are positional, so the
+        // technique term fires twice, 2 + rand(5) for the first and rand(2)
+        // for the second, in that order.
+        val positional = bonused(
             Trait.POSITIONING,
-            Trait.PENALTY_SAVING,
-            Trait.REFLEXES,
-            Trait.RUSHING_OUT,
+            second = Trait.RUSHING_OUT,
+            position = Position.GOALKEEPER,
+            draws = intArrayOf(4, 1),
         )
-        for (trait in keeperTraits) {
-            val row = bonused(trait, position = Position.GOALKEEPER)
-            assertEquals(IntArray(Attr.COUNT) { flat }.toList(), row.toList(), "keeper trait $trait")
-        }
+        assertEquals(flat + 2 + 4 + 1, positional[Attr.TECHNIQUE])
+
+        val reflexes = bonused(
+            Trait.REFLEXES,
+            second = Trait.PENALTY_SAVING,
+            position = Position.GOALKEEPER,
+            draws = intArrayOf(3, 1),
+        )
+        assertEquals(flat + 2 + 3, reflexes[Attr.PACE])
+        assertEquals(flat + 1, reflexes[Attr.GOALKEEPING])
+
+        val saving = bonused(
+            Trait.PENALTY_SAVING,
+            second = Trait.REFLEXES,
+            position = Position.GOALKEEPER,
+            draws = intArrayOf(1, 2),
+        )
+        assertEquals(flat + 1, saving[Attr.PACE])
+        assertEquals(flat + 1 + 2, saving[Attr.GOALKEEPING])
+    }
+
+    @Test
+    fun `a keeper carrying the same positional characteristic twice collects both terms`() {
+        // This is the shape section 4.12's synthetic keeper has, both
+        // characteristics at index zero when the generator runs.
+        val row = bonused(Trait.POSITIONING, position = Position.GOALKEEPER, draws = intArrayOf(0, 1))
+        assertEquals(flat + 2 + 0 + 1, row[Attr.TECHNIQUE])
+        assertEquals(flat, row[Attr.PACE])
+        assertEquals(flat, row[Attr.GOALKEEPING])
+    }
+
+    @Test
+    fun `the keeper list is chosen by position, so an outfielder at index zero earns nothing`() {
+        val row = bonused(Trait.POSITIONING, position = Position.MIDFIELDER)
+        assertEquals(IntArray(Attr.COUNT) { flat }.toList(), row.toList())
+    }
+
+    @Test
+    fun `the outfield list is chosen by position, so a keeper never reads it`() {
+        val row = bonused(Trait.PACE, second = Trait.MARKING, position = Position.GOALKEEPER)
+        assertEquals(IntArray(Attr.COUNT) { flat }.toList(), row.toList())
     }
 
     @Test
