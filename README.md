@@ -36,13 +36,20 @@ Criação de mundo:
 - Esquema de dados aberto, próprio, que valida as faixas ao ser lido
 - Força inicial, os sete atributos individuais, estilo, bônus de característica, contrato, salário
   e valor de mercado
+- A pirâmide de ligas de cada país gerada na criação do mundo, como no original (seção 1.9): quem
+  é candidato, quais ligas se disputam, quantas divisões, quem sobra e quem nem entra no mundo
+- A tabela embutida de 224 países, com nível e continente, que a força inicial consulta
+- Seleções convocadas do próprio mundo (seção 4.12): pool por nacionalidade, cotas por célula e o
+  complemento sintético de vinte jogadores avulsos para país sem elenco suficiente
 - Um mundo inteiro reproduzível a partir da semente, com o fluxo de cada clube derivado da
-  referência dele, então editar a base de dados não invalida sementes já compartilhadas
+  referência dele, então editar a base de dados não invalida sementes já compartilhadas em outros
+  países
 
 Importador:
 
 - Leitor do formato de serialização que os arquivos do original usam, escrito a partir da spec
-- Times, configuração de liga nacional e arquivo de opções viram o esquema aberto
+- Times, configurações de liga nacional, configurações de campeonato estadual e arquivo de opções
+  viram o esquema aberto
 - Tudo que a instalação não sabe informar é derivado ou relatado, nunca chutado em silêncio
 
 Infraestrutura:
@@ -50,7 +57,8 @@ Infraestrutura:
 - Testes de arquitetura que impedem I/O, relógio, aleatoriedade de plataforma e não determinismo
 - Verificadores de estilo de comentário e de documento
 
-A partida está completa, do apito inicial às notas. O que ainda não existe é o que vem depois dela:
+A partida está completa, do apito inicial às notas, e o mundo nasce inteiro de uma base e uma
+semente: clubes, divisões, elencos e seleções. O que ainda não existe é o que vem depois disso:
 temporada, carreira, evolução de jogador entre um ano e outro e transferências.
 
 ## Como compilar
@@ -77,18 +85,23 @@ arquivos ficam onde estão.
 ./gradlew :cli:installDist
 ./cli/build/install/openfoot-cli/bin/openfoot-cli import --install /caminho/do/Brasfoot --out base.json
 ./cli/build/install/openfoot-cli/bin/openfoot-cli worldgen --dataset base.json --seed 42
+./cli/build/install/openfoot-cli/bin/openfoot-cli callup --dataset base.json --seed 42 --country BRA
 ./cli/build/install/openfoot-cli/bin/openfoot-cli match --dataset base.json --seed 42 --home abcrn_bra --away afogadospe_bra
+./cli/build/install/openfoot-cli/bin/openfoot-cli match --dataset base.json --seed 42 --home national:BRA --away national:ARG
 ```
 
 A mesma base com a mesma semente imprime exatamente a mesma coisa, em qualquer máquina. Duas
-execuções podem ser comparadas com `diff`. O mesmo vale para `match`: a mesma base, a mesma semente e
-os mesmos dois clubes imprimem exatamente a mesma partida sempre, então uma partida gravada é uma
-base, uma semente e duas referências de clube, nada mais. As referências usadas no exemplo acima
-saem da própria base gerada pelo `import`; troque pelas que aparecerem na sua.
+execuções podem ser comparadas com `diff`. O mesmo vale para `callup` e para `match`: a mesma base,
+a mesma semente e os mesmos dois lados imprimem exatamente a mesma partida sempre, então uma partida
+gravada é uma base, uma semente e duas referências, nada mais. Um lado é a referência de um clube ou
+`national:` seguido da sigla de um país, e duas seleções jogam em campo neutro. As referências
+usadas no exemplo acima saem da própria base gerada pelo `import`; troque pelas que aparecerem na
+sua.
 
-Vale ler as notas que o `import` imprime. A instalação distribuída só configura liga para o Brasil e
-para a Espanha, então a maioria dos clubes sai sem divisão, e isso os deixa mais fracos do que o
-nível deles sugere. Ver o item 27 de [`spec/OPEN-QUESTIONS.md`](spec/OPEN-QUESTIONS.md).
+Por padrão só a liga brasileira é disputada, como na caixa que o original deixa marcada ao criar um
+jogo. A opção `--leagues BRA,ESP` (ou `--leagues all`) liga outras; um país sem liga ativa entra no
+mundo só com os quinze melhores clubes, gerados pelo caminho de reputação, como no original. Vale
+ler as notas que o `import` imprime.
 
 ## Filosofia
 
