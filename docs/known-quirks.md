@@ -240,6 +240,28 @@ Spec: seção 3.14, defeito 16 da seção 3.15, item 61 de `spec/OPEN-QUESTIONS.
 conjuntos de regras: a 3.15 manda não portar os dois ramos mortos, e o contador que o degrau restante
 lê é o comportamento confirmado do original.
 
+### A convocação pode sair com menos de 23 e ninguém completa
+
+O preenchimento final da convocação da seção 4.12 só roda quando o **pool** tem menos de 23
+jogadores. Com 23 ou mais no pool, uma célula das cotas sem candidato (um país sem lateral
+esquerdo, por exemplo) fica vazia, e a lista sai curta. A escalação automática monta o time com o
+que existe.
+
+Spec: seção 4.12, item 64 de `OPEN-QUESTIONS.md`. Reproduzido em `selectSquad`, em
+`NationalTeam.kt`. Ainda não tem correção em `MODERN`: completar a lista pelos melhores do pool
+ignorando lado e estilo viraria um campo do `RuleSet` quando a geração de mundo passar a receber um
+conjunto de regras.
+
+### O jogador avulso da seleção recebe atributos antes de ter características
+
+O gerador de jogadores avulsos da seção 4.12 chama o gerador de atributos da 4.2 com o jogador
+ainda sem estilo e sem par de características. Todo lateral e todo meia avulso recebem as fórmulas
+defensivas da 4.2, mesmo os que saem ofensivos no sorteio seguinte; todo goleiro avulso ganha o
+bônus de Colocação sem ter a característica; nenhum jogador de linha avulso ganha bônus nenhum.
+
+Spec: seção 4.12, item 65 de `OPEN-QUESTIONS.md`. Reproduzido em `generateFreeAgent`, em
+`NationalTeam.kt`, e pinado por `NationalTeamTest`. Mesma situação do item acima quanto a `MODERN`.
+
 ## Nunca reproduzido, em nenhum conjunto de regras
 
 ### Os dois caminhos mortos do sorteio de tipo de gol

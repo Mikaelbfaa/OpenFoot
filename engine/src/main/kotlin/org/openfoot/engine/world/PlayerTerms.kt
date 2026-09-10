@@ -148,10 +148,14 @@ internal const val DECLINE_AGE = 32
  * considered. Everything else is a modifier on that, and the age term is the
  * only one that can subtract.
  *
- * The arrival discount of section 4.9 is not applied. It scales a player by how
- * recently he joined, and at world creation nobody has joined anything, so
- * every player counts as long standing and takes no discount. See
- * OPEN-QUESTIONS item 16.
+ * The arrival discount of section 4.9 scales a player by how recently he
+ * joined. At world creation nobody has joined anything, so a file player
+ * counts as long standing and takes no discount, which is the default; see
+ * OPEN-QUESTIONS item 16. The one rung reachable today is "arrived this
+ * season", which section 4.12 gives every synthetic free agent because his
+ * arrival season is the current one. The two middle rungs need a season to
+ * have passed and arrive with the season. The cap at a recorded asking price
+ * is absent because no asking price exists yet.
  */
 @SpecRef("4.9")
 fun marketValue(
@@ -163,6 +167,7 @@ fun marketValue(
     topWorld: Boolean,
     clubLevel: Int,
     europeanNationality: Boolean,
+    arrivedThisSeason: Boolean = false,
 ): Long {
     val doubled = (strength * VALUE_STRENGTH_FACTOR).toLong()
     val quadratic = doubled * doubled
@@ -182,6 +187,9 @@ fun marketValue(
     }
     if (starter) {
         value *= STARTER_VALUE_MULTIPLIER
+    }
+    if (arrivedThisSeason) {
+        value *= ARRIVED_THIS_SEASON_MULTIPLIER
     }
     return bfRoundLong(value)
 }
@@ -249,3 +257,6 @@ private const val FORWARD_VALUE_MULTIPLIER = 1.3
 
 @SpecRef("4.9")
 private const val STARTER_VALUE_MULTIPLIER = 1.2
+
+@SpecRef("4.9")
+private const val ARRIVED_THIS_SEASON_MULTIPLIER = 0.18
