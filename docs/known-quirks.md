@@ -262,6 +262,17 @@ bônus de Colocação sem ter a característica; nenhum jogador de linha avulso 
 Spec: seção 4.12, item 65 de `OPEN-QUESTIONS.md`. Reproduzido em `generateFreeAgent`, em
 `NationalTeam.kt`, e pinado por `NationalTeamTest`. Mesma situação do item acima quanto a `MODERN`.
 
+### Com pênaltis desligados, o empate do mata-mata avança quem está listado em segundo
+
+Num mata-mata estadual com a disputa de pênaltis desligada (`desempate=1`), o confronto empatado
+avança o time listado em segundo no par: o melhor colocado em ida e volta, mas o **visitante**, o
+pior colocado, em jogo único. A intenção era vantagem do melhor colocado; a comparação que decide
+confronta um valor com ele mesmo e cai sempre no segundo listado.
+
+Spec: FORMAT-SPEC, "O que a temporada faz com cada campo". Reproduzido em `resolveTie`, em
+`Knockout.kt`, e pinado por `KnockoutTest`. Ainda não tem correção em `MODERN`; quando tiver, é um
+campo do `RuleSet` que diz quem avança sem pênaltis.
+
 ## Nunca reproduzido, em nenhum conjunto de regras
 
 ### Os dois caminhos mortos do sorteio de tipo de gol
@@ -333,11 +344,6 @@ Ficam registrados aqui para quando o código chegar nessas partes.
 - Existe no original um caminho que recalcularia o batedor designado a partir de uma lista dada, a
   escalação da partida por exemplo, só quando o designado não estivesse nela. Nada no original chama
   esse caminho, e por isso ele não foi portado (seção 5.6, item 56 de `OPEN-QUESTIONS.md`).
-- Num mata-mata estadual com a disputa de pênaltis desligada (`desempate=1`), o empate avança o
-  time listado em segundo no confronto: o melhor colocado em ida e volta, mas o **visitante**, o
-  pior colocado, em jogo único. A intenção era vantagem do melhor colocado; a comparação que
-  decide confronta um valor com ele mesmo. Vive na temporada, que ainda não existe (FORMAT-SPEC,
-  "O que a temporada faz com cada campo").
 - A carga dos `.ces` checa o tamanho do preset contra o total de times do estado, e nunca contra o
   que resta na fila depois das divisões anteriores; o original falha quando a diferença aparece.
   `CLASSIC` deve rejeitar a configuração na carga e `MODERN` cair no formato padrão de 6 times.
