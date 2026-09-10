@@ -1,5 +1,6 @@
 package org.openfoot.engine.match
 
+import org.openfoot.model.PlayerId
 import org.openfoot.model.Rng
 import org.openfoot.model.RuleSet
 import org.openfoot.model.SeedDomain
@@ -36,6 +37,12 @@ import org.openfoot.model.randRange
  * Neither list is a defensive copy. MatchPlayer is immutable and simulateMatch
  * takes the list the caller built, so the two share a reference, exactly as
  * MatchSide.lineup already does.
+ *
+ * The two energy maps are what each man had left at the final whistle, keyed
+ * the way the side keyed him, bench included. Section 3.9's weekly recovery
+ * adds to that figure rather than to a fresh hundred, and nothing in the log
+ * says how tired anybody ended, so the report carries it. A match played from
+ * a fresh squad leaves every unused substitute at full energy.
  */
 @SpecRef("3.1")
 data class MatchReport(
@@ -46,7 +53,13 @@ data class MatchReport(
     val startingPossessor: TeamSide,
     @property:SpecRef("3.14") val homeLineup: List<MatchPlayer>,
     @property:SpecRef("3.14") val awayLineup: List<MatchPlayer>,
+    @property:SpecRef("3.9") val homeEnergy: Map<PlayerId, Int>,
+    @property:SpecRef("3.9") val awayEnergy: Map<PlayerId, Int>,
 ) {
+    /** The final whistle energy of one side's men, by the identity the side used. */
+    @SpecRef("3.9")
+    fun energy(side: TeamSide): Map<PlayerId, Int> = if (side == TeamSide.HOME) homeEnergy else awayEnergy
+
     /**
      * Computed once here rather than on every read, because a caller that
      * prints a scoreboard asks for it repeatedly and the log is walked in
@@ -118,6 +131,8 @@ fun simulateMatch(
         startingPossessor = played.startingPossessor,
         homeLineup = homeLineup,
         awayLineup = awayLineup,
+        homeEnergy = played.state.home.energy,
+        awayEnergy = played.state.away.energy,
     )
 }
 

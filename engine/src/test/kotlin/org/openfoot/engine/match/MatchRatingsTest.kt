@@ -43,6 +43,8 @@ class MatchRatingsTest {
         startingPossessor = TeamSide.HOME,
         homeLineup = homeLineup,
         awayLineup = awayLineup,
+        homeEnergy = emptyMap(),
+        awayEnergy = emptyMap(),
     )
 
     /**

@@ -44,6 +44,8 @@ class MatchReportPrinterTest {
             startingPossessor = TeamSide.HOME,
             homeLineup = emptyList(),
             awayLineup = emptyList(),
+            homeEnergy = emptyMap(),
+            awayEnergy = emptyMap(),
         )
     }
 
