@@ -7,9 +7,11 @@ import org.openfoot.model.SpecRef
  * Reads the options file of an installation.
  *
  * The file holds dozens of settings, almost all of them about how the game looks
- * or how fast it plays. Only two change what a world is, and only those two are
- * read: whether players carry seven individual abilities or a single strength,
- * and whether wages are shown by the week or by the month.
+ * or how fast it plays. Only four change what a world is, and only those four
+ * are read: whether players carry seven individual abilities or a single
+ * strength, whether wages are shown by the week or by the month, whether
+ * Brazil's state championships are played, and whether the Sao Paulo first
+ * division seats the real groups of FORMAT-SPEC's load rule six.
  *
  * Anything absent keeps the default the original ships with, so an installation
  * that has never had its options touched still imports.
@@ -23,8 +25,17 @@ object OptionsFileReader {
             individualAbilities = record.fields[INDIVIDUAL_ABILITIES] as? Boolean
                 ?: defaults.individualAbilities,
             monthlyWages = record.fields[MONTHLY_WAGES] as? Boolean ?: defaults.monthlyWages,
+            playStateChampionships = record.fields[PLAY_STATE_CHAMPIONSHIPS] as? Boolean
+                ?: defaults.playStateChampionships,
+            realStateGroups = record.fields[REAL_STATE_GROUPS] as? Boolean ?: defaults.realStateGroups,
         )
     }
+
+    @SpecRef("FORMAT-SPEC, ces")
+    private const val PLAY_STATE_CHAMPIONSHIPS = "jogaEstadual"
+
+    @SpecRef("FORMAT-SPEC, ces")
+    private const val REAL_STATE_GROUPS = "usaGrupoPadraoEstadual"
 
     /**
      * Whether a player has seven abilities or one strength.

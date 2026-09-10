@@ -122,6 +122,76 @@ class InstallationImporterTest {
     }
 
     @Test
+    fun `the two state championship options are read from the options file`() {
+        val result = InstallationImporter.importFrom(
+            installation(
+                root(),
+                listOf(team()),
+                options = ImportFixtures.Options(
+                    habilidadeIndividual = false,
+                    salarioMensal = true,
+                    velocidade = 4,
+                    jogaEstadual = false,
+                    usaGrupoPadraoEstadual = false,
+                ),
+            ),
+        )
+
+        assertTrue(!result.dataset.options.playStateChampionships)
+        assertTrue(!result.dataset.options.realStateGroups)
+    }
+
+    @Test
+    fun `state championship configurations reach the dataset in file order`() {
+        val result = InstallationImporter.importFrom(
+            installation(
+                root(),
+                listOf(team()),
+                states = listOf(
+                    ImportFixtures.StateChampionships(
+                        arrayListOf(
+                            ImportFixtures.StateTier(id = 25, divisao = 1, formula = 7),
+                            ImportFixtures.StateTier(id = 25, divisao = 2),
+                        ),
+                    ),
+                    ImportFixtures.StateChampionships(
+                        arrayListOf(ImportFixtures.StateTier(id = 18, divisao = 1, formula = 4)),
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals(listOf(25 to 1, 25 to 2, 18 to 1), result.dataset.stateChampionships.map { it.state to it.division })
+        assertEquals(7, result.dataset.stateChampionships.first().preset)
+    }
+
+    @Test
+    fun `no state file at all is only informational, since the loader has a default format`() {
+        val result = InstallationImporter.importFrom(installation(root(), listOf(team())))
+        val note = result.notes.single { it.contains("no state championship configuration") }
+        assertTrue(note.contains("six team default"), note)
+    }
+
+    @Test
+    fun `an unreadable state file costs its own entries and no other file's`() {
+        val directory = installation(
+            root(),
+            listOf(team()),
+            states = listOf(
+                ImportFixtures.StateChampionships(
+                    arrayListOf(ImportFixtures.StateTier(id = 25, divisao = 1, formula = 7)),
+                ),
+            ),
+        )
+        File(File(directory, "conf_estadual"), "corrompido.ces").writeBytes(byteArrayOf(1, 2, 3))
+
+        val result = InstallationImporter.importFrom(directory)
+
+        assertEquals(1, result.dataset.stateChampionships.size)
+        assertTrue(result.notes.any { it.startsWith("corrompido.ces could not be read") }, result.notes.toString())
+    }
+
+    @Test
     fun `a missing options file falls back to what the original ships with`() {
         val result = InstallationImporter.importFrom(installation(root(), listOf(team())))
 

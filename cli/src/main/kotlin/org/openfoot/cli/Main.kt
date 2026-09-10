@@ -143,6 +143,8 @@ private fun importInstallation(args: List<String>) {
     println("clubs     ${result.dataset.clubs.size}")
     println("players   ${result.dataset.clubs.sumOf { it.squad.size }}")
     println("countries ${result.dataset.countries.size}")
+    println("leagues   ${result.dataset.leagues.size}")
+    println("states    ${result.dataset.stateChampionships.size}")
     println("written   $out")
     if (result.notes.isNotEmpty()) {
         println("notes     ${result.notes.size}")

@@ -4,6 +4,7 @@ import org.openfoot.dataset.ClubEntry
 import org.openfoot.dataset.CountryEntry
 import org.openfoot.dataset.DatasetOptions
 import org.openfoot.dataset.LeagueConfigEntry
+import org.openfoot.dataset.StateChampionshipEntry
 import org.openfoot.dataset.WorldDataset
 import org.openfoot.model.SpecRef
 import java.io.File
@@ -68,6 +69,7 @@ object InstallationImporter {
                 countries = countries(clubs, notes),
                 clubs = clubs,
                 leagues = readLeagues(root, notes),
+                stateChampionships = readStateChampionships(root, notes),
             ),
             notes = notes.notes,
         )
@@ -115,6 +117,42 @@ object InstallationImporter {
         return files.flatMap { file ->
             try {
                 LeagueConfigReader.read(file.readBytes())
+            } catch (failure: Exception) {
+                notes.note("${file.name} could not be read: ${failure.message}")
+                emptyList()
+            }
+        }
+    }
+
+    /**
+     * Every configured state division every state file under the installation
+     * describes, concatenated in file name order.
+     *
+     * The original concatenates these in the order the operating system lists
+     * the directory and resolves a (state, division) pair to the first match,
+     * so order is kept and file names are sorted to make that order the same
+     * on every machine. The original also stops reading at the first file that
+     * fails to deserialize, skipping the rest; here a bad file costs only
+     * itself and is recorded, because the files an import silently lost would
+     * be the ones a person cannot see are missing.
+     *
+     * No state files at all is information, not an error: FORMAT-SPEC's load
+     * rules give every eligible state the six team default format.
+     */
+    private fun readStateChampionships(root: File, notes: ImportNotes): List<StateChampionshipEntry> {
+        val directory = File(root, STATES_DIRECTORY)
+        val files = directory.listFiles { file -> file.isFile && file.name.endsWith(STATE_SUFFIX, ignoreCase = true) }
+            ?.sortedBy { it.name }
+        if (files.isNullOrEmpty()) {
+            notes.note(
+                "no state championship configuration under $STATES_DIRECTORY; every eligible " +
+                    "state will use the six team default format of FORMAT-SPEC",
+            )
+            return emptyList()
+        }
+        return files.flatMap { file ->
+            try {
+                StateChampionshipReader.read(file.readBytes())
             } catch (failure: Exception) {
                 notes.note("${file.name} could not be read: ${failure.message}")
                 emptyList()
@@ -191,6 +229,8 @@ object InstallationImporter {
     private const val TEAM_SUFFIX = ".ban"
     private const val LEAGUES_DIRECTORY = "conf_ligas_nacionais"
     private const val LEAGUE_SUFFIX = ".cfg"
+    private const val STATES_DIRECTORY = "conf_estadual"
+    private const val STATE_SUFFIX = ".ces"
 
     private const val OPTIONS_FILE = "options.bcf"
     private const val REF_SEPARATOR = '_'

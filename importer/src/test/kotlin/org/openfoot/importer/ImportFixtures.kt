@@ -59,10 +59,28 @@ object ImportFixtures {
 
     class Pyramid(val a: ArrayList<Tier>) : Serializable
 
+    /**
+     * One division of a state championship file, fields named and typed as
+     * FORMAT-SPEC's ces section lists them, the relegated count included even
+     * though nothing reads it, so the fixture is shaped like a real entry.
+     */
+    class StateTier(
+        val id: Int,
+        val divisao: Int,
+        val formula: Int = 0,
+        val desempate: Int = 0,
+        val nRebaixados: Int = 2,
+        val finaisIdaVolta: IntArray = intArrayOf(2, 2, 2),
+    ) : Serializable
+
+    class StateChampionships(val a: ArrayList<StateTier>) : Serializable
+
     class Options(
         val habilidadeIndividual: Boolean,
         val salarioMensal: Boolean,
         val velocidade: Int,
+        val jogaEstadual: Boolean = true,
+        val usaGrupoPadraoEstadual: Boolean = true,
     ) : Serializable
 
     fun squadman(
@@ -108,6 +126,7 @@ object ImportFixtures {
         root: File,
         teams: List<Team>,
         pyramids: List<Pyramid> = emptyList(),
+        states: List<StateChampionships> = emptyList(),
         options: Options? = null,
     ): File {
         val teamDirectory = File(root, "teams")
@@ -119,6 +138,13 @@ object ImportFixtures {
             leagueDirectory.mkdirs()
             pyramids.forEachIndexed { index, pyramid ->
                 File(leagueDirectory, "liga$index.cfg").writeBytes(bytes(pyramid))
+            }
+        }
+        if (states.isNotEmpty()) {
+            val stateDirectory = File(root, "conf_estadual")
+            stateDirectory.mkdirs()
+            states.forEachIndexed { index, championships ->
+                File(stateDirectory, "estado$index.ces").writeBytes(bytes(championships))
             }
         }
         options?.let { File(root, "options.bcf").writeBytes(bytes(it)) }
