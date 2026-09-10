@@ -8,7 +8,10 @@ import org.openfoot.dataset.WorldDataset
 import org.openfoot.engine.lineup.Availability
 import org.openfoot.engine.lineup.assembleMatch
 import org.openfoot.engine.match.simulateMatch
+import org.openfoot.engine.world.Competitor
+import org.openfoot.engine.world.NationalTeam
 import org.openfoot.engine.world.Standing
+import org.openfoot.engine.world.callUpNationalTeam
 import org.openfoot.engine.world.World
 import org.openfoot.engine.world.generateWorld
 import org.openfoot.importer.InstallationImporter
@@ -42,6 +45,11 @@ internal fun dispatch(args: Array<String>): Int {
                 0
             }
 
+            "callup" -> {
+                callUp(args.drop(1))
+                0
+            }
+
             "import" -> {
                 importInstallation(args.drop(1))
                 0
@@ -72,15 +80,21 @@ internal fun dispatch(args: Array<String>): Int {
 private val USAGE = """
     usage: openfoot-cli import   --install <path> --out <path>
            openfoot-cli worldgen --dataset <path> --seed <number> [--leagues BRA,ESP|all]
+           openfoot-cli callup   --dataset <path> --seed <number> --country <name> [--leagues BRA,ESP|all]
            openfoot-cli match    --dataset <path> --seed <number> --home <ref> --away <ref> [--leagues BRA,ESP|all]
 
       import   reads your own installation of the original game and writes a
                dataset. Nothing is copied but numbers, and the files stay put.
       worldgen builds a world from a dataset and prints what came out. The same
                dataset and the same seed always print the same thing.
+      callup   generates a world, calls up the named country's national team
+               from it and prints the list. The same dataset, seed and country
+               always print the same list.
       match    generates a world from a dataset and a seed, then plays one
-               match between the two named clubs and prints a report. The
-               same dataset, seed and clubs always print the same match.
+               match between the two named sides and prints a report. A side
+               is a club ref, or national:<name> for a country's national
+               team; two national teams play on neutral ground. The same
+               dataset, seed and sides always print the same match.
 
       --leagues names the countries whose leagues take part, by dataset name,
                comma separated, or the word all for every one; the default is
@@ -172,25 +186,52 @@ private fun worldgen(args: List<String>) {
 }
 
 /**
+ * Reads a dataset, generates a world, calls up one national team from it and
+ * describes the list.
+ */
+private fun callUp(args: List<String>) {
+    val options = parseOptions(args)
+    val path = options["--dataset"] ?: fail("callup needs --dataset <path>")
+    val seedText = options["--seed"] ?: fail("callup needs --seed <number>")
+    val countryName = options["--country"] ?: fail("callup needs --country <name>")
+    val seed = seedText.toLongOrNull() ?: fail("seed '$seedText' is not a number")
+
+    val dataset = loadDataset(path)
+    val activeLeagues = parseLeagues(options["--leagues"], dataset)
+    val country = resolveCountry(countryName, dataset)
+
+    val world = generateWorld(dataset, seed, activeLeagues)
+    print(describeCallUp(callUpNationalTeam(world, dataset, country), dataset))
+}
+
+/**
  * Reads a dataset, generates a world, assembles a match between two of its
- * clubs and plays it.
+ * sides and plays it.
  *
  * Everything that can go wrong here is the user handing over a path, a
- * number or a club reference, so each failure says which one and stops.
+ * number or a side reference, so each failure says which one and stops.
  * A club reference that does not resolve in the generated world is the
  * likeliest mistake, a typo in a ref, so its own message names the ref it
  * could not find rather than only saying "home" or "away".
  *
- * The match is played as a friendly of the world's first season. This is a
- * command line demonstration of two clubs playing each other, not a fixture
- * drawn from a season, so neither a real competition kind nor a real season
- * number applies; a friendly is the one kind that carries no assumption
- * about which competition or round produced the match. Concretely, that
- * choice of kind means two things a reader of the result should know: home
- * advantage still applies, because CompetitionKind.isNeutralGround is only
- * true for CLUB_WORLD_CUP and NATIONAL_TEAM, and no reputation handicap is
- * applied, because competitionMultiplier in EffectiveStrength.kt has no
- * branch for FRIENDLY and falls through to its else of 1.0.
+ * A side is a club of the world, or a national team called up from it when
+ * the reference carries the national prefix. Two clubs play a friendly and
+ * two national teams play a national team match; a club against a national
+ * team is refused, because no competition of section 1.1 stages one.
+ *
+ * A club match is played as a friendly of the world's first season. This is
+ * a command line demonstration of two clubs playing each other, not a
+ * fixture drawn from a season, so neither a real competition kind nor a real
+ * season number applies; a friendly is the one kind that carries no
+ * assumption about which competition or round produced the match.
+ * Concretely, that choice of kind means two things a reader of the result
+ * should know: home advantage still applies, because
+ * CompetitionKind.isNeutralGround is only true for CLUB_WORLD_CUP and
+ * NATIONAL_TEAM, and no reputation handicap is applied, because
+ * competitionMultiplier in EffectiveStrength.kt has no branch for FRIENDLY
+ * and falls through to its else of 1.0. A national team match is the
+ * opposite on both counts: neutral ground, and section 3.3's scale by the
+ * team's reputation on every man who represents it.
  *
  * Every player of both clubs is available. This command generates a world and
  * plays one match in it, so there is no season behind the match to have
@@ -218,14 +259,14 @@ private fun match(args: List<String>) {
     val activeLeagues = parseLeagues(options["--leagues"], dataset)
 
     val world = generateWorld(dataset, seed, activeLeagues)
-    val home = world.club(homeRef) ?: fail("no club '$homeRef' in this world")
-    val away = world.club(awayRef) ?: fail("no club '$awayRef' in this world")
+    val home = resolveCompetitor(homeRef, world, dataset)
+    val away = resolveCompetitor(awayRef, world, dataset)
 
     val assembled = assembleMatch(
         home = home,
         away = away,
         dataset = dataset,
-        kind = CompetitionKind.FRIENDLY,
+        kind = competitionKindFor(home, away),
         season = MATCH_SEASON,
         rules = RuleSets.CLASSIC,
         availability = Availability.FULL_SQUAD,
@@ -239,6 +280,49 @@ private fun match(args: List<String>) {
     )
 
     print(describe(report, homeRef, awayRef))
+}
+
+/**
+ * The side a reference names: a national team, called up from the world,
+ * when the reference carries the national prefix, or else the club with
+ * that ref.
+ */
+internal fun resolveCompetitor(ref: String, world: World, dataset: WorldDataset): Competitor =
+    if (ref.startsWith(NATIONAL_PREFIX)) {
+        callUpNationalTeam(world, dataset, resolveCountry(ref.removePrefix(NATIONAL_PREFIX), dataset))
+    } else {
+        world.club(ref) ?: fail("no club '$ref' in this world")
+    }
+
+/**
+ * Which competition two sides meet in from the command line: a friendly for
+ * two clubs, a national team match for two national teams, and nothing for a
+ * mixed pair, which section 1.1 has no competition for.
+ */
+@SpecRef("1.1")
+internal fun competitionKindFor(home: Competitor, away: Competitor): CompetitionKind {
+    val nationalSides = listOf(home, away).count { it is NationalTeam }
+    return when (nationalSides) {
+        0 -> CompetitionKind.FRIENDLY
+        2 -> CompetitionKind.NATIONAL_TEAM
+        else -> fail(
+            "a club and a national team do not meet in any competition the original knows; " +
+                "name two clubs or two national teams",
+        )
+    }
+}
+
+/** What marks a side reference as a national team rather than a club ref. */
+private const val NATIONAL_PREFIX = "national:"
+
+/**
+ * A country by the name the dataset gives it, which for an imported dataset
+ * is the three letter code of the file suffixes.
+ */
+internal fun resolveCountry(name: String, dataset: WorldDataset): Int {
+    val trimmed = name.trim().uppercase()
+    return dataset.countries.firstOrNull { it.name.uppercase() == trimmed }?.index
+        ?: fail("no country named '$trimmed' in this dataset")
 }
 
 /**
@@ -313,11 +397,7 @@ internal fun parseOptions(args: List<String>): Map<String, String> {
 internal fun parseLeagues(value: String?, dataset: WorldDataset): Set<Int> {
     if (value == null) return setOf(Country.BRAZIL)
     if (value.trim().uppercase() == "ALL") return dataset.countries.map { it.index }.toSet()
-    return value.split(',').map { name ->
-        val trimmed = name.trim().uppercase()
-        dataset.countries.firstOrNull { it.name.uppercase() == trimmed }?.index
-            ?: fail("no country named '$trimmed' in this dataset")
-    }.toSet()
+    return value.split(',').map { name -> resolveCountry(name, dataset) }.toSet()
 }
 
 /**

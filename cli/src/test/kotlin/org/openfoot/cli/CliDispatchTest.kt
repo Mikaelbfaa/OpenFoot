@@ -22,5 +22,7 @@ class CliDispatchTest {
     @Test
     fun `a subcommand missing its options exits one rather than crashing`() {
         assertEquals(1, dispatch(arrayOf("worldgen")))
+        assertEquals(1, dispatch(arrayOf("callup")))
+        assertEquals(1, dispatch(arrayOf("callup", "--dataset", "x.json", "--seed", "1")))
     }
 }
