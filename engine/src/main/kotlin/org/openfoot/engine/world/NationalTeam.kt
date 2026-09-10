@@ -36,19 +36,33 @@ import org.openfoot.model.rand
  * The designations are the ones section 5.6 says a call-up recomputes: the set
  * piece taker over the called list, and no corner taker, since the AI never
  * sets one. The taker indexes this squad.
+ *
+ * As a competitor the team's key carries a colon, which no file name and so
+ * no club reference can contain, so a national team's stream never collides
+ * with a club's. Every man of the squad has the team's nationality by
+ * construction, so representing the country marks all of them for section
+ * 3.3's national team scale.
  */
 @SpecRef("4.12")
 data class NationalTeam(
-    val country: Int,
+    override val country: Int,
     val level: Int,
-    @property:SpecRef("4.12") val reputation: Int,
-    val squad: List<Player>,
+    @property:SpecRef("4.12") override val reputation: Int,
+    override val squad: List<Player>,
     val origins: List<String?>,
-    @property:SpecRef("5.6") val designated: Designated,
-) {
+    @property:SpecRef("5.6") override val designated: Designated,
+) : Competitor {
     /** How many of the called men are free agents rather than club players. */
     val freeAgentCount: Int get() = origins.count { it == null }
+
+    override val key: String get() = nationalTeamKey(country)
+
+    override val representedCountry: Int? get() = country
 }
+
+/** The competitor key of a country's national team. */
+@SpecRef("4.12")
+fun nationalTeamKey(country: Int): String = "national:$country"
 
 /**
  * The reputation a national team is born with, read off the country's level.

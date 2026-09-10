@@ -6,7 +6,7 @@ import org.openfoot.engine.match.MatchPlayer
 import org.openfoot.engine.match.MatchSetup
 import org.openfoot.engine.match.MatchSide
 import org.openfoot.engine.match.StrengthContext
-import org.openfoot.engine.world.GeneratedClub
+import org.openfoot.engine.world.Competitor
 import org.openfoot.engine.world.clubKey
 import org.openfoot.model.CompetitionKind
 import org.openfoot.model.Marking
@@ -49,16 +49,20 @@ data class AssembledMatch(
 )
 
 /**
- * Builds a playable match between two generated clubs: the bridge from world
- * generation and the lineup layer to something simulateMatch can take.
+ * Builds a playable match between two competitors, generated clubs or called
+ * up national teams: the bridge from world generation and the lineup layer to
+ * something simulateMatch can take.
  *
  * Each side draws its own formation and its own marking from a stream forked
- * off its own club reference, rng.fork(clubKey(entry.ref)), the same
- * derivation generateWorld uses to fork a club's squad stream off the world's.
- * Because the fork depends only on the ref and never on which parameter, home
- * or away, the club was passed as, a club's formation and lineup come out the
- * same whichever end of the fixture it plays at. That is the property
+ * off its own competitor key, rng.fork(clubKey(key)), the same derivation
+ * generateWorld uses to fork a club's squad stream off the world's. Because
+ * the fork depends only on the key and never on which parameter, home or
+ * away, the competitor was passed as, a side's formation and lineup come out
+ * the same whichever end of the fixture it plays at. That is the property
  * MatchAssemblyTest pins.
+ *
+ * A national team side hands its country to the lineup, so every man it
+ * fields carries section 3.3's national team scale; a club side hands none.
  *
  * The same is not asserted of marking. Whether the original really draws a
  * side's marking from that side's own stream, as implemented here, or from one
@@ -98,8 +102,8 @@ data class AssembledMatch(
  */
 @SpecRef("5.4")
 fun assembleMatch(
-    home: GeneratedClub,
-    away: GeneratedClub,
+    home: Competitor,
+    away: Competitor,
     dataset: WorldDataset,
     kind: CompetitionKind,
     season: Int,
@@ -142,8 +146,8 @@ private class AssembledSide(val side: MatchSide, val bench: List<MatchPlayer>)
  * where it lives.
  */
 private fun assembleSide(
-    club: GeneratedClub,
-    opponent: GeneratedClub,
+    club: Competitor,
+    opponent: Competitor,
     dataset: WorldDataset,
     kind: CompetitionKind,
     isHomeSide: Boolean,
@@ -153,22 +157,22 @@ private fun assembleSide(
 ): AssembledSide {
     val country = clubCountry(club, dataset)
 
-    val sideRng = rng.fork(clubKey(club.entry.ref))
+    val sideRng = rng.fork(clubKey(club.key))
     val formation = drawFormation(sideRng)
     val marking = drawMarking(sideRng)
 
     val context = StrengthContext(
         kind = kind,
         useIndividualAbilities = dataset.options.individualAbilities,
-        sideReputation = club.entry.reputation,
+        sideReputation = club.reputation,
         sideCountry = country.index,
         sideContinent = country.continent,
         isHomeSide = isHomeSide,
-        homeReputation = if (isHomeSide) club.entry.reputation else opponent.entry.reputation,
-        awayReputation = if (isHomeSide) opponent.entry.reputation else club.entry.reputation,
+        homeReputation = if (isHomeSide) club.reputation else opponent.reputation,
+        awayReputation = if (isHomeSide) opponent.reputation else club.reputation,
     )
 
-    val matchdaySquad = autoLineup(club.squad, formation, rules, availability)
+    val matchdaySquad = autoLineup(club.squad, formation, rules, availability, club.representedCountry)
     val side = MatchSide(
         lineup = matchdaySquad.onPitch,
         marking = marking,
@@ -185,8 +189,8 @@ private fun assembleSide(
  * fields in section 3.3, and a match rated from a default continent would be
  * a match rated wrong rather than one that failed to build.
  */
-private fun clubCountry(club: GeneratedClub, dataset: WorldDataset): CountryEntry =
-    requireNotNull(dataset.country(club.entry.country)) {
-        "club ${club.entry.ref} sits in country ${club.entry.country}, which the dataset does not " +
+private fun clubCountry(club: Competitor, dataset: WorldDataset): CountryEntry =
+    requireNotNull(dataset.country(club.country)) {
+        "competitor ${club.key} sits in country ${club.country}, which the dataset does not " +
             "describe, and StrengthContext needs that country's continent"
     }

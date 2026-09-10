@@ -38,6 +38,7 @@ fun fillEleven(
     formation: Formation,
     rules: RuleSet,
     availability: Availability,
+    representedCountry: Int? = null,
 ): List<MatchPlayer> {
     val pool = sortedPool(squad, availability)
     val taken = BooleanArray(squad.size)
@@ -45,10 +46,19 @@ fun fillEleven(
     for (slot in formation.slots) {
         val chosen = chooseFor(slot, squad, pool, taken, rules) ?: continue
         taken[chosen] = true
-        eleven += squad[chosen].inSlot(slot, PlayerId(chosen))
+        eleven += squad[chosen].inSlot(slot, PlayerId(chosen), represents(squad[chosen], representedCountry))
     }
     return eleven
 }
+
+/**
+ * Whether a fielded player carries section 3.3's national team scale: only
+ * when the side represents a country at all and the player's nationality is
+ * that country. A club side represents none, so its players never do.
+ */
+@SpecRef("3.3")
+private fun represents(player: Player, representedCountry: Int?): Boolean =
+    representedCountry != null && player.country == representedCountry
 
 /**
  * The pool of section 5.4 step 1 and 2: not injured, not suspended, sorted by
@@ -109,6 +119,12 @@ data class MatchdaySquad(
  * nothing about the lineup it produced would say so. Requiring the argument
  * makes each caller state which squad it means, and turns that day into a
  * compile error instead of a silent one.
+ *
+ * representedCountry does default, to null, because null is the truth for
+ * every club side rather than a placeholder for a value nobody has yet: only
+ * a national team represents a country, and only its assembly passes one.
+ * The eleven and the bench both carry the flag, since a substitute who comes
+ * on is rated by the same section 3.3 scale as the man he replaces.
  */
 @SpecRef("5.4")
 fun autoLineup(
@@ -116,8 +132,9 @@ fun autoLineup(
     formation: Formation,
     rules: RuleSet,
     availability: Availability,
+    representedCountry: Int? = null,
 ): MatchdaySquad {
-    val onPitch = fillEleven(squad, formation, rules, availability)
+    val onPitch = fillEleven(squad, formation, rules, availability, representedCountry)
 
     val pool = sortedPool(squad, availability)
     val taken = BooleanArray(squad.size)
@@ -129,7 +146,11 @@ fun autoLineup(
     for (cell in rules.benchTemplate) {
         val chosen = chooseFor(Slot(cell), squad, pool, taken, rules) ?: break
         taken[chosen] = true
-        bench += squad[chosen].inSlot(Slot.UNUSED_SUBSTITUTE, PlayerId(chosen))
+        bench += squad[chosen].inSlot(
+            Slot.UNUSED_SUBSTITUTE,
+            PlayerId(chosen),
+            represents(squad[chosen], representedCountry),
+        )
     }
 
     return MatchdaySquad(onPitch, bench)

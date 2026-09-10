@@ -12,15 +12,27 @@ import org.openfoot.model.SplitMix64Rng
 /**
  * A club, the standing the pyramid gave it, the squad generated for it, and
  * the designations of section 5.6 that club stores alongside it.
+ *
+ * As a competitor its key is its reference, the same value its squad stream
+ * was forked from, and it represents no country: a club's players are rated
+ * without section 3.3's national team scale whatever their nationality.
  */
 data class GeneratedClub(
     val entry: ClubEntry,
     @property:SpecRef("1.9") val standing: Standing,
-    val squad: List<Player>,
-    @property:SpecRef("5.6") val designated: Designated,
-) {
+    override val squad: List<Player>,
+    @property:SpecRef("5.6") override val designated: Designated,
+) : Competitor {
     /** The division standing carries, or null on any other standing. */
     val division: Int? get() = (standing as? Standing.InDivision)?.division
+
+    override val key: String get() = entry.ref
+
+    override val country: Int get() = entry.country
+
+    override val reputation: Int get() = entry.reputation
+
+    override val representedCountry: Int? get() = null
 }
 
 /**

@@ -1,9 +1,12 @@
 package org.openfoot.engine.lineup
 
 import org.openfoot.dataset.WorldDataset
+import org.openfoot.engine.world.Competitor
 import org.openfoot.engine.world.ScriptedInts
 import org.openfoot.engine.world.WorldFixtures
+import org.openfoot.engine.world.callUpNationalTeam
 import org.openfoot.engine.world.generateWorld
+import org.openfoot.engine.world.nationalTeamReputation
 import org.openfoot.model.CompetitionKind
 import org.openfoot.model.Country
 import org.openfoot.model.Marking
@@ -172,6 +175,69 @@ class MatchAssemblyTest {
             matchRating(abilitiesOff),
             "the dataset's individualAbilities option must reach StrengthContext, or a player is " +
                 "rated by his overall strength no matter what an installation's options.bcf says",
+        )
+    }
+
+    /**
+     * Two national teams, called up from the two club world above: every
+     * Brazilian plays for casa_bra and every Spaniard for fora_esp, eighteen
+     * of each, so both call-ups run on club players alone.
+     */
+    private fun nationalMatch(seed: Long): AssembledMatch {
+        val data = dataset()
+        val world = generateWorld(data, seed)
+        return assembleMatch(
+            home = callUpNationalTeam(world, data, Country.BRAZIL),
+            away = callUpNationalTeam(world, data, WorldFixtures.SPAIN),
+            dataset = data,
+            kind = CompetitionKind.NATIONAL_TEAM,
+            season = 1,
+            rules = RuleSets.CLASSIC,
+            availability = Availability.FULL_SQUAD,
+            rng = SplitMix64Rng(seed),
+        )
+    }
+
+    @Test
+    fun `a national team side fields eleven countrymen who all carry the section 3 3 scale`() {
+        val match = nationalMatch(seed = 3L)
+
+        assertEquals(11, match.setup.home.lineup.size)
+        assertTrue(match.setup.home.lineup.all { it.representsSideCountry }, "every man represents Brazil")
+        assertTrue(match.homeBench.all { it.representsSideCountry }, "and so does the bench")
+        assertEquals(Country.BRAZIL, match.setup.home.context.sideCountry)
+        assertEquals(nationalTeamReputation(20), match.setup.home.context.sideReputation)
+        assertEquals(WorldFixtures.SPAIN, match.setup.away.context.sideCountry)
+    }
+
+    @Test
+    fun `a club side represents nobody, whatever its players' nationality`() {
+        val match = assemble(seed = 3L)
+        assertTrue(match.setup.home.lineup.none { it.representsSideCountry })
+        assertTrue(match.homeBench.none { it.representsSideCountry })
+    }
+
+    @Test
+    fun `a national team draws from its own stream whichever end it plays at`() {
+        val data = dataset()
+        val world = generateWorld(data, 3L)
+        val brazil = callUpNationalTeam(world, data, Country.BRAZIL)
+        val spain = callUpNationalTeam(world, data, WorldFixtures.SPAIN)
+
+        fun assembleAs(home: Competitor, away: Competitor) = assembleMatch(
+            home = home,
+            away = away,
+            dataset = data,
+            kind = CompetitionKind.NATIONAL_TEAM,
+            season = 1,
+            rules = RuleSets.CLASSIC,
+            availability = Availability.FULL_SQUAD,
+            rng = SplitMix64Rng(3L),
+        )
+
+        assertEquals(
+            assembleAs(brazil, spain).setup.home.lineup.map { it.id },
+            assembleAs(spain, brazil).setup.away.lineup.map { it.id },
         )
     }
 }
