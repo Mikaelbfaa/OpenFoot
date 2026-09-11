@@ -53,3 +53,6 @@ selecoes/
 trofeus/
 sons/
 datasets/*/art/
+
+# Assistant plan workspaces (scratch, never committed)
+.superpowers/
