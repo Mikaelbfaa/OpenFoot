@@ -94,11 +94,44 @@ data class AssembledMatch(
  * Availability is required for the same reason, and it is the parameter where
  * the bug is still ahead of us rather than behind. Section 5.4 step 1 filters
  * the pool by who can play, so an assembled match is only as correct as what
- * it was told about injuries and suspensions. That state does not exist in
- * v0.1, so every caller passes Availability.FULL_SQUAD and says so at the call
- * site. Letting it default would put the choice out of sight in this file, and
- * the day season state lands every call site would keep fielding injured and
- * suspended players while reading exactly as it does now.
+ * it was told about injuries and suspensions. A season holds one PlayerRecord
+ * per club, and the two clubs of a fixture answer section 5.4 step 1
+ * independently of each other, so availability is asked once per competitor
+ * rather than once for the whole match: availabilityOf(home) is not required
+ * to equal availabilityOf(away), and in fact never does once ClubState exists,
+ * since each club's own records are what the question is about. Letting it
+ * default would put the choice out of sight in this file, and every call site
+ * that still has no season state to ask passes Availability.FULL_SQUAD through
+ * the single availability overload below and says so.
+ */
+@SpecRef("5.4")
+fun assembleMatch(
+    home: Competitor,
+    away: Competitor,
+    dataset: WorldDataset,
+    kind: CompetitionKind,
+    season: Int,
+    rules: RuleSet,
+    availabilityOf: (Competitor) -> Availability,
+    rng: Rng,
+): AssembledMatch {
+    val homeSide = assembleSide(home, away, dataset, kind, isHomeSide = true, rules, availabilityOf(home), rng)
+    val awaySide = assembleSide(away, home, dataset, kind, isHomeSide = false, rules, availabilityOf(away), rng)
+
+    val setup = MatchSetup(
+        home = homeSide.side,
+        away = awaySide.side,
+        season = season,
+        rules = rules,
+    )
+    return AssembledMatch(setup = setup, homeBench = homeSide.bench, awayBench = awaySide.bench)
+}
+
+/**
+ * The pre season one shot: every caller before ClubState existed, and every
+ * caller since that still has nothing but Availability.FULL_SQUAD to hand in,
+ * asks both sides the same question through this thin wrapper rather than
+ * writing out a two argument lambda of their own at the call site.
  */
 @SpecRef("5.4")
 fun assembleMatch(
@@ -110,18 +143,7 @@ fun assembleMatch(
     rules: RuleSet,
     availability: Availability,
     rng: Rng,
-): AssembledMatch {
-    val homeSide = assembleSide(home, away, dataset, kind, isHomeSide = true, rules, availability, rng)
-    val awaySide = assembleSide(away, home, dataset, kind, isHomeSide = false, rules, availability, rng)
-
-    val setup = MatchSetup(
-        home = homeSide.side,
-        away = awaySide.side,
-        season = season,
-        rules = rules,
-    )
-    return AssembledMatch(setup = setup, homeBench = homeSide.bench, awayBench = awaySide.bench)
-}
+): AssembledMatch = assembleMatch(home, away, dataset, kind, season, rules, { availability }, rng)
 
 /** One side's fielded eleven together with its bench, before either joins the other in a setup. */
 private class AssembledSide(val side: MatchSide, val bench: List<MatchPlayer>)
@@ -134,10 +156,10 @@ private class AssembledSide(val side: MatchSide, val bench: List<MatchPlayer>)
  * not just the side being built, and section 3.3's national cup and state
  * handicap reads both.
  *
- * Both sides are asked the same availability. That is right for a caller
- * holding one season state, which is what knows about every club's injuries at
- * once, and it is why availability is one parameter of assembleMatch rather
- * than one per side.
+ * availability answers section 5.4 step 1 for this one club alone.
+ * assembleMatch asks availabilityOf once per side and hands each call's
+ * result to the assembleSide built for that side, so a club with an injured
+ * man never borrows the other club's own records by accident.
  *
  * The side carries the club's own designations across unchanged, unfiltered by
  * who actually made the eleven. Section 5.6 derives them from the whole squad
