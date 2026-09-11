@@ -1,6 +1,7 @@
 package org.openfoot.engine.season
 
 import org.openfoot.dataset.WorldDataset
+import org.openfoot.engine.world.Standing
 import org.openfoot.engine.world.World
 import org.openfoot.engine.world.clubKey
 import org.openfoot.engine.world.pyramidTiebreak
@@ -71,6 +72,15 @@ fun interface WeeklyTick {
  * weekly tick actually fired on, which is what lets playRound find exactly the
  * Sundays it has not yet fired without keeping a running list of every Sunday
  * of the year.
+ *
+ * reserves is the country reserve of section 1.12, one queue per country
+ * whose league is active, keyed by country index: the clubs of that country
+ * that sit outside every division, head first. Section 1.12 makes it a queue
+ * carried from one season into the next rather than a fresh reading of club
+ * levels, since the pyramid is built once at world creation and never
+ * rebuilt: the last division's promoted clubs leave from the head and its
+ * relegated clubs join the tail. It is data on the state for that reason, set
+ * once by openingSeason and moved only by nextSeason.
  */
 @SpecRef("1.10")
 data class SeasonState(
@@ -85,6 +95,7 @@ data class SeasonState(
     val closed: List<CompetitionClose>,
     val dateIndex: Int,
     val lastTick: CalendarDate?,
+    val reserves: Map<Int, List<String>>,
 ) {
     /** True once the cursor has walked past the last date the schedule laid. */
     @SpecRef("1.10")
@@ -111,6 +122,8 @@ data class SeasonState(
  * here with number fixed at one because this function only ever opens the
  * first season of a career; see that function's docstring for what
  * activeLeagues selects and how each competition's own rng stream is forked.
+ * The country reserves of section 1.12 are seeded here, once, by
+ * openingReserves.
  */
 @SpecRef("1.10")
 fun openingSeason(world: World, dataset: WorldDataset, activeLeagues: Set<Int>, year: Int, seed: Long): SeasonState {
@@ -130,7 +143,36 @@ fun openingSeason(world: World, dataset: WorldDataset, activeLeagues: Set<Int>, 
         closed = emptyList(),
         dateIndex = 0,
         lastTick = null,
+        reserves = openingReserves(clubs, dataset, activeLeagues, seed),
     )
+}
+
+/**
+ * The opening queue of every country reserve of section 1.12, one per country
+ * of activeLeagues whose pyramid seated at least one division.
+ *
+ * Section 1.12 orders the reserve as section 1.9 orders the pyramid: level
+ * descending, ties broken by the per club draw the world generation already
+ * made (pyramidTiebreak, read off the world's own stream so the reserve
+ * agrees with the pyramid that left these clubs without a division), and,
+ * past that, by reference for a total order. This is the only place club
+ * levels are read for the reserve: 1.12 says the pyramid is never rebuilt and
+ * no level is read again after world creation, so every later season moves
+ * this queue by the swap alone. A country whose league is active but whose
+ * clubs were too few to seat any division has no pyramid, and no queue.
+ */
+@SpecRef("1.12")
+internal fun openingReserves(clubs: List<ClubState>, dataset: WorldDataset, activeLeagues: Set<Int>, seed: Long): Map<Int, List<String>> {
+    val worldRng = SplitMix64Rng(seed).fork(SeedDomain.WORLDGEN)
+    val reserves = LinkedHashMap<Int, List<String>>()
+    for (country in activeLeagues.sorted()) {
+        if (leagueDivisions(country, clubs, dataset).isEmpty()) continue
+        reserves[country] = clubs
+            .filter { it.country == country && it.standing == Standing.WithoutDivision }
+            .sortedWith(compareByDescending<ClubState> { it.club.entry.level }.thenBy { pyramidTiebreak(worldRng, it.key) }.thenBy { it.key })
+            .map { it.key }
+    }
+    return reserves
 }
 
 /**

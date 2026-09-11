@@ -30,6 +30,14 @@ class CalendarDateTest {
     }
 
     @Test
+    fun `the last Sunday of a year falls on or just before the thirty first of December`() {
+        assertEquals(CalendarDate(2026, 12, 27), CalendarDate.lastSunday(2026))
+        assertEquals(CalendarDate(2028, 12, 31), CalendarDate.lastSunday(2028))
+        assertTrue(CalendarDate.lastSunday(2027).isSunday)
+        assertTrue(CalendarDate.lastSunday(2027).plusDays(7).year == 2028)
+    }
+
+    @Test
     fun `adding days crosses months, years and leap days`() {
         assertEquals(CalendarDate(2024, 3, 1), CalendarDate(2024, 2, 28).plusDays(2))
         assertEquals(CalendarDate(2025, 3, 1), CalendarDate(2025, 2, 28).plusDays(1))

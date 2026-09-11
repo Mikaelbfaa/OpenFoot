@@ -1,16 +1,21 @@
 package org.openfoot.engine.season
 
 import org.openfoot.dataset.LeagueConfigEntry
+import org.openfoot.dataset.WorldDataset
 import org.openfoot.engine.world.Standing
 import org.openfoot.engine.world.WorldFixtures
 import org.openfoot.engine.world.generateWorld
+import org.openfoot.engine.world.pyramidTiebreak
 import org.openfoot.model.CompetitionKind
 import org.openfoot.model.Country
 import org.openfoot.model.Position
 import org.openfoot.model.RuleSets
+import org.openfoot.model.SeedDomain
+import org.openfoot.model.SplitMix64Rng
 import org.openfoot.model.Trait
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class TurnoverTest {
@@ -70,6 +75,127 @@ class TurnoverTest {
         assertTrue(next.played.isEmpty() && next.closed.isEmpty() && next.dateIndex == 0)
         assertEquals(10, next.competitions.getValue("league:29:1").participants.size)
         assertTrue(next.competitions.getValue("league:29:1").participants.containsAll(swaps[0].promoted))
+    }
+
+    /**
+     * Two divisions of ten over a reserve of the given size: the twenty
+     * divisioned clubs sit on levels twenty down to eleven, and every reserve
+     * club on level six, so a club relegated into the reserve always outranks
+     * every club already waiting there, which is what a queue must ignore.
+     */
+    private fun twoDivisions(reserve: Int) = WorldFixtures.dataset(
+        clubs = (1..20 + reserve).map { index ->
+            val ref = "p${index.toString().padStart(2, '0')}"
+            WorldFixtures.club(ref = ref, level = if (index <= 20) 20 - (index - 1) / 2 else 6, squad = squad(ref))
+        },
+    ).copy(
+        leagues = listOf(
+            LeagueConfigEntry(country = Country.BRAZIL, division = 1, teamCount = 10, relegated = 2, turns = 1, penaltiesTiebreak = true),
+            LeagueConfigEntry(country = Country.BRAZIL, division = 2, teamCount = 10, relegated = 2, turns = 1, penaltiesTiebreak = true),
+        ),
+    )
+
+    private fun opening(dataset: WorldDataset, seed: Long) =
+        openingSeason(generateWorld(dataset, seed, setOf(Country.BRAZIL)), dataset, setOf(Country.BRAZIL), 2026, seed)
+
+    private fun play(state: SeasonState) = playSeason(state, RuleSets.CLASSIC, WeeklyTick.NONE)
+
+    private fun turn(state: SeasonState) = nextSeason(state, setOf(Country.BRAZIL), RuleSets.CLASSIC)
+
+    @Test
+    fun `a reserve of one relegates the last placed club and keeps the second last up`() {
+        val end = play(opening(twoDivisions(reserve = 1), 3))
+        val second = end.closed.single { it.key == "league:29:2" }.finalOrder
+        val swap = divisionSwaps(end, Country.BRAZIL).last()
+        assertEquals(listOf(second.last()), swap.relegated)
+        assertEquals(1, swap.promoted.size)
+        val next = turn(end)
+        assertEquals(Standing.WithoutDivision, next.club(second.last()).standing)
+        assertEquals(Standing.InDivision(2), next.club(second[second.size - 2]).standing)
+        assertEquals(Standing.InDivision(2), next.club(swap.promoted.single()).standing)
+    }
+
+    @Test
+    fun `a strong relegated club waits at the tail of the queue behind the clubs already there`() {
+        val start = opening(twoDivisions(reserve = 4), 4)
+        val waiting = start.clubs.values.filter { it.standing == Standing.WithoutDivision }.map { it.key }.toSet()
+        val end1 = play(start)
+        val first = divisionSwaps(end1, Country.BRAZIL).last()
+        val end2 = play(turn(end1))
+        val second = divisionSwaps(end2, Country.BRAZIL).last()
+        assertEquals(waiting - first.promoted.toSet(), second.promoted.toSet())
+        assertTrue(first.relegated.none { it in second.promoted })
+        val third = turn(end2)
+        first.relegated.forEach { assertEquals(Standing.WithoutDivision, third.club(it).standing) }
+        assertEquals(start.reserves.getValue(Country.BRAZIL).drop(2), second.promoted)
+        assertEquals(first.relegated + second.relegated, third.reserves.getValue(Country.BRAZIL))
+    }
+
+    @Test
+    fun `the opening reserve queue is the pyramid's own order of the clubs it left without a division`() {
+        val start = opening(twoDivisions(reserve = 4), 6)
+        val worldRng = SplitMix64Rng(6).fork(SeedDomain.WORLDGEN)
+        val expected = start.clubs.values
+            .filter { it.standing == Standing.WithoutDivision }
+            .sortedWith(compareByDescending<ClubState> { it.club.entry.level }.thenBy { pyramidTiebreak(worldRng, it.key) }.thenBy { it.key })
+            .map { it.key }
+        assertEquals(4, expected.size)
+        assertEquals(mapOf(Country.BRAZIL to expected), start.reserves)
+    }
+
+    @Test
+    fun `three seasons keep every club in exactly one place and every division its size`() {
+        val data = twoDivisions(reserve = 4)
+        var state = opening(data, 7)
+        repeat(3) {
+            val divisions = leagueDivisions(Country.BRAZIL, state.clubs.values.toList(), data)
+            assertEquals(listOf(10, 10), divisions.map { it.clubs.size })
+            val reserve = state.reserves.getValue(Country.BRAZIL)
+            assertEquals(4, reserve.size)
+            assertEquals(state.clubs.keys.sorted(), (divisions.flatMap { it.clubs } + reserve).sorted())
+            assertEquals(state.clubs.values.filter { it.standing == Standing.WithoutDivision }.map { it.key }.toSet(), reserve.toSet())
+            state = turn(play(state))
+        }
+    }
+
+    /**
+     * Four Brazilian divisions of ten over a reserve of four, with no club
+     * belonging to a state, so the fourth division is rebuilt at the turnover
+     * from an empty state champions' queue and drops most of its members.
+     */
+    private fun fourDivisions() = WorldFixtures.dataset(
+        clubs = (1..44).map { index ->
+            val ref = "b${index.toString().padStart(2, '0')}"
+            WorldFixtures.club(ref = ref, level = if (index <= 40) 20 - (index - 1) / 4 else 6, squad = squad(ref))
+        },
+    ).copy(
+        leagues = (1..4).map {
+            LeagueConfigEntry(country = Country.BRAZIL, division = it, teamCount = 10, relegated = 2, turns = 1, penaltiesTiebreak = true)
+        },
+    )
+
+    @Test
+    fun `clubs the Brazilian fourth division drops join the tail of the reserve queue in final order`() {
+        val data = fourDivisions()
+        assertTrue(data.options.playStateChampionships)
+        val start = opening(data, 8)
+        val end = play(start)
+        val fourth = end.closed.single { it.key == "league:29:4" }.finalOrder
+        val next = turn(end)
+        val dropped = fourth.filter { next.club(it).standing == Standing.WithoutDivision }
+        assertTrue(dropped.isNotEmpty())
+        assertEquals(start.reserves.getValue(Country.BRAZIL) + dropped, next.reserves.getValue(Country.BRAZIL))
+        assertEquals(next.clubs.values.filter { it.standing == Standing.WithoutDivision }.map { it.key }.toSet(), next.reserves.getValue(Country.BRAZIL).toSet())
+    }
+
+    @Test
+    fun `the turnover refuses a season whose Sundays were not all fired`() {
+        var stepped = opening(twoDivisions(reserve = 2), 5)
+        while (!stepped.finished) stepped = playRound(stepped, RuleSets.CLASSIC, WeeklyTick.NONE)
+        val refused = assertFailsWith<IllegalArgumentException> { turn(stepped) }
+        assertTrue(refused.message!!.contains("Sundays"), refused.message)
+        assertTrue(refused.message!!.contains("playSeason"), refused.message)
+        assertEquals(2, turn(play(opening(twoDivisions(reserve = 2), 5))).number)
     }
 
     @Test

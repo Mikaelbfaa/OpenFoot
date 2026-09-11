@@ -60,6 +60,18 @@ data class CalendarDate(val year: Int, val month: Int, val day: Int) : Comparabl
         @SpecRef("0")
         fun seasonEnd(year: Int): CalendarDate = CalendarDate(year, MONTHS, daysInMonth(year, MONTHS))
 
+        /**
+         * The last Sunday of the calendar year, the last date on which
+         * section 0's weekly tick fires in a season laid over that year, and so
+         * the Sunday a finished season must have fired before the turnover
+         * may build the next one.
+         */
+        @SpecRef("0")
+        fun lastSunday(year: Int): CalendarDate {
+            val end = seasonEnd(year)
+            return end.plusDays(-end.weekday)
+        }
+
         fun fromOrdinal(ordinal: Int): CalendarDate {
             var year = ordinal / AVERAGE_YEAR_LENGTH
             while (daysBeforeYear(year) > ordinal) year--

@@ -1,13 +1,10 @@
 package org.openfoot.engine.season
 
 import org.openfoot.engine.world.Standing
-import org.openfoot.engine.world.pyramidTiebreak
 import org.openfoot.model.CompetitionKind
 import org.openfoot.model.Country
 import org.openfoot.model.RuleSet
-import org.openfoot.model.SeedDomain
 import org.openfoot.model.SpecRef
-import org.openfoot.model.SplitMix64Rng
 
 /**
  * One boundary's worth of movement between two divisions of one country's
@@ -36,15 +33,16 @@ data class DivisionSwap(val country: Int, val upper: Int, val relegated: List<St
  * many the upper division just sent down, since 1.12 promotes exactly as
  * many as the division above lost.
  *
- * The reserve is every club of the country sitting on Standing.WithoutDivision,
- * ordered the way section 1.9's own queue orders the pyramid: level
- * descending, ties broken by the same per club draw the pyramid itself used
- * (pyramidTiebreak, read off the world's own seed since the reserve's order
- * is a fact about the world and not about any one season), and, past that,
- * by reference for a total order. The swap moves the smaller of the last
- * division's relegation count and the reserve's own size, so a reserve too
- * small to fill every relegated place still swaps what it can rather than
- * refusing outright.
+ * The reserve is the country's queue carried on SeasonState.reserves, never
+ * a fresh reading of club levels: section 1.12 builds the pyramid once and
+ * moves it only by the swap. The swap moves the smaller of the last
+ * division's relegation count and the queue's own size. Out go that many of
+ * the last clubs of the last division's final order, still in final order,
+ * so a queue too short to fill every relegated place spares the best of the
+ * relegation zone and never the worst; in come as many clubs from the head
+ * of the queue. nextSeason then appends the relegated clubs to the queue's
+ * tail, per 1.12's "os rebaixados vao para o fim da fila da reserva e os
+ * promovidos saem do inicio".
  */
 @SpecRef("1.12")
 fun divisionSwaps(state: SeasonState, country: Int): List<DivisionSwap> {
@@ -61,14 +59,10 @@ fun divisionSwaps(state: SeasonState, country: Int): List<DivisionSwap> {
         swaps += DivisionSwap(country, upper.division, down, up)
     }
     val last = divisions.last()
-    val worldRng = SplitMix64Rng(state.seed).fork(SeedDomain.WORLDGEN)
-    val reserve = clubs
-        .filter { it.country == country && it.standing == Standing.WithoutDivision }
-        .sortedWith(compareByDescending<ClubState> { it.club.entry.level }.thenBy { pyramidTiebreak(worldRng, it.key) }.thenBy { it.key })
-        .map { it.key }
+    val reserve = state.reserves[country].orEmpty()
     val down = movement(last, order(last.division), promotedCount = 0).relegated
     val count = minOf(down.size, reserve.size)
-    swaps += DivisionSwap(country, last.division, down.take(count), reserve.take(count))
+    swaps += DivisionSwap(country, last.division, down.takeLast(count), reserve.take(count))
     return swaps
 }
 
@@ -140,6 +134,17 @@ fun stateChampionsQueue(closes: List<CompetitionClose>, stateOf: (String) -> Int
  * is a date on the calendar rather than a count, so it carries across. Both
  * are OPEN-QUESTIONS item 116, INFERIDO.
  *
+ * Each country's reserve queue moves with its last division's swap: the
+ * promoted clubs leave its head and the relegated join its tail in final
+ * order, and the Brazilian fourth division's rebuild sends the clubs it drops
+ * to the same tail. A country whose league is not among activeLeagues keeps
+ * no queue.
+ *
+ * Section 0 fires the weekly tick on every Sunday of the year, so a season is
+ * over only once its last Sunday has fired; playRound stops at the last
+ * scheduled date and leaves the Sundays after it to playSeason, and the
+ * turnover refuses a season that was stepped to its last round without them.
+ *
  * rules is unused by this plan; nextSeason keeps it as a parameter because
  * the next plan's aging, retirement and youth intake run at this same
  * turnover and read the rule set for their own MODERN fields, and adding the
@@ -150,10 +155,17 @@ fun stateChampionsQueue(closes: List<CompetitionClose>, stateOf: (String) -> Int
 @SpecRef("1.4")
 fun nextSeason(state: SeasonState, activeLeagues: Set<Int>, rules: RuleSet): SeasonState {
     require(state.finished) { "season ${state.number} has not finished" }
+    val lastSunday = CalendarDate.lastSunday(state.year)
+    require(state.lastTick == lastSunday) {
+        "season ${state.number}'s Sundays were not all fired: the last fired was ${state.lastTick}, " +
+            "the year's last is $lastSunday; playSeason fires them"
+    }
     val clubs = state.clubs.toMutableMap()
+    val reserves = LinkedHashMap<Int, List<String>>()
     for (country in activeLeagues.sorted()) {
         val divisions = leagueDivisions(country, clubs.values.toList(), state.dataset)
         if (divisions.isEmpty()) continue
+        var reserve = state.reserves[country].orEmpty()
         val brazilianFourth = country == Country.BRAZIL && state.dataset.options.playStateChampionships &&
             divisions.any { it.division == THIRD_DIVISION } && divisions.any { it.division == FOURTH_DIVISION }
         for (swap in divisionSwaps(state, country)) {
@@ -163,8 +175,10 @@ fun nextSeason(state: SeasonState, activeLeagues: Set<Int>, rules: RuleSet): Sea
                 clubs[key] = clubs.getValue(key).copy(standing = if (isReserve) Standing.WithoutDivision else Standing.InDivision(swap.upper + 1))
             }
             swap.promoted.forEach { key -> clubs[key] = clubs.getValue(key).copy(standing = Standing.InDivision(swap.upper)) }
+            if (isReserve) reserve = reserve.drop(swap.promoted.size) + swap.relegated
         }
-        if (brazilianFourth) rebuildBrazilianFourth(state, clubs, divisions)
+        if (brazilianFourth) reserve = rebuildBrazilianFourth(state, clubs, divisions, reserve)
+        reserves[country] = reserve
     }
     val moved = clubs.values.map { club ->
         club.copy(
@@ -186,6 +200,7 @@ fun nextSeason(state: SeasonState, activeLeagues: Set<Int>, rules: RuleSet): Sea
         closed = emptyList(),
         dateIndex = 0,
         lastTick = null,
+        reserves = reserves,
     )
 }
 
@@ -220,7 +235,12 @@ fun nextSeason(state: SeasonState, activeLeagues: Set<Int>, rules: RuleSet): Sea
  * INFERIDO, alongside item 81's own bet on the queue's own walking order.
  * Every previous member of the fourth that is neither promoted nor chosen
  * again falls to Standing.WithoutDivision, the country's reserve, the same
- * place any relegated-with-nowhere-to-go club of 1.9 lands.
+ * place any relegated-with-nowhere-to-go club of 1.9 lands, and joins the
+ * tail of Brazil's reserve queue in the fourth's final order, as a club
+ * relegated from any last division joins its country's queue under 1.12. A
+ * reserve club the queue of state champions seats in the fourth leaves the
+ * reserve queue in the same step, so the queue always holds exactly the
+ * clubs standing without a division. The function returns that new queue.
  *
  * The fourth also takes no part in the last division's swap with the
  * country's reserve that divisionSwaps otherwise builds for whichever
@@ -245,7 +265,12 @@ fun nextSeason(state: SeasonState, activeLeagues: Set<Int>, rules: RuleSet): Sea
  * item 113.
  */
 @SpecRef("1.12")
-private fun rebuildBrazilianFourth(state: SeasonState, clubs: MutableMap<String, ClubState>, divisions: List<LeagueDivision>) {
+private fun rebuildBrazilianFourth(
+    state: SeasonState,
+    clubs: MutableMap<String, ClubState>,
+    divisions: List<LeagueDivision>,
+    reserve: List<String>,
+): List<String> {
     val fourth = divisions.first { it.division == FOURTH_DIVISION }
     val third = divisions.first { it.division == THIRD_DIVISION }
     val thirdOrder = state.closed.firstOrNull { it.key == "league:${Country.BRAZIL}:$THIRD_DIVISION" }?.finalOrder
@@ -268,6 +293,8 @@ private fun rebuildBrazilianFourth(state: SeasonState, clubs: MutableMap<String,
     val outgoing = fourth.clubs.filter { it !in promotedOfFourth && it !in membersSet }
     members.forEach { key -> clubs[key] = clubs.getValue(key).copy(standing = Standing.InDivision(FOURTH_DIVISION)) }
     outgoing.forEach { key -> clubs[key] = clubs.getValue(key).copy(standing = Standing.WithoutDivision) }
+    val outgoingSet = outgoing.toSet()
+    return reserve.filter { it !in membersSet } + fourthOrder.filter { it in outgoingSet }
 }
 
 /**
@@ -311,5 +338,11 @@ private val STATE_TIERS: List<List<Int>> = listOf(
     listOf(7, 26, 20, 3, 21),
 )
 
-@SpecRef("1.12")
+/**
+ * How many places deep the state champions' queue walks each state's final
+ * order at most: twenty, the largest nTimes of the state preset table of
+ * FORMAT-SPEC (preset 10, twenty clubs in four groups), since no state's
+ * first division can hold more clubs and so no final order is longer.
+ */
+@SpecRef("FORMAT-SPEC, formula")
 private const val MAX_QUEUE_DEPTH = 20
