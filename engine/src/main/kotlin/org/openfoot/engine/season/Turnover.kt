@@ -87,11 +87,18 @@ data class FourthTurnover(val promoted: List<String>, val door: List<String>, va
  * competition key: up names the clubs that leave it for the division above,
  * down the clubs that leave it downwards, into the division below, a
  * reserve, or the door of the Brazilian fourth, each in the order the
- * turnover moves them. The top division's up is always empty, and a club
- * arriving from a reserve belongs to no division and so to no departures.
+ * turnover moves them. The top division's up is always empty. into is the
+ * clubs the reserve sends the other way, up into this division, and is
+ * non-null only for the country's or state's own deepest division, the one
+ * whose downward boundary is the reserve swap rather than another division's
+ * competition: every other division's arrivals from below are already the
+ * lower division's own up line, so attaching them here again would repeat
+ * the same move under a second name. The Brazilian fourth fed by the states
+ * takes no reserve swap of its own, section 1.12's special case, and so
+ * carries into null like a division that is not deepest at all.
  */
 @SpecRef("1.12")
-data class Departures(val key: String, val up: List<String>, val down: List<String>)
+data class Departures(val key: String, val up: List<String>, val down: List<String>, val into: List<String>? = null)
 
 /**
  * Every movement of one finished season's turnover, computed once by
@@ -146,7 +153,9 @@ fun seasonMovements(state: SeasonState): SeasonMovements {
         val turn = if (fed) fourthTurnover(state) else null
         swaps += own
         if (turn != null) fourth = turn
-        for (division in leagueDivisions(country, clubs, state.dataset).map { it.division }) {
+        val divisions = leagueDivisions(country, clubs, state.dataset).map { it.division }
+        val deepest = divisions.last()
+        for (division in divisions) {
             val up = when {
                 turn != null && division == BrazilianFourth.DIVISION -> turn.promoted
                 else -> own.firstOrNull { it.upper == division - 1 }?.promoted.orEmpty()
@@ -156,7 +165,8 @@ fun seasonMovements(state: SeasonState): SeasonMovements {
                 turn != null && division == BrazilianFourth.DIVISION -> turn.released
                 else -> own.firstOrNull { it.upper == division }?.relegated.orEmpty()
             }
-            departures += Departures("league:$country:$division", up, down)
+            val into = if (division == deepest) own.firstOrNull { it.upper == division }?.promoted else null
+            departures += Departures("league:$country:$division", up, down, into)
         }
     }
     val states = stateTurnover(
@@ -164,12 +174,15 @@ fun seasonMovements(state: SeasonState): SeasonMovements {
         tableOf = { key -> state.stateCompetitionTable(key) },
         meritOf = { key -> state.closed.firstOrNull { it.key == key }?.finalOrder ?: throw IllegalStateException("$key has not closed") },
     )
+    val deepestByState = state.states.divisions.groupBy { it.state }.mapValues { (_, own) -> own.maxOf { it.division } }
     for (division in state.states.divisions) {
         fun swap(upper: Int) = states.swaps.firstOrNull { it.state == division.state && it.upper == upper }
+        val deepest = division.division == deepestByState.getValue(division.state)
         departures += Departures(
             stateCompetitionKey(division),
             up = swap(division.division - 1)?.promoted.orEmpty(),
             down = swap(division.division)?.relegated.orEmpty(),
+            into = if (deepest) swap(division.division)?.promoted else null,
         )
     }
     return SeasonMovements(swaps, fourth, states, departures)
@@ -281,10 +294,10 @@ fun stateChampionsQueue(closes: List<CompetitionClose>, stateOf: (String) -> Int
  * scheduled date and leaves the Sundays after it to playSeason, and the
  * turnover refuses a season that was stepped to its last round without them.
  *
- * rules is unused by this plan; nextSeason keeps it as a parameter because
- * the next plan's aging, retirement and youth intake run at this same
+ * rules is unused by this version; nextSeason keeps it as a parameter because
+ * a later version's aging, retirement and youth intake run at this same
  * turnover and read the rule set for their own MODERN fields, and adding the
- * parameter now keeps this function's shape stable across that plan rather
+ * parameter now keeps this function's shape stable across that version rather
  * than growing an extra argument into every caller a second time.
  */
 @Suppress("UNUSED_PARAMETER")
@@ -437,6 +450,16 @@ data class BrazilianFourth(val size: Int, val door: List<String>) {
  * Every club seated leaves Brazil's reserve queue and stands in division
  * four, so the queue keeps holding exactly the Brazilian clubs without a
  * division.
+ *
+ * Section 1.12 says this division takes no part in the normal end of season
+ * swap and has no access playoff of its own into the third: its
+ * relegation and promotion are entirely the fourthTurnover mechanism above,
+ * never config.directRelegated, config.relegated or config.promotionPlayoffPlaces.
+ * leagueCompetition is therefore built with both directRelegation and
+ * directPromotion true, the same suppression buildCompetitions gives the
+ * third while it feeds the door, so a playoff configured on this division's
+ * own dataset entry is never announced as an approximation that this version
+ * does not build; it is simply not a thing this division does at all.
  */
 @SpecRef("1.12")
 internal fun SeasonState.withBrazilianFourthIfDue(): SeasonState {
@@ -462,6 +485,8 @@ internal fun SeasonState.withBrazilianFourthIfDue(): SeasonState {
         LeagueDivision(Country.BRAZIL, BrazilianFourth.DIVISION, BrazilianFourth.configuration(dataset), members),
         BrazilianFourth.fourthRng(seed, number),
         preliminary = fourth.size == PRELIMINARY_CONFIGURED_SIZE && supply.size >= PRELIMINARY_SUPPLY,
+        directRelegation = true,
+        directPromotion = true,
     )
     val queue = requireNotNull(reserves[Country.BRAZIL]) { "Brazil feeds its fourth division from the states and carries no reserve queue" }
     val seated = members.toSet()

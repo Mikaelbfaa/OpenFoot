@@ -46,16 +46,26 @@ import kotlin.test.assertEquals
  * sp25, sp27, sp29, sp33, rn26 and rn30 from the state queue, and br28 and
  * br31 from the stateless clubs. Its semi finals are internal to each group
  * (the engine test checks this pairing), so its two finalists come from
- * different groups.
+ * different groups. It is also Brazil's own deepest division, but prints no
+ * in line: section 1.12 gives it no reserve swap of its own while the states
+ * feed it, so it has nothing an in line could name.
  *
  * Moves. Every up and down line of season one is found again in season
  * two. br12 and rn10 went up and sit in season two's division one. sp05 and
  * br08 came down to division two, and sp19 and br24 went up to it. sp09 and
  * sp13 came down to division three, and the fourth's rn26 and br28 went up
  * to it. Division three's sp21 and sp23 went to the door and head season
- * two's fourth. Sao Paulo's sp29 and sp33 left for the state reserve, whose
- * sp37 and sp39 play season two, and Rio Grande do Norte's rn26 and rn22
- * left while rn34 and rn38 came in.
+ * two's fourth.
+ *
+ * Sao Paulo's and Rio Grande do Norte's own divisions are each their state's
+ * only, and so deepest, division, and each carries an in line beside its
+ * down line, the reserve arrivals no other line would print. Season one
+ * sends sp29 and sp33 down to Sao Paulo's state reserve and brings sp39 then
+ * sp37 in, the order the reserve queue already held them in since world
+ * creation; the same season sends rn26 and rn22 down to Rio Grande do
+ * Norte's reserve and brings rn34 then rn38 in. Season two's in lines read
+ * back what season one's down lines wrote to the tail of each queue: sp29
+ * then sp33 for Sao Paulo, rn26 then rn22 for Rio Grande do Norte.
  *
  * Season two's fourth is the door plus six state clubs from outside
  * divisions one to three. sp37 is left out: it is last in Sao Paulo's final
@@ -103,6 +113,7 @@ class SmallBrazilGoldenVectorTest {
                 final order: sp05, sp01, sp11, sp15, sp09, sp03, sp07, sp13, sp17, sp23, sp25, sp21, sp19, sp27, sp29, sp33
                 up:
                 down: sp29, sp33
+                in: sp39, sp37
               state:19:1  STATE  champion rn06  runner-up rn02
                 pos  club  pts  pld   w  d  l  gf  ga
                   1  rn06   37   14  12  1  1  35  14
@@ -116,6 +127,7 @@ class SmallBrazilGoldenVectorTest {
                 final order: rn06, rn02, rn10, rn14, rn18, rn30, rn26, rn22
                 up:
                 down: rn26, rn22
+                in: rn34, rn38
               league:29:4  NATIONAL_LEAGUE  champion rn26  runner-up br28
                 pos  club  pts  pld  w  d  l  gf  ga
                   1  rn26   13    6  4  1  1  12   7
@@ -195,6 +207,7 @@ class SmallBrazilGoldenVectorTest {
                 final order: sp07, sp01, sp11, sp05, sp09, sp03, sp15, sp13, sp23, sp21, sp19, sp27, sp25, sp17, sp39, sp37
                 up:
                 down: sp39, sp37
+                in: sp29, sp33
               state:19:1  STATE  champion rn06  runner-up rn02
                 pos  club  pts  pld  w  d   l  gf  ga
                   1  rn06   30   14  9  3   2  30  10
@@ -208,6 +221,7 @@ class SmallBrazilGoldenVectorTest {
                 final order: rn06, rn02, rn10, rn18, rn14, rn34, rn38, rn30
                 up:
                 down: rn38, rn30
+                in: rn26, rn22
               league:29:4  NATIONAL_LEAGUE  champion sp21  runner-up rn34
                 pos  club  pts  pld  w  d  l  gf  ga
                   1  sp21   18    6  6  0  0  16   7

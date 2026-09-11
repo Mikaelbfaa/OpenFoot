@@ -80,9 +80,12 @@ import kotlin.test.assertEquals
  * Section 1.9's embedded default relegates two from a division of ten, and
  * section 1.12's swap with the reserve moves the smaller of that and the
  * reserve's size; the reserve holds clube-11 alone, so one club goes down,
- * clube-09, the last of the table, and clube-11 comes up in its place, which
- * no line names because a reserve club belongs to no competition. The cup is
- * no division and prints neither line.
+ * clube-09, the last of the table, and clube-11 comes up in its place.
+ * Division one is this country's only, and so its deepest, division, and
+ * that arrival has no other line to appear on, since the reserve is no
+ * competition and so has no up line of its own; it prints on the division's
+ * own in line instead. The cup is no division and prints none of the three
+ * lines.
  *
  * The pinned string below was produced by running this exact season and
  * copying the printed text verbatim, then checked line by line against
@@ -119,6 +122,7 @@ class SeasonGoldenVectorTest {
                  10  clube-09   35   36   9   8  19  45  63
                 up:
                 down: clube-09
+                in: clube-11
               top scorers
                 88  clube-01 jogador 1  clube-01
                 77  clube-04 jogador 1  clube-04

@@ -2831,7 +2831,7 @@ temporada joga uma aproximação genérica no lugar:
    a fase final recebe só os classificados de cada grupo;
 7. `rebaixadoPeloGrupo` numa liga com grupos (campo da FORMAT-SPEC, seção 1.11): o rebaixamento é lido
    da ordem final compartilhada, nunca grupo a grupo. Numa divisão sem grupos as duas leituras
-   coincidem, e por isso as divisões 1 e 3 do `BRA.cfg`, que ligam o campo sem ter grupos, não são
+   coincidem, e por isso a divisão 1 do `BRA.cfg`, que liga o campo sem ter grupos, não é
    aproximação.
 
 **Resolução (INFERIDO):** nenhum dos sete recusa a configuração. A aposta declarada é que uma
@@ -2914,7 +2914,7 @@ Pontos INFERIDO:
 - com q de 8 ou mais, a repartição em blocos põe o confronto da 1a colocação e o da 2a colocação de um
   grupo lado a lado na chave, e os vencedores dos dois se enfrentam já na segunda rodada: o 1o e o 2o
   de um grupo podem se encontrar antes da final do próprio grupo, ao contrário de uma chave semeada
-  comum, que os separaria até ela. É consequência da aposta do primeiro ponto acima, e inalcançável
+  comum, que os separaria até ela. É consequência da aposta do segundo ponto acima, e inalcançável
   com os dados distribuídos, cuja única liga agrupada, a 4a divisão brasileira, leva 4 classificados
   por grupo;
 - com `classificaPeloGeral` ligado, a 1.11 ignora os grupos: os primeiros da tabela geral são semeados
@@ -2992,3 +2992,12 @@ na ordem da fila. As fronteiras de um estado são processadas de cima para baixo
 rebaixamento é lida, e a zona passa a ser os últimos da tabela entre os que ficaram. Com a base
 distribuída nenhum estado tem segunda divisão, então a única troca que roda é a da divisão 1 com a
 reserva, e só São Paulo (preset 7) tem grupos cuja formação depende desta aposta.
+
+### 124. rebaixadoPeloGrupo na divisão 3 do Brasil: a importação local contra a tabela da FORMAT-SPEC
+
+Importar uma instalação local com o importador deste projeto lê rebaixadoPeloGrupo = true na divisão 3
+do Brasil, mas a tabela ConfigLigaType da FORMAT-SPEC diz true só na divisão 1 e false nas divisões 2 a
+4. Um dos dois está errado, a tabela ou a leitura do importador, e cabe a equipe da spec resolver a
+divergência contra o original. O comportamento do motor não depende de qual lado está certo: uma
+divisão sem grupos ignora o campo por construção, e nenhuma das quatro divisões brasileiras
+distribuídas tem grupos, então nenhuma saída jogada muda com a resposta.

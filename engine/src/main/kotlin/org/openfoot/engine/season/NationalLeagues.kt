@@ -109,8 +109,11 @@ fun leagueDivisions(country: Int, clubs: List<ClubState>, dataset: WorldDataset)
  * due, and the division then seats its configured field directly and says
  * so. directRelegation is true when section 1.12 forces this division's
  * relegation direct, Brazil's third while the states feed the fourth, and a
- * relegation playoff configured for it is then no approximation. Every such
- * fallback is listed in the competition's approximations, by
+ * relegation playoff configured for it is then no approximation; directPromotion
+ * is the same for a promotion playoff, true when this division takes no part
+ * in the normal swap at all, Brazil's fourth while the states feed it, section
+ * 1.12's own words that it has no access playoff to the third either. Every
+ * such fallback is listed in the competition's approximations, by
  * leagueApproximations, and OPEN-QUESTIONS item 118 records them all. A
  * configured division whose club count does not divide into config.groups
  * equal, even sized groups, or whose final phase field would not be a power
@@ -118,7 +121,13 @@ fun leagueDivisions(country: Int, clubs: List<ClubState>, dataset: WorldDataset)
  * version builds.
  */
 @SpecRef("1.11")
-fun leagueCompetition(division: LeagueDivision, rng: Rng, preliminary: Boolean = false, directRelegation: Boolean = false): Competition {
+fun leagueCompetition(
+    division: LeagueDivision,
+    rng: Rng,
+    preliminary: Boolean = false,
+    directRelegation: Boolean = false,
+    directPromotion: Boolean = false,
+): Competition {
     val key = "league:${division.country}:${division.division}"
     require(division.clubs.size % 2 == 0) {
         "$key holds ${division.clubs.size} clubs, and an odd count plays no round robin of section 1.3; that shape is outside what this version builds"
@@ -153,7 +162,7 @@ fun leagueCompetition(division: LeagueDivision, rng: Rng, preliminary: Boolean =
         division = division.division,
         phases = phases,
         qualifiers = qualifiers,
-        approximations = leagueApproximations(config, preliminary, directRelegation),
+        approximations = leagueApproximations(config, preliminary, directRelegation, directPromotion),
         results = listOf(emptyList()),
         phaseIndex = 0,
         roundIndex = 0,
@@ -170,24 +179,31 @@ fun leagueCompetition(division: LeagueDivision, rng: Rng, preliminary: Boolean =
  * 1.11, whenever the caller says it was due; the playoffs of 1.12, whenever
  * config.directRelegated is below config.relegated, unless directRelegation
  * says section 1.12 forces that division's relegation direct, or
- * config.promotionPlayoffPlaces is above nought, which the forcing does not
- * touch; and, on a division with
+ * config.promotionPlayoffPlaces is above nought, unless directPromotion says
+ * this division takes no part in the normal swap at all and so has no access
+ * playoff of its own either; and, on a division with
  * groups only, config.bestThirds and config.relegatedByGroup. Without groups
  * there are no thirds to rank across groups and one shared table is every
  * group's table, so those two flags change nothing there and earn no note:
- * Brazil's distributed divisions one and three set relegatedByGroup
- * without groups. A division without a configuration is the embedded
+ * Brazil's distributed division one sets relegatedByGroup without groups.
+ * A division without a configuration is the embedded
  * default of 1.9, which is built exactly, and notes only a due preliminary.
  */
 @SpecRef("1.11")
-internal fun leagueApproximations(config: LeagueConfigEntry?, preliminary: Boolean, directRelegation: Boolean = false): List<String> {
+internal fun leagueApproximations(
+    config: LeagueConfigEntry?,
+    preliminary: Boolean,
+    directRelegation: Boolean = false,
+    directPromotion: Boolean = false,
+): List<String> {
     val grouped = config != null && config.groups > 0
     return Approximation.entries.filter { note ->
         when (note) {
             Approximation.SERIE_C_AS_FLAT_LEAGUE -> config?.knockoutQualifiers == LeagueConfigEntry.SERIE_C_FORMAT
             Approximation.PRELIMINARY_NOT_PLAYED -> preliminary
             Approximation.PLAYOFFS_AS_DIRECT_MOVEMENT ->
-                config != null && ((config.hasRelegationPlayoff && !directRelegation) || config.promotionPlayoffPlaces > 0)
+                config != null &&
+                    ((config.hasRelegationPlayoff && !directRelegation) || (config.promotionPlayoffPlaces > 0 && !directPromotion))
             Approximation.BEST_THIRDS_IGNORED -> grouped && config.bestThirds
             Approximation.RELEGATION_BY_GROUP_IGNORED -> grouped && config.relegatedByGroup
             Approximation.NEW_CUP_FORMAT_AS_STANDARD, Approximation.REAL_STATE_GROUPS_IGNORED -> false
@@ -205,9 +221,9 @@ internal fun leagueApproximations(config: LeagueConfigEntry?, preliminary: Boole
  *
  * A division whose config.relegatedByGroup is set would, per 1.12, read
  * its relegation zone group by group rather than off one shared table; the
- * distributed divisions that set it, Brazil's first and third, carry no
- * groups, so the flag is moot there, and no distributed grouped division
- * sets it. This version always reads the shared final order, matching every
+ * one distributed division that sets it, Brazil's first, carries no groups,
+ * so the flag is moot there, and no distributed grouped division sets it.
+ * This version always reads the shared final order, matching every
  * distributed case, and a grouped division that sets the flag says so in
  * its approximations.
  *

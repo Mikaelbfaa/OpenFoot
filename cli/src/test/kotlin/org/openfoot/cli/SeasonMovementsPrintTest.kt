@@ -13,16 +13,21 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * The up and down lines of the season printout, the design's "quem subiu e
- * desceu": every league division's block ends with them, naming the clubs
- * the turnover moves out of it, and they are read from the same
- * seasonMovements the turnover applies.
+ * The up, down and in lines of the season printout, the design's "quem subiu
+ * e desceu": every league division's block ends with up and down, naming the
+ * clubs the turnover moves out of it, and they are read from the same
+ * seasonMovements the turnover applies. The country's own deepest division
+ * also gets an in line, the reserve clubs the same turnover sends up into
+ * it, since the reserve is no competition and has no up line of its own to
+ * carry them.
  *
  * GoldenWorld's one division of ten relegates two by the embedded default of
  * section 1.9, and its reserve holds one club, clube-11, so section 1.12's
  * swap moves the smaller count: one club down, the last of the table, and
- * clube-11 into the division. Nothing sits above division one, so its up
- * line is empty. The cup is no division and prints neither line.
+ * clube-11 up into the division from the reserve, on the in line since
+ * division one is also GoldenWorld's only, and so its deepest, division.
+ * Nothing sits above division one, so its up line is empty. The cup is no
+ * division and prints no up, down or in line.
  */
 class SeasonMovementsPrintTest {
 
@@ -43,7 +48,7 @@ class SeasonMovementsPrintTest {
     @Test
     fun `a division's block ends with the clubs the turnover moves up and down`() {
         val league = block(describeSeason(played), "league:701:1")
-        assertEquals(listOf("    up:", "    down: clube-09"), league.takeLast(2))
+        assertEquals(listOf("    up:", "    down: clube-09"), league.dropLast(1).takeLast(2))
         assertEquals(listOf("clube-09"), seasonMovements(played).departuresOf("league:701:1")?.down)
 
         val next = nextSeason(played, activeLeagues, RuleSets.CLASSIC)
@@ -51,9 +56,25 @@ class SeasonMovementsPrintTest {
         assertEquals(Standing.InDivision(1), next.club("clube-11").standing)
     }
 
+    /**
+     * Division one is GoldenWorld's only, and so its deepest, division: the
+     * reserve clubs the turnover sends up into it, clube-11, print on an in
+     * line, the only source of that arrival, since a reserve is no
+     * competition and so has no up line of its own to carry it.
+     */
     @Test
-    fun `a competition that is no division prints no up or down line`() {
+    fun `the deepest division's block also names the clubs the turnover brings in from the reserve`() {
+        val league = block(describeSeason(played), "league:701:1")
+        assertEquals("    in: clube-11", league.last())
+        assertEquals(listOf("clube-11"), seasonMovements(played).departuresOf("league:701:1")?.into)
+    }
+
+    @Test
+    fun `a competition that is no division prints no up, down or in line`() {
         val cup = block(describeSeason(played), "cup:701")
-        assertTrue(cup.none { it.startsWith("    up:") || it.startsWith("    down:") }, cup.toString())
+        assertTrue(
+            cup.none { it.startsWith("    up:") || it.startsWith("    down:") || it.startsWith("    in:") },
+            cup.toString(),
+        )
     }
 }

@@ -48,10 +48,15 @@ import org.openfoot.engine.season.seasonMovements
  * downwards, in the order it moves them, or nothing after the colon when it
  * moves none. They are read from seasonMovements, the one function
  * nextSeason applies, so the printout names exactly the moves the next
- * season is built from. A club coming up out of a reserve belongs to no
- * competition and appears on no line; the Brazilian fourth fed by the states
- * lists as down every club that does not go up, since each of them leaves
- * the division for the reserve.
+ * season is built from. The country's or state's own deepest division then
+ * adds an in line, the reserve clubs the same turnover sends up into it,
+ * since a reserve is no competition and so has no up line of its own to
+ * carry them; a shallower division's own arrivals from below already show
+ * on the division just under it, as that lower division's up line, so they
+ * earn no second line here. The Brazilian fourth fed by the states lists as
+ * down every club that does not go up, since each of them leaves the
+ * division for the reserve, and prints no in line, since section 1.12 gives
+ * it no reserve swap of its own.
  *
  * The top scorers section closes the printout: the five leading scorers of
  * the whole season, across every club and every competition, goals
@@ -94,6 +99,7 @@ private fun appendCompetition(builder: StringBuilder, state: SeasonState, close:
     movements.departuresOf(close.key)?.let { departures ->
         builder.appendLine("    up:" + listed(departures.up))
         builder.appendLine("    down:" + listed(departures.down))
+        departures.into?.let { builder.appendLine("    in:" + listed(it)) }
     }
 }
 

@@ -284,6 +284,31 @@ class StateSeasonsTest {
         assertEquals(note, promotionPlayoff.competitions.getValue("league:29:3").approximations)
     }
 
+    private fun withFourth(data: WorldDataset, fourth: LeagueConfigEntry) = data.copy(leagues = data.leagues.map { if (it.division == 4) fourth else it })
+
+    /**
+     * Section 1.12 says Brazil's fourth division, while the states feed it,
+     * takes no part in the normal swap at all and has no access playoff of
+     * its own into the third: its movement is entirely BrazilianFourth's own
+     * fourthTurnover, never config.directRelegated, config.relegated or
+     * config.promotionPlayoffPlaces. So a playoff configured on the fourth's
+     * own dataset entry, either half, is not an approximation and earns no
+     * note, in either season; with the states off the fourth is a division
+     * like any other, built by level, and the same configuration is noted.
+     */
+    @Test
+    fun `Brazil's fourth notes no playoff while the states feed it`() {
+        val tier = flatFourth.copy(directRelegated = 1, promotionPlayoffPlaces = 1)
+        val note = listOf(Approximation.PLAYOFFS_AS_DIRECT_MOVEMENT.text)
+        val fed = play(opening(withFourth(fourStates(), tier), 21))
+        assertEquals(emptyList(), fed.competitions.getValue("league:29:4").approximations)
+        val secondSeason = play(turn(fed))
+        assertEquals(emptyList(), secondSeason.competitions.getValue("league:29:4").approximations)
+        val unfedData = withFourth(fourStates(), tier).let { it.copy(options = it.options.copy(playStateChampionships = false)) }
+        val unfed = opening(unfedData, 21)
+        assertEquals(note, unfed.competitions.getValue("league:29:4").approximations)
+    }
+
     /**
      * Forty six Brazilian clubs: thirty strong clubs of no state in divisions
      * one to three, then sixteen weaker clubs listed weakest first, six of

@@ -272,8 +272,9 @@ class NationalLeaguesTest {
 
     /**
      * Relegation by group is only a different reading when there are groups:
-     * Brazil's distributed divisions one and three set the flag without any,
-     * and carry no note for it, while a grouped division that sets it does.
+     * an ungrouped division with the flag set, such as Brazil's distributed
+     * division one, carries no note for it, while a grouped division that
+     * sets it does.
      */
     @Test
     fun `relegation by group is noted only on a grouped league`() {
