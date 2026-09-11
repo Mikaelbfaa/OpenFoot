@@ -77,27 +77,72 @@ data class RoundRobinPhase(
 
         /**
          * The cross group turn of the state championship presets (7 and 10):
-         * the circle method is drawn once over every participant of every
-         * group concatenated, and any fixture the circle drew between two
-         * sides of the same group is dropped, since those never happen in
-         * this arrangement; a round left with no fixtures once its same
-         * group pairing is removed is dropped too.
+         * every side plays a side of every other group once a turn and never
+         * a member of its own group, and every side plays exactly once each
+         * round. FORMAT-SPEC publishes that shape: preset 7, four groups of
+         * four, plays twelve rounds of eight games; preset 10, four groups
+         * of five, plays fifteen rounds of ten games. Both are (group count
+         * minus one) times group size rounds, each of (group count times
+         * group size) divided by two games, which this construction matches
+         * by design.
+         *
+         * The groups themselves are paired group by group with the circle
+         * method over the group indices, one turn, which gives group count
+         * minus one group rounds, each a perfect matching of the groups.
+         * Every group pairing of a group round then expands into group size
+         * match rounds: in match round r, counting from nought, side i of
+         * the group listed home in the pairing meets side (i + r) modulo
+         * the group size of the group listed away, for every side i of the
+         * home group, home rights going to the home group's side when i + r
+         * is even and to the away group's side otherwise. As r runs over
+         * every match round, each side of the home group meets every side
+         * of the away group exactly once, alternating home rights. All of a
+         * group round's pairings share the same match round numbering, so
+         * the phase's round for match round r of group round g holds, for
+         * every pairing of that group round, its own r-th expansion; that
+         * is what keeps every side occupied at most once per round.
          *
          * The original reads a fixed table for this case rather than
-         * deriving it from the circle method, and the spec does not publish
-         * that table (OPEN-QUESTIONS item 75). This construction, the plain
-         * circle over the concatenated list with same group pairings
-         * stripped out, is this reading's own bet at reproducing the
-         * required property, that every side meets every side outside its
-         * group exactly once a turn and never a member of its own group; it
-         * is INFERIDO, not read from the original.
+         * deriving it from a formula, and the spec does not publish that
+         * table (OPEN-QUESTIONS item 75); only the round count and game
+         * count per round are published, not the pairing table itself. This
+         * construction, the circle method over the groups combined with a
+         * Latin square inside each paired group, is this reading's own bet
+         * at filling in the unpublished table while matching every property
+         * FORMAT-SPEC does publish; it is INFERIDO, not read from the
+         * original.
          */
         @SpecRef("1.11")
         private fun crossGroups(groups: List<List<String>>, turns: Int): List<Round> {
-            val groupOf = groups.flatMapIndexed { g, members -> members.map { it to g } }.toMap()
-            return roundRobin(groups.flatten(), turns)
-                .map { round -> Round(round.fixtures.filter { groupOf.getValue(it.home) != groupOf.getValue(it.away) }) }
-                .filter { it.fixtures.isNotEmpty() }
+            require(groups.size >= 2 && groups.size % 2 == 0) {
+                "cross group play needs an even number of groups, and there are ${groups.size}"
+            }
+            val size = groups.first().size
+            require(groups.all { it.size == size }) {
+                "cross group play needs every group the same size, and these groups are sized ${groups.map { it.size }}"
+            }
+
+            val firstTurn = crossGroupsFirstTurn(groups, size)
+            val secondTurn = firstTurn.map { round -> Round(round.fixtures.map { Fixture(it.away, it.home) }) }
+            return (1..turns).flatMap { turn -> if (turn % 2 == 1) firstTurn else secondTurn }
+        }
+
+        private fun crossGroupsFirstTurn(groups: List<List<String>>, size: Int): List<Round> {
+            val groupPairings = roundRobin(groups.indices.map { it.toString() }, turns = 1)
+            return groupPairings.flatMap { groupRound ->
+                (0 until size).map { r ->
+                    Round(
+                        groupRound.fixtures.flatMap { pairing ->
+                            val home = groups[pairing.home.toInt()]
+                            val away = groups[pairing.away.toInt()]
+                            (0 until size).map { i ->
+                                val j = Math.floorMod(i + r, size)
+                                if ((i + r) % 2 == 0) Fixture(home[i], away[j]) else Fixture(away[j], home[i])
+                            }
+                        },
+                    )
+                }
+            }
         }
     }
 }
@@ -173,20 +218,12 @@ data class KnockoutPhase(
      * its own index within it, forking the round number and then the tie
      * index, so playing the ties of a round in a different order, or adding
      * a tie, never moves another tie's shootout draw.
-     *
-     * The fork is taken lazily, only at the point resolveTie actually reads
-     * from the forked stream to draw the abstract shootout of section 3.10.
-     * Most ties are decided on legs won or on aggregate and never touch the
-     * generator at all, so forking eagerly for every tie of a round would
-     * derive a stream that is then thrown away unused; it would also ask a
-     * scripted test generator that carries no values for this round to fork
-     * a child it never draws from.
      */
     fun outcomes(round: Int, results: List<Result>, rules: RuleSet, rng: Rng): List<TieOutcome> {
         val twoLegged = twoLegged(round)
         return ties(round, results, rules, rng).mapIndexed { index, tie ->
             val legs = results.filter { tie.holds(it.home) && tie.holds(it.away) }
-            resolveTie(tie, legs, twoLegged, penalties, rules, LazyFork(rng, round.toLong(), index.toLong()))
+            resolveTie(tie, legs, twoLegged, penalties, rules, rng.fork(round.toLong()).fork(index.toLong()))
         }
     }
 
@@ -208,26 +245,6 @@ data class KnockoutPhase(
         }
         return order
     }
-}
-
-/**
- * An Rng that defers forking its origin until the first time it is actually
- * asked for a value. Used by KnockoutPhase.outcomes so that a tie settled
- * without ever consulting randomness never forks a child stream at all,
- * which keeps a scripted test generator that carries no values honest about
- * what a formula actually draws, and avoids deriving and discarding a
- * stream nobody reads from in the ordinary case.
- */
-private class LazyFork(origin: Rng, vararg tags: Long) : Rng {
-    private val forked: Rng by lazy { tags.fold(origin) { rng, tag -> rng.fork(tag) } }
-
-    override fun nextBits(): Long = forked.nextBits()
-
-    override fun nextInt(bound: Int): Int = forked.nextInt(bound)
-
-    override fun nextDouble(): Double = forked.nextDouble()
-
-    override fun fork(tag: Long): Rng = forked.fork(tag)
 }
 
 /**
