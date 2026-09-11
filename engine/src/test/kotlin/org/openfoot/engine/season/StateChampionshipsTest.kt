@@ -114,4 +114,34 @@ class StateChampionshipsTest {
         assertTrue(semis[0].holds(groupWinner[0]) && semis[0].holds(groupWinner[1]), "group A meets group B")
         assertTrue(semis[1].holds(groupWinner[2]) && semis[1].holds(groupWinner[3]), "group C meets group D")
     }
+
+    @Test
+    fun `a grouped preset deals the queue by position, drawing no order at all`() {
+        val setup = states(dataset(mapOf(25 to 16), listOf(StateChampionshipEntry(25, 1, 7, true, listOf(false, false, true)))))
+        val division = setup.divisions.single()
+
+        val groupsFirstRng = (stateCompetition(division, SplitMix64Rng(9)).phases[0] as Phase.League).phase.groups
+        val groupsOtherRng = (stateCompetition(division, SplitMix64Rng(1)).phases[0] as Phase.League).phase.groups
+        assertEquals(groupsFirstRng, groupsOtherRng, "the deal reads the queue, not the rng")
+
+        for (g in 0 until 4) {
+            assertEquals(
+                listOf(division.clubs[g], division.clubs[g + 4], division.clubs[g + 8], division.clubs[g + 12]),
+                groupsFirstRng[g],
+                "group $g holds queue positions $g, ${g + 4}, ${g + 8} and ${g + 12}",
+            )
+        }
+    }
+
+    @Test
+    fun `a single group preset shuffles the clubs before the circle, and the same rng repeats the same order`() {
+        val setup = states(dataset(mapOf(25 to 6)))
+        val division = setup.divisions.single()
+
+        val first = (stateCompetition(division, SplitMix64Rng(9)).phases[0] as Phase.League).phase.participants
+        val repeated = (stateCompetition(division, SplitMix64Rng(9)).phases[0] as Phase.League).phase.participants
+        assertEquals(first, repeated, "the same rng draws the same shuffle")
+        assertEquals(division.clubs.toSet(), first.toSet(), "the shuffle is a permutation of the division's own clubs")
+        assertTrue(first != division.clubs, "the queue order is actually shuffled, not carried through unchanged")
+    }
 }

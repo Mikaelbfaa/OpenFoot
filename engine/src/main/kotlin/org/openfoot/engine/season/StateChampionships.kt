@@ -136,23 +136,31 @@ fun stateSetup(clubs: List<ClubState>, dataset: WorldDataset, tiebreak: (String)
  * division's clubs, feeding a knockout of the preset's qualifiers.
  *
  * A groupless preset plays a single table, section 1.3's ordinary league,
- * for preset.twoTurns's turn count; its qualifiers are the top of the
- * overall table, seeded one through the qualifier count in table order.
+ * over shuffledOrder(division.clubs, rng) for preset.twoTurns's turn count:
+ * section 1.3 says every round robin shuffles its participants uniformly
+ * before the circle is drawn, and a single table state division is no
+ * exception. Its qualifiers are the top of the overall table, seeded one
+ * through the qualifier count in table order.
  *
- * Presets 7 and 10 deal the division's clubs into four groups first,
- * shuffledOrder giving the deal a fair random order and the k-th dealt club
- * going to group k modulo the group count, and the groups then play only
- * across each other, never within, which is RoundRobinPhase.grouped with
- * gamesInsideGroup false. Their qualifiers are each group's top two, and
- * FORMAT-SPEC's bracket keeps a group's own pair together through the
- * quarter final: firstRoundTies' eight side bracket pairs seeds (2,7),
- * (4,5), (1,8) and (3,6), so assigning a group's first place and second
- * place the seeds of one of those four pairs, group by group, makes every
- * quarter final an internal affair of its own group and leaves the semi
- * finals to cross group A with B and group C with D, exactly as
- * FORMAT-SPEC's "1o do grupo x 2o do grupo" quarter finals read. This
- * builds those entrants sorted by seed once a league phase has been played,
- * inside the qualifiers function the competition calls when it advances.
+ * Presets 7 and 10 deal the division's clubs into four groups instead, and
+ * that deal draws nothing: FORMAT-SPEC's "Carga na criacao do mundo" load
+ * rule six deals a grouped preset straight from the queue, already ordered
+ * by level, the k-th club of the queue to group k modulo the group count,
+ * and SIMULATION-SPEC section 1.3 is explicit that cross group play, games
+ * inside the group off, draws no order of its own. So division.clubs, which
+ * is the queue's own order, is dealt directly, with no shuffle and rng left
+ * untouched on this path; the groups then play only across each other,
+ * never within, which is RoundRobinPhase.grouped with gamesInsideGroup
+ * false. Their qualifiers are each group's top two, and FORMAT-SPEC's
+ * bracket keeps a group's own pair together through the quarter final:
+ * firstRoundTies' eight side bracket pairs seeds (2,7), (4,5), (1,8) and
+ * (3,6), so assigning a group's first place and second place the seeds of
+ * one of those four pairs, group by group, makes every quarter final an
+ * internal affair of its own group and leaves the semi finals to cross
+ * group A with B and group C with D, exactly as FORMAT-SPEC's "1o do grupo
+ * x 2o do grupo" quarter finals read. This builds those entrants sorted by
+ * seed once a league phase has been played, inside the qualifiers function
+ * the competition calls when it advances.
  *
  * The knockout's field is fixed from the preset before it has any entrants,
  * because a competition must know its round and leg count ahead of the
@@ -166,10 +174,9 @@ fun stateCompetition(division: StateDivision, rng: Rng): Competition {
     val preset = division.preset
     val turns = if (preset.twoTurns) 2 else 1
     val league = if (preset.groups == 0) {
-        RoundRobinPhase.single(division.clubs, turns)
+        RoundRobinPhase.single(shuffledOrder(division.clubs, rng), turns)
     } else {
-        val dealt = shuffledOrder(division.clubs, rng)
-        val groups = (0 until preset.groups).map { g -> dealt.filterIndexed { index, _ -> index % preset.groups == g } }
+        val groups = (0 until preset.groups).map { g -> division.clubs.filterIndexed { index, _ -> index % preset.groups == g } }
         RoundRobinPhase.grouped(groups, turns, gamesInsideGroup = false)
     }
     val qualifiers: (RoundRobinPhase, List<Result>) -> List<Entrant> = { phase, results ->
