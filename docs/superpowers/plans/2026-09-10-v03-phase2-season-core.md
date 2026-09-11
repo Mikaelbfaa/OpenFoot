@@ -1471,7 +1471,7 @@ class NationalCupTest {
     private fun clubs(count: Int) = generateWorld(
         WorldFixtures.dataset(clubs = (1..count).map { WorldFixtures.club(ref = "c${it.toString().padStart(2, '0')}", level = maxOf(6, 21 - it)) }),
         2,
-        activeLeagues = emptySet(),
+        activeLeagues = setOf(Country.BRAZIL),
     ).clubs.map { ClubState.fresh(it) }
 
     @Test
@@ -1616,12 +1616,12 @@ Policy (INFERIDO, item 74; every constant `@SpecRef("1.10")`):
 
 - Week w counts from the season start, the first Sunday of January (section 0). Sunday of week w is `start.plusDays(7 * w)`; Wednesday of week w is `start.plusDays(7 * w + 3)`.
 - State championships: Sundays from week 0, and Wednesdays from week 0, alternating Sunday, Wednesday, Sunday, Wednesday, so their rounds run twice a week and finish early in the year.
-- National leagues: Sundays starting at week 18 (early May), one round a week, all divisions of every country on the same Sundays.
-- National cup: Wednesdays starting at week 18, one round every two weeks (weeks 18, 20, 22, ...), two legged rounds on consecutive fortnights.
+- National leagues: Sundays starting at week 12 (late March), one round a week, all divisions of every country on the same Sundays; a twenty club league of thirty eight rounds ends in week 49.
+- National cup: Wednesdays starting at week 12, one round every two weeks (weeks 12, 14, 16, ...), two legged rounds on consecutive fortnights.
 - `roundCount` sums the league phases' round counts and each knockout phase's leg count (`(0 until rounds).sumOf { if twoLegged 2 else 1 }`).
 - A competition that runs out of dates before the year ends is an error (`require`), so the policy is checked at build time.
 
-The invariant this policy gives: a club plays in at most one state division, at most one league division and the cup; state dates never coincide with league or cup dates because state rounds end before week 18 for every configured shape (a 20 club two group preset plays 15 cross group rounds plus 3 knockout legs at two a week, done by week 9; the invariant test computes it rather than assumes it); league Sundays and cup Wednesdays never coincide. The test asserts, for a Brazil shaped season, that no club key appears twice on one date.
+The invariant this policy gives: a club plays in at most one state division, at most one league division and the cup; state dates never coincide with league or cup dates because state rounds end before week 12 for every configured shape (a 20 club two group preset plays 15 cross group rounds plus 6 knockout legs at two a week, 21 dates, done by week 10), and `build` requires it: a state competition whose last date is not before the league start is refused; league Sundays and cup Wednesdays never coincide. The test asserts, for a Brazil shaped season, that no club key appears twice on one date.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1662,16 +1662,16 @@ class ScheduleTest {
     }
 
     @Test
-    fun `leagues play Sundays from May, cups Wednesdays every fortnight, states twice a week from January`() {
+    fun `leagues play Sundays from late March, cups Wednesdays every fortnight, states twice a week from January`() {
         val schedule = SeasonSchedule.build(2026, listOf(league("l", twenty), cup("k", twenty.take(16)), state("s", twenty.take(6))))
         val start = CalendarDate.seasonStart(2026)
         assertEquals(start, schedule.start)
         val leagueDates = schedule.slots.filter { it.competition == "l" }.map { it.date }
         assertEquals(38, leagueDates.size)
-        assertEquals(start.plusDays(7 * 18), leagueDates.first())
+        assertEquals(start.plusDays(7 * 12), leagueDates.first())
         assertTrue(leagueDates.all { it.isSunday })
         val cupDates = schedule.slots.filter { it.competition == "k" }.map { it.date }
-        assertEquals(start.plusDays(7 * 18 + 3), cupDates.first())
+        assertEquals(start.plusDays(7 * 12 + 3), cupDates.first())
         assertEquals(14, cupDates[0].daysUntil(cupDates[1]))
         val stateDates = schedule.slots.filter { it.competition == "s" }.map { it.date }
         assertEquals(start, stateDates[0])
@@ -1724,6 +1724,11 @@ data class SeasonSchedule(val year: Int, val start: CalendarDate, val slots: Lis
                 require(dates.size == roundCount(competition) && dates.all { it <= end }) {
                     "${competition.key} does not fit the year $year"
                 }
+                if (competition.kind == CompetitionKind.STATE) {
+                    require(dates.lastOrNull()?.let { it < start.plusDays(DAYS_IN_WEEK * LEAGUE_FIRST_WEEK) } ?: true) {
+                        "${competition.key} runs past the league start, and states must end before it"
+                    }
+                }
                 dates.forEach { slots += Slot(it, competition.key) }
             }
             return SeasonSchedule(year, start, slots.sortedWith(compareBy<Slot> { it.date }.thenBy { it.competition }))
@@ -1756,7 +1761,7 @@ private const val DAYS_IN_WEEK = 7
 private const val WEDNESDAY_OFFSET = 3
 
 @SpecRef("1.10")
-private const val LEAGUE_FIRST_WEEK = 18
+private const val LEAGUE_FIRST_WEEK = 12
 
 @SpecRef("1.10")
 private const val CUP_FORTNIGHT = 2
@@ -1876,6 +1881,7 @@ which builds `ClubState.fresh` for every club, `leagueDivisions` per active coun
 ```kotlin
 package org.openfoot.engine.season
 
+import org.openfoot.dataset.LeagueConfigEntry
 import org.openfoot.engine.world.WorldFixtures
 import org.openfoot.engine.world.generateWorld
 import org.openfoot.model.CompetitionKind
@@ -1900,7 +1906,7 @@ class RoundLoopTest {
 
     private val data = WorldFixtures.dataset(
         clubs = (1..12).map { WorldFixtures.club(ref = "c${it.toString().padStart(2, '0')}", level = maxOf(6, 21 - it), squad = squad("c$it")) },
-    )
+    ).copy(leagues = listOf(LeagueConfigEntry(country = Country.BRAZIL, division = 1, teamCount = 10, relegated = 2, turns = 1, penaltiesTiebreak = true)))
 
     private fun opening(seed: Long) = openingSeason(generateWorld(data, seed, setOf(Country.BRAZIL)), data, setOf(Country.BRAZIL), 2026, seed)
 
@@ -1911,7 +1917,7 @@ class RoundLoopTest {
         assertEquals(10, state.competitions.getValue("league:29:1").participants.size)
         assertEquals(8, state.competitions.getValue("cup:29").participants.size)
         assertEquals(12, state.clubs.size)
-        assertEquals(CalendarDate.seasonStart(2026).plusDays(7 * 18), state.today)
+        assertEquals(CalendarDate.seasonStart(2026).plusDays(7 * 12), state.today)
     }
 
     @Test
@@ -1955,12 +1961,12 @@ class RoundLoopTest {
         val seen = ArrayList<CalendarDate>()
         val tick = WeeklyTick { state, sunday -> seen += sunday; state }
         val after = playRound(before, RuleSets.CLASSIC, tick)
-        assertEquals(19, seen.size, "the first league Sunday is week eighteen, and every Sunday from the start fires once")
+        assertEquals(13, seen.size, "the first league Sunday is week twelve, and every Sunday from the start fires once")
         assertTrue(seen.zipWithNext().all { (a, b) -> a.daysUntil(b) == 7 })
         assertEquals(before.today, seen.last())
         assertEquals(seen.last(), after.lastTick)
         val next = playRound(after, RuleSets.CLASSIC, WeeklyTick { state, sunday -> seen += sunday; state })
-        assertEquals(20, seen.size)
+        assertEquals(14, seen.size)
         assertEquals(next.today?.plusDays(-7), seen.last())
     }
 
@@ -1972,8 +1978,16 @@ class RoundLoopTest {
         assertTrue(end.competitions.values.all { it.finished })
         val leagueClose = end.closed.single { it.kind == CompetitionKind.NATIONAL_LEAGUE }
         assertEquals(10, leagueClose.finalOrder.size)
-        assertEquals(500, end.club(leagueClose.finalOrder[0]).prestige.balance)
-        assertEquals(90, end.club(leagueClose.finalOrder[1]).prestige.balance)
+        val cupClose = end.closed.single { it.kind == CompetitionKind.NATIONAL_CUP }
+        fun cupPrize(key: String): Long = when (key) {
+            cupClose.finalOrder[0] -> 300L
+            cupClose.finalOrder[1] -> 50L
+            else -> 0L
+        }
+        val champion = leagueClose.finalOrder[0]
+        val runnerUp = leagueClose.finalOrder[1]
+        assertEquals(500 + cupPrize(champion), end.club(champion).prestige.balance)
+        assertEquals(90 + cupPrize(runnerUp), end.club(runnerUp).prestige.balance)
         assertEquals(45 + 14, end.played.size, "forty five league matches and a cup of eight over two legs")
     }
 
@@ -2308,6 +2322,7 @@ Design:
 ```kotlin
 package org.openfoot.engine.season
 
+import org.openfoot.dataset.LeagueConfigEntry
 import org.openfoot.engine.world.Standing
 import org.openfoot.engine.world.WorldFixtures
 import org.openfoot.engine.world.generateWorld
@@ -2334,6 +2349,11 @@ class TurnoverTest {
     /** Twenty two clubs: ten in the first division, ten in the second, two in the reserve. */
     private val data = WorldFixtures.dataset(
         clubs = (1..22).map { WorldFixtures.club(ref = "c${it.toString().padStart(2, '0')}", level = maxOf(6, 21 - it / 2), squad = squad("c$it")) },
+    ).copy(
+        leagues = listOf(
+            LeagueConfigEntry(country = Country.BRAZIL, division = 1, teamCount = 10, relegated = 2, turns = 1, penaltiesTiebreak = true),
+            LeagueConfigEntry(country = Country.BRAZIL, division = 2, teamCount = 10, relegated = 2, turns = 1, penaltiesTiebreak = true),
+        ),
     )
 
     private fun closedSeason(seed: Long): SeasonState {
@@ -2587,9 +2607,9 @@ season    1  year 2026  rounds 24  matches 59
 
 with tables for every league phase (final overall table via `standings`), the final order for knockout competitions, and the five top scorers across all clubs (goals descending, then name), each line `goals name club`.
 
-The CLI runs `--seasons` seasons (default 1), printing each, calling `nextSeason` between them with the same active leagues. The golden vector plays one season of `GoldenWorld.dataset` at seed 42 with `setOf(GoldenWorld.fixCountry.index)` (a division of ten, a cup of eight, no states, players of two midfielders per club, so lineups are short but legal) and pins the printed text exactly, with a docstring that checks what can be checked by hand: 45 league matches plus 14 cup matches, every club with 9 played, points arithmetic consistent with wins and draws, the champion at the top of the table.
+The CLI runs `--seasons` seasons (default 1), printing each, calling `nextSeason` between them with the same active leagues. The golden vector plays one season of `GoldenWorld.dataset` at seed 42 with `setOf(GoldenWorld.fixCountry.index)` (a division of ten, a cup of eight, no states, players of two midfielders per club, so lineups are short but legal) and pins the printed text exactly, with a docstring that checks what can be checked by hand: 180 league matches plus 14 cup matches (a division of ten plays four turns by section 1.3), every club of the division with 36 league matches played, points arithmetic consistent with wins and draws, the champion at the top of the table.
 
-`OPEN-QUESTIONS.md` gains a heading `## Implementação da v0.3 - apostas declaradas na fase 2` with items 110 to 118, each with a `**Resolução (INFERIDO):**` paragraph in Portuguese: 110 the schedule policy (states twice a week from January, leagues Sundays from week 18, cup alternate Wednesdays; restates 74); 111 cross group fixtures by the circle with same group pairs dropped (restates 75); 112 a knockout field that is not 2, 4 or 8 seeded strong against weak, i against n-1-i; 113 the Brazilian fourth division of season one seated by level, rebuilt from the state queue from season two; 114 pending Sundays fire before the day's matches; 115 the two legged final phase of a grouped national league; 116 records reset at the turnover, injuries carried by date; 117 a club of a competition without a match on a round day recovers as not played; 118 deferred to a later plan and listed: the Serie C sentinel format, the sixty eight club preliminary, the promotion and relegation playoffs of the .cfg, the Copa Nacional novo formato, the Sao Paulo real groups option.
+`OPEN-QUESTIONS.md` gains a heading `## Implementação da v0.3 - apostas declaradas na fase 2` with items 110 to 118, each with a `**Resolução (INFERIDO):**` paragraph in Portuguese: 110 the schedule policy (states twice a week from January and done before week 12, leagues Sundays from week 12, cup alternate Wednesdays from week 12; restates 74); 111 cross group fixtures by the circle with same group pairs dropped (restates 75); 112 a knockout field that is not 2, 4 or 8 seeded strong against weak, i against n-1-i; 113 the Brazilian fourth division of season one seated by level, rebuilt from the state queue from season two; 114 pending Sundays fire before the day's matches; 115 the two legged final phase of a grouped national league; 116 records reset at the turnover, injuries carried by date; 117 a club of a competition without a match on a round day recovers as not played; 118 deferred to a later plan and listed: the Serie C sentinel format, the sixty eight club preliminary, the promotion and relegation playoffs of the .cfg, the Copa Nacional novo formato, the Sao Paulo real groups option.
 
 - [ ] **Step 1: Write the failing tests**
 
