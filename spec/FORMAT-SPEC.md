@@ -188,6 +188,51 @@ final não são lidas. Detalhes na seção seguinte.
 > **Correção:** versões anteriores desta spec davam a ordem "semifinal, quartas?, final". A ordem é
 > crescente por rodada, e a rodada de cada posição muda com o tamanho do mata-mata.
 
+### Campos de `ConfigLigaType` além de tamanho, rebaixados, turnos e desempate - CONFIRMADO
+
+`est.ConfigLigaType` carrega mais campos do que o `nTimes`/`nRebaixados`/`formula`/`desempate` já
+documentados. Todos abaixo foram lidos da classe e da lógica que os consome (a montagem da pirâmide
+por país, seção 1.9/1.11 da SIMULATION-SPEC).
+
+| Campo | Tipo | Significado | Faixa | BRA.cfg (lido dos arquivos distribuídos) | ESP.cfg (lido dos arquivos distribuídos) |
+|---|---|---|---|---|---|
+| `nGrupos` | int | Número de grupos da primeira fase; `0` = pontos corridos sem grupos | >= 0 | 0 nas divisões 1-3, 8 na divisão 4 | 0 em todas |
+| `jogosDentroGrupo` | boolean | Se times do mesmo grupo também se enfrentam entre si (grupo joga pontos corridos completo) ou só contra os outros grupos | - | `true` em todas (inclusive a divisão 4 de 8 grupos) | `true` em todas |
+| `rebaixadoPeloGrupo` | boolean | Se o rebaixamento é calculado por grupo ou pela tabela geral entre todos os grupos | - | `true` na divisão 1, `false` nas 2-4 | `false` em todas (sem grupos, o campo é irrelevante) |
+| `numeroTimesMataMata` | int | Classificados para a fase final, OU um código sentinela que troca a fase final por um formato dedicado (ver abaixo) | ver abaixo | divisão 1-2: 0 (sem mata-mata); divisão 3: `1020` (sentinela); divisão 4: 4 | 0 em todas |
+| `classificaPeloGeral` | boolean | Nos grupos, se a fase final usa a colocação dentro do grupo ou a tabela geral entre grupos para definir os confrontos | - | `false` em todas | `false` em todas |
+| `melhoresTerceiros` | boolean | Ativa a vaga extra de "melhores terceiros colocados" entre grupos na fase final (só tem efeito com `numeroTimesMataMata > 0` e `nGrupos` envolvendo grupos de 3+ classificados por grupo) | - | `false` em todas | `false` em todas |
+| `rebaixadosDireto` | int | Quantos dos `nRebaixados` caem **direto** pela tabela; o resto (`nRebaixados - rebaixadosDireto`) é decidido num playoff de rebaixamento/acesso contra a divisão de baixo (ver 1.12 da SIMULATION-SPEC) | 0..`nRebaixados` | igual a `nRebaixados` em todas as 4 divisões (sem playoff) | divisão 1: 3 (= nRebaixados, sem playoff); divisão 2: **2** (playoff decide o 3o); divisões 3-4: iguais a nRebaixados |
+| `vagasSobemPeloMataMata` | int | Quantas vagas de acesso à divisão de cima são decididas por um playoff de acesso, em vez de posição direta na tabela | 0, 1 ou 2 (valores fora disso viram 0 na carga) | 0 em todas | divisão 2: **1** (uma vaga de acesso à 1a divisão via playoff); demais 0 |
+| `duasVoltasplayoffReb` | boolean[3] | Ida e volta do playoff de rebaixamento, por posição (mesma convenção ida-e-volta do `finaisIdaVolta` estadual) | - | tudo `false` (sem playoff, campo inerte) | divisão 2: `[true,false,false]` (o único confronto de playoff é ida e volta) |
+| `duasVoltasMataMataSobe` | boolean[3] | Ida e volta do playoff de acesso, por posição | - | tudo `false` (inerte) | divisão 2: `[true,true,false]` |
+| `playoffRebaixamento` | int | Campo serializado presente na classe, com getter/setter, mas **nunca lido em nenhum outro lugar do jogo** | - | 0 em todas | 0 em todas |
+| `versaoArquivo` | int | Versão do formato do `.cfg`; só com `versaoArquivo == 22` o jogo aceita `rebaixadosDireto` da entrada (ver "Semântica dos .cfg" acima) | - | 22 | 22 |
+
+**`playoffRebaixamento` é um campo morto - CONFIRMADO.** A classe grava e lê o campo normalmente, mas
+nenhuma rotina de jogo o consulta; quem decide se há playoff de rebaixamento é a combinação
+`rebaixadosDireto < nRebaixados` descrita acima, não este campo.
+
+**Não existe campo `nPromovidos` - CONFIRMADO.** O número de promovidos de uma divisão nunca é
+configurado separadamente: é sempre igual ao `nRebaixados` da divisão imediatamente acima (ou, para a
+última divisão, ao seu próprio `nRebaixados`, trocando com a reserva do país). Ver SIMULATION-SPEC
+1.12.
+
+**Os dois exemplos reais.** Nenhuma das quatro divisões brasileiras usa playoff de acesso ou
+rebaixamento (`rebaixadosDireto == nRebaixados` em todas), mas a **2a divisão espanhola usa os dois**:
+das 3 vagas de rebaixamento, 2 caem direto e a 3a vai a um playoff de ida e volta contra a 3a divisão
+(aproximadamente - ver 1.12); e das vagas de acesso à 1a divisão, 1 é decidida por um playoff de ida e
+volta entre times logo abaixo da zona de acesso direto da própria 2a divisão. Isto mostra que os dois
+`.cfg` distribuídos não são meramente cosméticos: a Espanha exercita um mecanismo que o Brasil nunca
+aciona.
+
+**Grupos e fase final - o mecanismo geral, e os dois formatos especiais do Brasil.** Ver
+SIMULATION-SPEC seção 1.11 para o algoritmo completo (o mesmo mecanismo de grupos + fase final do
+`.ces`, reaproveitado aqui) e para os dois formatos dedicados que `numeroTimesMataMata` pode sinalizar
+por código sentinela em vez de contagem: `1020` (Série C: segunda fase de grupos depois da primeira) e
+o formato de 68 times com fase preliminar (relevante quando a 4a divisão, alimentada pelos estaduais,
+tem mais candidatos do que vagas).
+
 ## Campeonatos estaduais - `.ces`
 
 Esta seção descreve o formato com precisão suficiente para escrever um leitor sem ver os arquivos.

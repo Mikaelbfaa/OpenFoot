@@ -2175,3 +2175,468 @@ divisão) em vez de falhar no meio da criação do mundo; para o `MODERN`, o pre
 pelo padrão de 6 times quando pedir mais do que resta, que é o que a checagem contra o total
 claramente pretendia. As duas escolhas são INFERIDO quanto à intenção; o fato de o original falhar é
 CONFIRMADO.
+
+## Seção 1 - tempo e calendário
+
+### 70. Reinício do contador de "4 semanas" do foco de treino na virada de temporada
+
+A seção 0 descreve o contador de "4 semanas" da 4.5 (foco de treino da IA) como um contador de
+disparos do próprio tique de domingo, incrementado a cada domingo do calendário processado. A
+varredura desta questão não determinou se esse contador é reiniciado na virada de temporada ou se
+continua acumulando de uma temporada para a outra.
+
+**Resolução (INFERIDO):** por analogia com o resto da virada de temporada (seção 1.4, que reseta
+explicitamente vários estados por time a cada troca de temporada), o mais provável é que o contador
+reinicie junto com os demais contadores semanais. Sem verificação direta, a reimplementação deve
+tratar isso como uma escolha de `RuleSet` de baixo risco: reiniciar em `CLASSIC` e `MODERN` por
+padrão, documentando a aposta.
+
+### 71. Leituras do campo de mês fora da folha de pagamento
+
+A seção 0 registra que a única leitura do mês encontrada nesta varredura foi dentro do fluxo de
+folha de pagamento da 6.4 (conferir se o clube já pagou naquele mês) e do juro de empréstimo. A
+varredura não foi exaustiva sobre esse ponto especificamente - não se percorreu o binário inteiro
+atrás de outras leituras do campo de mês.
+
+**Resolução (INFERIDO):** nenhum outro efeito do mês foi encontrado nas seções cobertas por esta
+varredura (0, 1, 3.1, 3.8). Times de spec que investigarem a economia (6.x) ou o mercado de
+transferências devem revalidar este ponto se encontrarem uma leitura de mês nova; até lá, a
+reimplementação pode assumir que o mês só importa para dinheiro.
+
+### 72. Colisão de partidas do mesmo clube em competições diferentes do mesmo país na mesma rodada
+
+A seção 1.10 descreve que o avanço de rodada de um país processa, na mesma passada, toda competição
+ativa daquele país sem checar se um clube já tem partida marcada em outra competição do mesmo país
+nesse dia. Não foi confirmado se as configurações realmente distribuídas (liga nacional, copa
+nacional, estaduais) evitam essa colisão na prática, por exemplo mantendo cada uma em tipos de dia
+disjuntos, ou se ela pode de fato ocorrer com os dados reais do jogo.
+
+**Resolução (INFERIDO):** a ausência de uma trava explícita no mecanismo de avanço de rodada sugere
+que a prevenção, se existe, está inteiramente nos dados de calendário (quais tipos de dia cada
+competição usa), não no código. Para a v0.3, a reimplementação deve tratar "um clube, uma partida
+por rodada" como uma invariante do **gerador de calendário** (seção a ser escrita por quem fechar o
+formato de cada competição da 1.1), não do motor de rodada em si, e validar essa invariante com um
+teste dedicado assim que o calendário completo existir.
+
+### 73. Condição exata de fim de temporada por país
+
+A seção 1.10 confirma que existe uma marca de "temporada deste país terminou", mas esta varredura
+não fixou com certeza o gatilho exato dessa marca (se é "toda competição ativa esgotou as próprias
+rodadas", ou algum outro critério).
+
+**Resolução (INFERIDO):** a leitura mais simples e consistente com o resto do mecanismo (cada
+competição com seu próprio contador, nenhuma trava cruzada) é que a marca dispara quando **todas**
+as competições ativas do país esgotaram o próprio total de rodadas. A reimplementação deve adotar
+essa regra como padrão de `RuleSet`-independente (não é uma divergência CLASSIC/MODERN, é uma
+aposta sobre o próprio original) e revisitar se a aceitação local contra a instalação real (seção de
+validação do design da v0.3) discordar.
+
+### 74. Ordem de intercalação entre estaduais e liga nacional no calendário brasileiro
+
+A seção 1.10 registra que a ordem exata em que os dias de tipo "Estadual" e "Nacional" se intercalam
+ao longo do ano não foi determinada com o mesmo grau de confiança que o mecanismo geral de
+calendário (lista de dias compartilhada, competições com contador próprio).
+
+**Resolução (INFERIDO):** a aposta registrada na 1.10 é a que corresponde ao formato real do futebol
+brasileiro que os dados do jogo descrevem - estaduais concentrados no primeiro terço do ano civil,
+liga nacional ocupando o restante, intercalados pela copa nacional e por datas de seleção. Quem
+fechar o formato detalhado de cada competição da 1.1 (copa nacional, internacionais, seleções) deve
+tratar esta aposta como ponto de partida e corrigi-la se encontrar evidência direta em contrário.
+
+### 75. Liga nacional genérica com `nGrupos > 1` e jogos entre grupos desligados
+
+A seção 1.3 documenta que, com jogos dentro do grupo desligados, o confronto sai de uma tabela de
+pares fixa que só existe para formatos de competição específicos - não para configuração genérica de
+liga nacional com grupos. Não foi determinado se algum país realmente configurado usa essa
+combinação (`nGrupos > 1` numa liga nacional, com jogos entre grupos desligados), nem, se usar, qual
+tabela fixa se aplicaria.
+
+**Resolução:** não resolvida por esta varredura - fica para quem documenta os formatos de competição
+de clube (times, copas e torneios continentais da 1.1), que tem acesso ao inventário completo dos
+`.cfg` de liga nacional e pode checar se essa combinação de campos aparece em algum deles.
+
+**Resolução (CONFIRMADO), da varredura de competições de clube:** não, nenhuma das oito entradas dos
+dois `.cfg` distribuídos (`BRA.cfg`, `ESP.cfg`) usa essa combinação. A única entrada com `nGrupos > 0`
+é a 4a divisão brasileira (`nGrupos = 8`), e ela tem `jogosDentroGrupo = true` - os times do mesmo
+grupo se enfrentam normalmente, além dos cruzamentos entre grupos. `jogosDentroGrupo = false` só
+aparece nos presets 7 e 10 do estadual (SP e o preset de 20 times em 4 grupos), nunca num `.cfg` de
+liga nacional. A tabela de pares fixa "só entre grupos" que a 1.3/FORMAT-SPEC documenta para os
+presets estaduais 7/10 não tem, portanto, nenhum uso confirmado do lado da liga nacional nos dois
+países distribuídos; ver SIMULATION-SPEC 1.11 para o mecanismo geral de grupos de liga nacional.
+
+### 76. Recuperação de energia (3.9) presa ao pós-rodada de cada competição, não a um tique global de data
+
+A seção 1.10 conclui que a recuperação de energia semanal da 3.9 é aplicada como parte do
+pós-rodada de cada competição (quando aquela competição processa uma rodada), e não como um tique
+de data global independente de qual competição está ativa - ao contrário da evolução da 4.5, que é
+presa à data. Essa conclusão é uma inferência a partir da arquitetura confirmada dos dois mecanismos
+de disparo (data para a 4.5, partida para o cumprimento de suspensão da 1.8/3.8), não uma observação
+direta e isolada da recuperação de energia em si.
+
+**Resolução (INFERIDO):** a reimplementação deve tratar a recuperação de energia como parte do
+`playRound` de cada competição (não de um tique semanal separado), consistente com a seção 3.1 já
+existente ("pós-rodada: ... recupera energia"). Se uma verificação futura encontrar um tique de
+energia independente de partida, este item deve ser reaberto.
+
+### 77. Qual competição real usa o formato "liga + mata-mata" de 20 times e 1 turno
+
+A seção 1.3 identifica o mecanismo por trás do "20 times com um código de formato específico -> 1
+turno" (o mesmo valor de configuração que marca uma fase de pontos corridos alimentando um mata-mata
+de 4 ou 8 times), mas não identifica qual competição do jogo (Nacional de que país, Estadual, outra)
+realmente usa esse formato.
+
+**Resolução:** não resolvida por esta varredura - fica para quem documenta os formatos de competição
+de clube da 1.1, que pode cruzar o valor de configuração encontrado com o inventário de `.cfg` por
+país para nomear a competição.
+
+**Resolução (CONFIRMADO), da varredura de competições de clube:** é a **3a divisão brasileira (Série
+C)** do `BRA.cfg` distribuído - `nTimes = 20`, `doisTurnos = false` (turno único, coerente com "20
+times com código específico -> 1 turno" da 1.3) e `numeroTimesMataMata = 1020`. Esse valor não é uma
+contagem de classificados: é um código sentinela lido pelo motor para desviar para um formato
+dedicado, escrito à mão só para esta divisão - primeira fase de pontos corridos com os 20 times, e os
+8 primeiros formando uma segunda fase de 2 grupos de 4 (turno e returno) cujos vencedores disputam uma
+final de dois jogos. Nenhuma outra divisão, estadual ou copa dos dois `.cfg`/25 `.ces` distribuídos usa
+este valor. Ver SIMULATION-SPEC 1.11 para o formato completo.
+
+## Seção 1 - competições de seleções
+
+### 90. Qual confederação fornece o sexto time da repescagem intercontinental
+
+A repescagem intercontinental que fecha as últimas vagas da Copa do Mundo (1.16) reúne 6 seleções:
+uma de cada uma de América do Sul, Ásia, Concacaf e Oceania, mais duas cuja origem não foi separada
+com confiança nesta leitura - uma delas é claramente uma seleção "própria" da competição asiática que
+monta a repescagem (a mesma que hospeda a rotina), a outra é lida de um acessor que não foi
+identificado entre os das seis confederações já mapeadas.
+
+**Resolução:** não resolvida por esta varredura - INFERIDO que a sexta vaga vem de África, porque é a
+única das seis confederações de Eliminatórias que, nesta leitura, não teve nenhum destino de
+repescagem confirmado (item 91); mas o acessor específico não foi lido, então fica como aposta
+declarada, não como fato.
+
+### 91. Vagas diretas de África e Concacaf nas Eliminatórias da Copa do Mundo
+
+A 1.16 fecha o formato de fases da Eliminatória Africana (8 grupos de 5, 2 turnos) e da Concacaf
+(6 grupos de 5 seguidos de um octogonal de 8), mas não fechou, com o mesmo grau de confiança que as
+outras quatro confederações, quantas vagas diretas a Copa do Mundo cada uma recebe nem se existe uma
+fase de repescagem continental antes da repescagem intercontinental - o trecho de código que lista
+os classificados diretos dessas duas não foi encontrado dentro da janela desta varredura, só o
+desenho das fases em si (via as opções de `nTimes`/`nGrupos`/`numeroTimesMataMata` passadas ao motor
+de fases).
+
+**Resolução:** não resolvida por esta varredura - fica para uma leitura futura focada no método que
+lê os classificados diretos dessas duas confederações (o equivalente ao que a 1.16 já documenta para
+Europa, América do Sul, Ásia e Oceania).
+
+### 92. Formato exato da repescagem intercontinental de 6 times
+
+A repescagem intercontinental (1.16) é montada como uma competição de 6 times, um turno
+(`doisTurnos = false`), sem número de grupos declarado no trecho lido. Isso é compatível tanto com
+"todos contra todos uma vez" (5 rodadas, decidido por tabela) quanto com um mata-mata de 6 (com um
+bye ou uma rodada preliminar) - o motor de fases genérico usado por toda a 1.16 aceita as duas
+formas, e o trecho lido não teve o campo que desambiguaria.
+
+**Resolução:** não resolvida por esta varredura. INFERIDO, por semelhança com o formato real de
+repescagem intercontinental de Copa do Mundo (que é um mata-mata curto, não uma liga), que a forma
+pretendida é mata-mata; mas o oposto (liga única, com o melhor colocado levando a vaga) é consistente
+com os mesmos campos lidos e não foi descartado.
+
+### 93. Divisões e promoção/rebaixamento da Liga das Nações, e o desenho da versão Concacaf
+
+A subseção nova de 4.12 e a 1.16 confirmam que a Liga das Nações Europa tem 4 divisões fixas (A, B,
+C e D, com 16, 16, 16 e 7 países cada), grupos com 2 turnos, uma Final a 4 para os vencedores de
+grupo da divisão A, e um playoff de rebaixamento para os últimos colocados de grupo da divisão C.
+Não foi possível fechar, na janela desta varredura: (a) se existe um playoff de promoção simétrico
+para as divisões B e D; (b) o desenho completo da versão Concacaf (quantas divisões, quantos países
+por divisão, se ela também tem uma Final a 4); e (c) se a lista fixa de países por divisão é
+recalculada entre edições pelo desempenho da edição anterior (promoção/rebaixamento real) ou
+permanece fixa pela mesma lista embutida a cada vez.
+
+**Resolução:** não resolvida por esta varredura - candidata a uma leitura futura dedicada só à Liga
+das Nações, cruzando os métodos de final e de playoff de cada divisão com o que atualiza a lista de
+países de cada uma entre edições.
+
+### 94. Granularidade exata da chamada de convocação da IA
+
+A subseção nova de 4.12 registra, como INFERIDO, que a convocação da IA roda uma vez por edição de
+competição (não partida a partida), apoiada na estrutura de que cada competição de seleção só é
+redesenhada uma vez por ciclo fixo de temporadas (1.16) e que a criação do time e a convocação são
+"sob demanda". O ponto exato do código em que a rotina de convocação (a que esvazia o elenco anterior
+e aplica os passos 1-6 da 4.12) é chamada, e se ela roda de novo para a mesma edição se o elenco for
+consultado mais de uma vez, não foi isolado nesta varredura.
+
+**Resolução:** não resolvida por esta varredura - a classe de evidência do que está em 4.12 sobre
+este ponto é **INFERIDO**, não CONFIRMADO, até alguém isolar o ponto de chamada exato.
+
+### 95. Se uma partida de seleção conta para o contador de elite/topMundial e para o hall da fama
+
+A 4.10 define `topMundial` por um contador de "temporadas em que o jogador figura entre os de elite
+da competição", e a 4.11 dá limiares de gols por temporada para entrar no hall da fama. A definição
+geral de "elite da competição" é escopo do time de spec de evolução de jogador (item 9 da lista de
+"o que precisa do time de spec" do design da v0.3). A pergunta estreita desta varredura, dentro do
+escopo de seleção: uma partida de Copa do Mundo, Eliminatórias, copa continental, Liga das Nações ou
+Finalíssima entra nesse cômputo (contador de elite, gols para o hall da fama) do mesmo jeito que uma
+partida de clube, ou essas competições são ignoradas pelos dois mecanismos porque eles são pensados
+em termos de temporada de clube? Não foi possível confirmar nem descartar nesta varredura.
+
+**Resolução:** não resolvida por esta varredura - fica registrada aqui para quando o time de spec de
+evolução de jogador fechar a definição geral de "elite da competição" (item 9 do design da v0.3);
+nesse momento, a mesma leitura deve dizer se seleção entra.
+
+## Seções 4.5 a 4.11 - evolução e virada
+
+### 100. `fd` (desenvolvimento de base) não existe no formato de arquivo
+
+O campo `fd` (0-100) que a 4.5 e a 4.6 leem e desenvolvem semana a semana não está entre os campos
+do `.ban` que a `FORMAT-SPEC.md` documenta (só `hash`/`es`, o talento, está lá). Só a rotina que gera
+um júnior em tempo de execução (4.6) calcula um "`fd` inicial" explícito; nada na leitura de um
+jogador de arquivo inicializa esse campo.
+
+**Resolução (INFERIDO):** um profissional ou júnior que vem de arquivo (nunca foi criado pelo
+gerador em tempo de execução) nasce com `fd = 0` e o desenvolve inteiramente pelo passo semanal da
+4.6, sem o salto de "`fd` inicial". Os dois bônus que a 4.5 amarra a `fd` (o `+0,05`/`+0,07` do
+crescimento e o bônus de teto de `fd >= 60`) ficam inertes para esse jogador enquanto `fd` não
+cruzar 60 por conta própria - o que, para um profissional adulto que nunca foi júnior no motor,
+pode nunca acontecer, já que só juniores (idade <= 20) desenvolvem `fd` pela 4.6. Não há como
+confirmar isso lendo só a lógica de evolução; fecharia com uma leitura da rotina de importação de
+arquivo (fora do escopo desta varredura, que ficou dentro da 4.5-4.11).
+
+### 101. Onde a demissão de técnico lê a colocação final do clube
+
+A 1.5 registra, de uma varredura anterior, que "técnicos da IA só são efetivamente trocados se o
+clube também terminou abaixo do 6º lugar", mas o teste de aproveitamento em si (`pctVit` contra uma
+rolagem em `1..90`) não faz nenhuma leitura de colocação/posição na tabela - só do par
+vitórias/jogos da temporada anterior. Esta varredura não isolou onde (ou se) a condição "abaixo do
+6º lugar" entra: pode estar num teste anterior que decide se a rotina de demissão roda para aquele
+clube, pode estar dentro da rotina de contratação de um novo técnico (que só é chamada depois do
+teste de aproveitamento), ou a redação anterior pode estar descrevendo um efeito observado em jogo
+que nasce de outro mecanismo (por exemplo a reputação do clube, que também decai por resultado ruim
+e poderia influenciar a busca por um técnico substituto).
+
+**Resolução:** não resolvida por esta varredura - o `pctVit` e a rolagem `1..90` em si estão
+confirmados e valem como estão descritos na 1.5; a condição adicional de colocação, mantida como
+já estava registrada, precisa de uma leitura dedicada à rotina de contratação de técnico (fora do
+escopo desta varredura de evolução de elenco) para virar CONFIRMADO.
+
+### 102. Onde exatamente "reset de temporada por time" e "limpeza de vínculos órfãos" (1.4) rodam
+
+A ordem da 1.4 (CONFIRMADO desde uma varredura anterior) lista esses dois passos entre a
+reconstrução de elenco (1.7) e o êxodo de craques (1.6). Esta varredura confirmou uma rotina que
+resincroniza, por jogador e por técnico, o vínculo de clube em cache a partir do vínculo real - a
+melhor candidata para os dois passos, já que corrigir uma referência desatualizada é exatamente
+"limpar um vínculo órfão", e ela roda uma vez por jogador sobre o mundo inteiro, o que também
+combina com "reset por time" em sentido lato. Mas essa rotina foi localizada associada à preparação
+da temporada **seguinte** (junto com a revalorização de valor de mercado e salário), num método
+diferente do que executa a reputação, a aposentadoria/promoção e a demissão de técnico da
+temporada que **fechou** - e esta varredura não confirmou se esses dois passos da 1.4 pertencem
+ali, ou se pertencem a um ponto intermediário que não foi isolado.
+
+**Resolução (INFERIDO):** a reimplementação pode tratar "reset de temporada por time" e "limpeza de
+vínculos órfãos" como parte da preparação da temporada seguinte, executados depois de toda a
+passada de aposentadoria/promoção/reputação/demissão de técnico da temporada que fechou - é a leitura
+mais simples que não exige um estado intermediário novo, e o efeito prático (jogador com vínculo
+consistente, sem estatística de partida para zerar porque o registro vive no log de eventos) é o
+mesmo em qualquer dos dois pontos.
+
+### 103. A reposição de elenco (4.11) sempre promove no mesmo instante, sem exceção?
+
+Esta varredura confirmou que a reposição de vaga por aposentadoria (ou outra saída) gera um júnior
+pelo gerador da 4.6 e o promove imediatamente pela mesma rotina de promoção, no mesmo trecho de
+código que decide se a reposição é necessária. Não foi possível confirmar se existe algum caso em
+que a reposição gera o júnior mas **não** o promove no mesmo instante (por exemplo, se o júnior
+recém-gerado por algum motivo não passasse no teste de promoção da 4.6, que normalmente também exige
+idade >= 20 e checa cota por posição/tamanho de elenco - a reposição parece contornar esses dois
+requisitos chamando a promoção direto, mas a varredura não testou o caminho onde a cota da posição
+já está cheia mesmo com o elenco abaixo de 16).
+
+**Resolução (INFERIDO):** a reimplementação deve tratar a reposição como uma promoção incondicional
+(sem checar idade, cota por posição ou tamanho de elenco no momento de promover, já que o motivo de
+ela existir é justamente a cota estar baixa) - a única incerteza é o caso de fronteira em que a
+posição carente já bateu a cota por outro motivo entre a decisão de repor e a promoção em si, que
+esta varredura não conseguiu descartar.
+
+### 104. Fórmula exata do piso de partidas jogadas do prêmio de estrela por desempenho (4.10)
+
+A 4.10 confirma que o "limiar da competição" do prêmio de estrela de fim de temporada é um piso
+sobre o **número de partidas** que o jogador acumulou naquela competição-entrada, não um piso sobre a
+média de nota - a lista de candidatos é ordenada por média decrescente e o motor toma o primeiro que
+bate o piso de partidas. A rotina que calcula esse piso lê três números por competição-entrada (algo
+como a quantidade de times, um indicador de turno/fase e uma contagem de rodadas já disputadas) e
+produz um piso que vale zero cedo na temporada e cresce depois de passada a metade do calendário da
+entrada. Esta varredura confirmou a **natureza** do cálculo (um piso de jogos crescente, não uma nota
+mínima) mas não isolou com confiança total o papel de cada um dos três números nem a aritmética exata
+que os combina, então não é seguro publicar a fórmula "sorteio a sorteio" como CONFIRMADO.
+
+**Resolução (INFERIDO):** até uma leitura dedicada a essa rotina, a reimplementação pode aproximar o
+piso como "metade das rodadas já disputadas na competição-entrada, arredondado, valendo zero antes de
+metade do calendário" - o comportamento qualitativo observado (ninguém é barrado por nota cedo na
+temporada; jogadores com poucas partidas ficam de fora tarde na temporada mesmo com média alta) deve
+se manter com essa aproximação, mas o número exato de partidas em cada rodada específica não deve ser
+tratado como reproduzido bit a bit até a fórmula ser isolada.
+
+## Seção 1 - competições de clubes
+
+### 80. Composição exata dos grupos de candidatos do playoff de rebaixamento/acesso entre divisões
+
+A SIMULATION-SPEC 1.12 documenta que `rebaixadosDireto < nRebaixados` aciona um playoff de
+rebaixamento contra a divisão de baixo, e que `vagasSobemPeloMataMata > 0` aciona um playoff de
+acesso interno à própria divisão pelas vagas remanescentes de subida. A existência dos dois
+mecanismos e os campos que os acionam estão confirmados pela leitura do código (e exercitados de
+verdade pela 2a divisão espanhola distribuída), mas a composição exata de cada grupo de candidatos -
+quantas posições da tabela de cada lado entram na disputa, e a ordem exata de emparelhamento - foi
+lida por cima, não linha a linha, e não foi verificada contra uma temporada jogada.
+
+**Resolução:** não resolvida com o mesmo grau de confiança dos demais itens desta varredura. A
+reimplementação deve tratar como **INFERIDO**: o playoff de rebaixamento emparelha os últimos
+colocados da divisão de cima (que não caíram direto) contra os primeiros colocados elegíveis da
+divisão de baixo (que não subiram direto), na ordem de tabela; o playoff de acesso reúne os times
+posicionados logo abaixo da zona de acesso direto da própria divisão, num grupo pequeno (4 times
+observados no código para a vaga única do `ESP.cfg`), disputando entre si pela(s) vaga(s)
+remanescente(s). Uma leitura futura, linha a linha da rotina de playoff de fim de temporada da
+divisão de liga nacional, deve fechar os índices exatos antes de um teste dourado ser escrito para
+este mecanismo.
+
+### 81. A fila de candidatos da 4a divisão brasileira via estaduais, contra uma temporada jogada
+
+A SIMULATION-SPEC 1.12 documenta a fila de campeões e vice-campeões estaduais que alimenta a 4a
+divisão do Brasil quando os estaduais estão ativos, com os 27 estados agrupados em 5 níveis de
+prioridade e a fila aprofundando posição por posição dentro de cada nível. O mecanismo e a tabela de
+estados por nível foram lidos diretamente do código (CONFIRMADO), mas esta varredura não rodou uma
+temporada completa para verificar, posição a posição, que a fila realmente produz 64 (ou 68) nomes
+nesta ordem exata com o conjunto de clubes do jogo distribuído, nem confirmou com certeza total a
+leitura do segundo elemento do nível 4 (que aparece como o valor padrão de inicialização de array em
+vez de um valor escrito explicitamente no código - compatível com o estado de índice 0, Acre, mas sem
+uma atribuição explícita que remova a ambiguidade).
+
+**Resolução (INFERIDO):** a reimplementação deve usar a tabela de 5 níveis e a ordem de
+aprofundamento como descritas na 1.12, incluindo Acre no nível 4. Um vetor dourado de uma temporada
+completa do Brasil com estaduais (fase 4 do roteiro de v0.3) é o jeito natural de promover isto a
+MEDIDO ou de corrigi-lo.
+
+### 82. Novo formato da Copa Nacional: pareamento exato dos potes e alcance real do defeito de pênaltis
+
+A SIMULATION-SPEC 1.13 documenta que a primeira rodada de 80 times do "novo formato" da Copa Nacional
+nunca vai a pênaltis - um código dedicado sempre avança o segundo time listado do confronto numa
+igualdade, sem sequer agendar a disputa. Isto foi lido diretamente no motor de resolução de confronto
+(CONFIRMADO) e é distinto do defeito já catalogado para os estaduais (aquele depende da opção
+`desempate`; este é incondicional e específico desta rodada). Duas coisas não foram fechadas: (a) o
+padrão exato de cruzamento dos 8 potes de 10 (a ordem de índices lida sugere um cruzamento tipo
+"chave" que não é um simples 1-contra-8, mas o desenho completo não foi mapeado pote a pote); e (b) se
+as rodadas seguintes do novo formato (40 -> 20, já em ida e volta) realmente sempre alcançam uma
+disputa de pênaltis normal numa igualdade, como o resto da Copa Nacional, ou se alguma delas herda
+algum comportamento especial não identificado.
+
+**Resolução (INFERIDO) para (b):** como nenhuma dessas rodadas é Estadual (tipo 3) e nenhuma delas usa
+o código interno que aciona o defeito de (a), a leitura da estrutura geral do motor de mata-mata (a
+mesma que resolve Copa Nacional padrão e as competições continentais) indica que elas seguem a
+disputa de pênaltis normal. **Não resolvido** para (a): o padrão de cruzamento dos potes fica para uma
+leitura dedicada antes de um teste dourado ser escrito para o novo formato.
+
+### 83. Conference League e Supercopa não têm linha de reputação na 5.5
+
+A tabela de prêmios de reputação por título da SIMULATION-SPEC 5.5 lista liga nacional, copa nacional,
+estadual, continental 1, Mundial, continental 2, Recopa, regional e Finalíssima - mas não Supercopa
+nem Conference League, ambas competições de clube confirmadas nesta varredura (1.13/1.15). Não ficou
+determinado se as duas realmente não concedem reputação nenhuma, ou se a tabela da 5.5 está
+incompleta.
+
+**Resolução (CONFIRMADO):** as duas têm reputação, lida diretamente na tabela de prêmio por colocação
+que o motor usa para todas as competições desta lista - a 5.5 é que está incompleta, não as duas
+competições. **Supercopa:** campeão +2, vice 0. **Conference League:** campeão +10, vice +8, os dois
+perdedores de semifinal +4 cada. Ver SIMULATION-SPEC 1.15. Quanto ao dinheiro: a Conference League
+paga pelo mesmo mecanismo por rodada de mata-mata que paga a Copa Nacional e as competições
+continentais (CONFIRMADO um código de premiação dedicado a ela nesse mecanismo, mas a tabela de
+valores em si não foi extraída - cabe a quem mantém a 6.3 somar essa linha); a Supercopa já tem sua
+linha de dinheiro na 6.3 (prêmio fixo). Quem mantém a 5.5/6.3 deve somar as duas linhas de reputação
+que faltam lá e a linha de dinheiro da Conference League.
+
+### 84. Critério de vagas por país nas competições continentais (Internacional 1 e 2)
+
+A qualificação não é uma fórmula sobre o nível do país calculada em tempo de execução: é uma lista de
+países fixa, escrita à mão no motor (repetindo os países mais fortes várias vezes para lhes dar mais
+de uma vaga), mais o campeão vigente da própria competição e, em Europa/América do Sul, promoção
+cruzada com a segunda competição do mesmo continente.
+
+**Resolução (CONFIRMADO)** para as oito competições continentais: ver SIMULATION-SPEC 1.14 para o
+mecanismo completo e a tabela com as listas de país de cada uma das oito, incluindo a distinção entre
+Europa/América do Sul (sorteio por potes, fase preliminar, preferência por campeão de copa nacional
+em algumas vagas, cascata de eliminados entre as duas competições do mesmo continente) e
+África/Ásia/Concacaf/Oceania (tabela de índices fixa em vez de sorteio, sem fase preliminar, sem
+preferência por copa nacional). Três pontas ficam **não resolvidas** por esta varredura:
+
+1. A ordem de mando (quem manda a ida) nos confrontos de mata-mata montados pela função auxiliar de
+   pareamento "anti-choque" usada pela Continental 1 Europa e pelas duas competições sul-americanas
+   (a função em si não foi aberta); idem para as tabelas de índice fixo do motor de fase genérico que
+   Ásia/Oceania usam no seu próprio mata-mata (África e Concacaf têm o pareamento das oitavas/quartas
+   confirmado pela leitura direta de um rótulo de chave, mas não o lado do mando).
+2. O critério exato de "melhores terceiros/quartos colocados" que completa o mata-mata da Continental
+   1 Ásia (10 grupos de 4, só 1 classificado direto por grupo, mais uma seleção adicional para fechar
+   a chave) - o mecanismo vive no motor de fase genérico compartilhado, fora do escopo desta leitura.
+3. Se a Continental 1 Concacaf tem algum comportamento de fallback quando a lista de países não fecha
+   o alvo de 24 - as outras seis competições têm um aviso de diagnóstico explícito que impede a
+   montagem nesse caso (CONFIRMADO), mas o mesmo aviso não foi encontrado no arquivo do motor da
+   Concacaf.
+
+### 85. Qual objeto de Recopa corresponde a qual continente, e se existe fora de Europa/América do Sul
+
+A SIMULATION-SPEC 1.14 documenta a Recopa como uma final única entre os campeões da Continental 1 e
+da Continental 2 do mesmo continente, existindo só onde as duas competições existem (Europa e América
+do Sul). Uma leitura direta dos dois objetos pequenos e dedicados do motor fechou a questão por
+completo.
+
+**Resolução (CONFIRMADO):** ver SIMULATION-SPEC 1.14. Existem exatamente dois objetos de Recopa, um
+por nome ("Recopa Europa", "Recopa Sul-Americana"), cada um lendo diretamente os campos de campeão
+vigente dos dois gerentes continentais do seu próprio continente - não há Recopa em nenhum outro
+continente, nem um terceiro objeto genérico. Ida e volta, sem gol fora de casa, o campeão da
+Continental 2 manda a ida e o da Continental 1 manda a volta; sem um dos dois campeões (ou se forem o
+mesmo clube), a Recopa daquele continente simplesmente não é criada naquela temporada.
+
+### 86. Participantes e formato completo do Mundial de Clubes
+
+A taxonomia da 1.1 e a premiação da 6.3/5.5 confirmam que existe um "Mundial" de clubes com prêmio de
+reputação e em dinheiro próprios. Uma leitura direta da classe do motor fechou o formato por completo.
+
+**Resolução (CONFIRMADO):** ver SIMULATION-SPEC 1.15. Seis participantes (um campeão por continente),
+quartas de final entre África/Ásia/Concacaf/Oceania, semifinal a 4 com Europa e América do Sul
+entrando direto, final - tudo jogo único, sem gol fora de casa, disputa de pênaltis normal numa
+igualdade. Caso especial: um campeão sul-americano do México é substituído pelo resultado alternativo
+do gerente continental sul-americano. Falta um campeão de algum continente e o Mundial não é montado
+naquela temporada.
+
+### 87. Participantes exatos da Supercopa Nacional
+
+A 6.3 já documenta um prêmio fixo de 1 milhão para o vencedor da Supercopa, e o nome exibido confirma
+que é uma competição por país ("Supercopa " + nome do país). Uma leitura direta da classe do motor
+fechou os dois participantes.
+
+**Resolução (CONFIRMADO):** ver SIMULATION-SPEC 1.15. Campeão da liga nacional x campeão da Copa
+Nacional, ambos da **temporada anterior**; se o campeão da liga também foi campeão da Copa Nacional,
+o segundo participante vira o vice-campeão da Copa Nacional daquele ano. Jogo único, disputa de
+pênaltis normal numa igualdade. Sem um dos dois times determinável, a Supercopa daquele país não é
+montada.
+
+### 88. Critério de participação dos torneios Regionais
+
+A 6.3 já documenta uma premiação de mata-mata pequena (3 valores) para "Regional", e a `Options`
+distribuída carrega 4 flags independentes de regional além da flag geral. Uma leitura direta da
+classe do motor fechou o critério de participação por completo.
+
+**Resolução (CONFIRMADO):** ver SIMULATION-SPEC 1.15. Exatamente 4 instâncias fixas para o Brasil
+(Rio-São Paulo, Sul-Minas, Copa do Nordeste, Copa Verde), cada uma amarrada a um grupo fixo de
+estados; toma todos os clubes brasileiros desses estados (qualquer divisão), e só é criada com 16 ou
+mais elegíveis - 4 grupos de 4, mata-mata de quartas a final com os 2 primeiros de cada grupo.
+
+### 89. Gatilho de amistosos de clube (Amistoso e Torneio Amistoso) numa temporada de IA
+
+A taxonomia da 1.1 reserva dois tipos para amistoso de clube (jogo único e torneio), nenhum dos dois
+com prêmio em dinheiro ou reputação. Uma leitura direta das duas classes do motor não encontrou
+nenhum agendamento autônomo para clubes de IA.
+
+**Resolução (CONFIRMADO):** ver SIMULATION-SPEC 1.15. Os dois são iniciados por ação humana. O
+amistoso de jogo único é o convite de amistoso do clube humano a um clube de IA (taxa de convite e
+chance de aceite por reputação), inexistente sem clube humano. O torneio amistoso é oferecido por uma
+pergunta direta ao jogador humano no início de cada temporada ("Deseja criar um torneio Amistoso de
+início de temporada?"), com a lista de participantes escolhida manualmente numa tela; nenhum ponto do
+motor foi encontrado montando essa lista sozinho para times de IA. Como nenhuma das duas competições
+concede prêmio, e o roteiro da v0.3 (temporada só de IA) não depende de simular amistosos para fechar
+uma temporada corretamente, a reimplementação pode adiar amistoso de clube de IA por completo sem
+perder nada observável nas competições que pagam prêmio ou reputação.
