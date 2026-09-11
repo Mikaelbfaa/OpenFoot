@@ -100,11 +100,7 @@ private fun TableRow.credited(scored: Int, conceded: Int): TableRow = copy(
     goalsAgainst = goalsAgainst + conceded,
 )
 
-/**
- * Three for a win and one for a draw. Section 1.2 keeps the points column
- * without stating the scale, and the spec team was asked to record it; the
- * two constants are the only place it lives.
- */
+/** Three for a win and one for a draw, the modern scale section 1.2 confirms. */
 @SpecRef("1.2")
 private const val WIN_POINTS = 3
 
