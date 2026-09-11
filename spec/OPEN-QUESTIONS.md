@@ -2773,10 +2773,30 @@ exigiria um motor dedicado sem um exemplo real para validar contra ele nesta fas
 - a opção de grupos reais de São Paulo da regra de carga 6 da FORMAT-SPEC (grupos regionais
   registrados no lugar do dealt por fila).
 
-**Resolução (INFERIDO):** cada um destes é tratado como fora do escopo desta fase, não como um
-formato construído incorretamente; leagueCompetition e stateSetup recusam, por exceção, uma
-configuração cujo formato não é um dos que esta fase constrói, em vez de tentar aproximar o formato
-verdadeiro com o motor genérico.
+**Resolução (INFERIDO):** cada um destes é tratado como fora do escopo desta fase, mas nenhum dos
+cinco recusa a configuração por exceção; o código lê o campo, não reconhece o formato dedicado e
+constrói silenciosamente uma aproximação genérica no lugar, sem avisar. Uma base de dados que hoje
+configura qualquer um destes cinco recebe essa aproximação, não um erro:
+
+- o sentinela da Série C (`numeroTimesMataMata = 1020`) cai fora da faixa que
+  `leagueCompetition` aceita como contagem de classificados (`config.knockoutQualifiers in
+  1..MAX_KNOCKOUT_FIELD`, `NationalLeagues.kt`, por volta das linhas 91 a 99 e 123): nenhuma fase de
+  mata-mata é adicionada, e a divisão joga como uma liga simples sem fase final nenhuma;
+- a fase preliminar de 68 clubes tem o mesmo destino pelo mesmo motivo: `leagueCompetition` nunca a
+  constrói, e a divisão que a exigiria joga sem ela (mesmo docstring, por volta das linhas 97 a 99);
+- os playoffs de promoção e rebaixamento entre divisões (`rebaixadosDireto < nRebaixados` ou
+  `vagasSobemPeloMataMata > 0`) não são lidos: `movement`, em `NationalLeagues.kt` (por volta das
+  linhas 167 a 171), sempre lê `division.relegated` clubes do fim da tabela como rebaixados e
+  `promotedCount` do topo como promovidos, tratando toda promoção e todo rebaixamento como diretos,
+  qualquer que seja o valor desses dois campos na configuração;
+- o "novo formato" da Copa Nacional não é detectado: `nationalCup`, em `NationalCup.kt`, sempre monta
+  o mata-mata padrão (chave de potência de dois, cabeça de chave forte contra fraco) e nunca lê
+  `Options.novoFormatoCopa` nem conta se o país tem 91 ou mais clubes para decidir entre os dois
+  formatos;
+- a opção de grupos reais de São Paulo da regra de carga 6 é ignorada: `stateSetup`, em
+  `StateChampionships.kt` (por volta das linhas 96 a 99), sempre deala um preset com grupos pela fila
+  ordenada por nível, `k` módulo o número de grupos, e nunca lê os grupos regionais que essa opção
+  registraria no lugar do deal por fila.
 
 ### 119. Liga nacional agrupada com jogos dentro do grupo: a 1.3 e a 1.11 discordam, a implementação segue a 1.3
 
