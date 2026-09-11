@@ -35,7 +35,11 @@ object LeagueConfigReader {
                     it.coerceIn(0, teamCount)
                 }
             }
-            val directRelegated = (tier.intOrNull(DIRECT_RELEGATED) ?: relegated).coerceIn(0, relegated)
+            val directRelegated = if ((tier.intOrNull(VERSION) ?: 0) == DIRECT_RELEGATED_VERSION) {
+                (tier.intOrNull(DIRECT_RELEGATED) ?: relegated).coerceIn(0, relegated)
+            } else {
+                relegated
+            }
             val playoffPlaces = (tier.intOrNull(PROMOTION_PLAYOFF_PLACES) ?: 0)
                 .let { if (it in 0..LeagueConfigEntry.MAX_PLAYOFF_PLACES) it else 0 }
             LeagueConfigEntry(
@@ -97,6 +101,10 @@ object LeagueConfigReader {
     @SpecRef("FORMAT-SPEC, ConfigLigaType") private const val PROMOTION_PLAYOFF_PLACES = "vagasSobemPeloMataMata"
     @SpecRef("FORMAT-SPEC, ConfigLigaType") private const val RELEGATION_PLAYOFF_LEGS = "duasVoltasplayoffReb"
     @SpecRef("FORMAT-SPEC, ConfigLigaType") private const val PROMOTION_PLAYOFF_LEGS = "duasVoltasMataMataSobe"
+
+    /** The file version that declares the direct relegation count; any other version relegates its whole count directly. */
+    @SpecRef("FORMAT-SPEC, ConfigLigaType") private const val VERSION = "versaoArquivo"
+    @SpecRef("FORMAT-SPEC, ConfigLigaType") private const val DIRECT_RELEGATED_VERSION = 22
 }
 
 /**

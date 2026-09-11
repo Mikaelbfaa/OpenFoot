@@ -159,4 +159,20 @@ class LeagueConfigTest {
         )
         assertEquals(0, entries.single().promotionPlayoffPlaces)
     }
+
+    @Test
+    fun `rebaixadosDireto is read only from a version 22 configuration`() {
+        val entries = LeagueConfigReader.read(
+            bytes(
+                ImportFixtures.Pyramid(
+                    arrayListOf(
+                        ImportFixtures.Tier(pais = 65, divisao = 2, nTimes = 22, nRebaixados = 3, rebaixadosDireto = 1, versaoArquivo = 21),
+                        ImportFixtures.Tier(pais = 29, divisao = 2, nTimes = 22, nRebaixados = 3, rebaixadosDireto = 2, versaoArquivo = 22),
+                    ),
+                ),
+            ),
+        )
+        assertEquals(3, entries[0].directRelegated)
+        assertEquals(2, entries[1].directRelegated)
+    }
 }
