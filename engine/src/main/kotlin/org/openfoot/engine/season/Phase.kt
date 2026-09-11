@@ -185,6 +185,16 @@ data class KnockoutPhase(
      */
     fun twoLegged(round: Int): Boolean = legsPerRound.getOrElse(round) { legsPerRound.lastOrNull() ?: false }
 
+    /** How many dated legs the given round, zero based, takes: two for a two legged round, one otherwise. */
+    fun legs(round: Int): Int = if (twoLegged(round)) 2 else 1
+
+    /**
+     * How many dates the whole knockout takes on the calendar of section
+     * 1.10: every round's legs, summed, since each leg is its own date.
+     */
+    @SpecRef("1.10")
+    val datedRounds: Int get() = (0 until rounds).sumOf { legs(it) }
+
     /**
      * The ties of the given round. Round zero pairs the entrants as the
      * private opening ties helper decides; every later round pairs the
@@ -251,8 +261,22 @@ data class KnockoutPhase(
  * The two shapes a competition's phase list is built from: a league phase
  * played as one or more groups, or a knockout phase played as ties over
  * legs. Competition walks a list of these, one after another.
+ *
+ * datedRounds is how many dates of the calendar of section 1.10 the phase
+ * takes, counting a knockout by legs rather than by rounds. It is the one
+ * place that count is made: the season schedule lays that many dates for the
+ * phase and the competition's own round counter closes the phase after that
+ * many rounds, so the two agree by construction.
  */
+@SpecRef("1.10")
 sealed interface Phase {
-    data class League(val phase: RoundRobinPhase) : Phase
-    data class Knockout(val phase: KnockoutPhase) : Phase
+    val datedRounds: Int
+
+    data class League(val phase: RoundRobinPhase) : Phase {
+        override val datedRounds: Int get() = phase.rounds.size
+    }
+
+    data class Knockout(val phase: KnockoutPhase) : Phase {
+        override val datedRounds: Int get() = phase.datedRounds
+    }
 }

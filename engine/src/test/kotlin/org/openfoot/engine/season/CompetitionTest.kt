@@ -81,4 +81,37 @@ class CompetitionTest {
         assertEquals(6, order.size)
         assertEquals(6, order.toSet().size)
     }
+
+    /**
+     * A six side single turn league, five rounds, followed by a two side
+     * final over two legs, two more: the competition's dated rounds are
+     * seven, and it closes after exactly seven recorded rounds, the same
+     * count the season schedule lays dates for.
+     */
+    @Test
+    fun `a competition closes after exactly its dated rounds`() {
+        var competition = Competition(
+            key = "liga",
+            kind = CompetitionKind.NATIONAL_LEAGUE,
+            country = 29,
+            division = 1,
+            phases = listOf(
+                Phase.League(RoundRobinPhase.single(six, turns = 1)),
+                Phase.Knockout(KnockoutPhase(emptyList(), listOf(true), penalties = true, field = 2)),
+            ),
+            qualifiers = { phase, results -> phase.overallTable(results).take(2).mapIndexed { i, row -> Entrant(row.key, i + 1) } },
+            results = listOf(emptyList()),
+            phaseIndex = 0,
+            roundIndex = 0,
+        )
+        assertEquals(7, competition.datedRounds)
+        val rules = RuleSets.CLASSIC
+        val rng = SplitMix64Rng(1)
+        var recorded = 0
+        while (!competition.finished) {
+            competition = competition.recorded(homeWins(competition.nextMatches(rules, rng)))
+            recorded++
+        }
+        assertEquals(7, recorded)
+    }
 }

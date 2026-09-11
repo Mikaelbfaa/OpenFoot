@@ -2648,21 +2648,42 @@ por uma varredura da spec: cada um registra uma aposta tomada durante a implemen
 deixa o calendário ou os formatos em aberto. Todos ficam como INFERIDO porque nenhum foi lido do
 original; a leitura em sala limpa só tem a spec e o próprio código deste projeto para trabalhar.
 
-### 110. Política de calendário: estaduais duas vezes por semana, liga aos domingos a partir da semana 12, copa às quartas quinzenais a partir da mesma semana
+### 110. Política de calendário: estaduais duas vezes por semana, liga aos domingos a partir da semana 12 e às quartas sem copa quando os domingos não bastam, copa às quartas quinzenais a partir da mesma semana
 
 A seção 1.10 confirma o mecanismo geral do calendário (uma lista de datas compartilhada, cada
 competição com o próprio contador de rodadas) mas deixa em aberto a ordem exata de intercalação entre
 estaduais, liga nacional e copa nacional (item 74, ainda não resolvido por nenhuma varredura).
 
-**Resolução (INFERIDO):** SeasonSchedule.kt fixa uma política concreta, implementada em datesFor:
-o estadual joga duas vezes por semana (domingo e quarta) a partir do primeiro domingo de janeiro do
-ano da temporada e termina antes da semana 12, quando a liga nacional começa (SeasonSchedule.build
-recusa uma temporada cujo estadual ultrapassa essa fronteira); a liga nacional joga aos domingos a
-partir da semana 12 e a copa nacional joga às quartas-feiras, quinzenal, a partir da mesma semana 12.
-Isto restaura o item 74 do jeito que a 1.10 descreve como o mais provável, sem fechar de fato a
-lacuna: é a política que este motor de calendário adota, não um fato lido do original.
+**Resolução (INFERIDO):** SeasonSchedule.kt fixa uma política concreta: o estadual joga duas vezes
+por semana (domingo e quarta) a partir do primeiro domingo de janeiro do ano da temporada e termina
+antes da semana 12, quando a liga nacional começa; a liga nacional joga aos domingos a partir da
+semana 12 e a copa nacional joga às quartas-feiras, quinzenal, a partir da mesma semana 12, nas
+mesmas quartas para as copas de todos os países. É a política que este motor de calendário adota
+diante do item 74, na leitura que a 1.10 descreve como a mais provável, sem fechar de fato a lacuna:
+não é um fato lido do original.
 
-### 111. Liga nacional configurada com grupos: cruzamento pelo método do círculo, descartando os pares do mesmo grupo; estadual dealt pela fila, sem sorteio
+**Regra 1, datas da liga (INFERIDO):** como a 1.10 confirma que todas as ligas nacionais do mundo
+compartilham as mesmas datas do tipo "Nacional", a lista de datas de liga é uma só por temporada.
+Ela reúne os domingos da semana 12 até o último domingo do ano. Quando a liga ativa mais longa
+precisa de mais rodadas do que esses domingos, as rodadas excedentes ocupam as quartas-feiras das
+semanas sem data de copa, da semana 12 em diante, em ordem cronológica, e a lista combinada fica em
+ordem de data. Cada liga joga suas rodadas nas primeiras R datas dessa lista, sendo R o total de
+rodadas da própria liga. Uma data de copa é uma quarta em que alguma copa nacional joga naquela
+temporada. Uma temporada cuja liga mais longa cabe nos domingos joga as ligas só aos domingos.
+
+**Regra 2, recusa (INFERIDO):** uma competição que precisa de mais datas do que a política lhe dá
+dentro do ano é recusada antes de a temporada começar, com uma mensagem que nomeia a competição, as
+rodadas de que ela precisa e as datas disponíveis. Isso vale para o estadual que passaria da semana
+12, para a liga acima dos domingos somados às quartas livres e para a copa além da última quarta
+quinzenal do ano. Nenhuma data do calendário cai fora do ano da temporada.
+
+**Verificação (MEDIDO):** ScheduleTest monta toda liga de 10 a 36 clubes (tamanhos pares, os únicos
+que o round robin da 1.3 constrói) com 1 a 4 turnos ao lado de uma copa de 16 lados: cada uma recebe
+datas estritamente crescentes, dentro do ano e fora das datas de copa, ou é recusada pelo nome. Em
+2026 a liga tem 40 domingos e, com essa copa, 32 quartas livres; uma liga de 22 clubes em dois turnos
+(42 rodadas) e uma de 24 (46 rodadas) cabem, com as rodadas excedentes em quartas sem copa.
+
+### 111. Liga nacional configurada com grupos sem jogos dentro do grupo: quadrado latino sobre os pares de grupos; estadual distribuído pela fila, sem sorteio
 
 A seção 1.3 documenta que, com jogos entre grupos ligados e jogos dentro do grupo desligados, o
 confronto sai de uma tabela de pares fixa que a spec só publica para os presets estaduais 7 e 10, não
@@ -2673,9 +2694,9 @@ um exemplo real para copiar.
 **Resolução (INFERIDO):** RoundRobinPhase.grouped, no ramo sem jogos dentro do grupo, cruza os
 grupos pelo método do círculo aplicado aos próprios índices de grupo (um turno de round robin sobre
 os grupos), e cada par de grupos joga uma expansão em quadrado latino que dá um confronto por
-temporada entre cada dupla de lados dos dois grupos, mandos alternados. Isto restaura o item 75: como
-nenhum `.cfg` real usa `nGrupos > 1` com jogos entre grupos, esta é uma aposta sem uso confirmado, só
-exercitada pelos presets estaduais que a `.ces` já cobre por outro caminho.
+temporada entre cada dupla de lados dos dois grupos, mandos alternados. Isto responde ao item 75 com
+uma aposta: como nenhum `.cfg` real usa `nGrupos > 1` com jogos entre grupos, ela não tem uso
+confirmado e só é exercitada pelos presets estaduais que a `.ces` já cobre por outro caminho.
 
 Ainda no item 111: a `.ces` (FORMAT-SPEC, regra de carga 6) não sorteia a divisão de um preset com
 grupos entre os quatro grupos - ela deala a fila já ordenada por nível, o k-ésimo clube da fila para o

@@ -32,6 +32,16 @@ data class Competition(
     /** Whether every phase has been played through. */
     val finished: Boolean get() = phaseIndex >= phases.size
 
+    /**
+     * How many dates the competition takes on the calendar of section 1.10,
+     * every phase's dated rounds summed. The season schedule lays exactly
+     * this many dates for the competition, and recorded closes each phase
+     * after that phase's own dated rounds, so the calendar and the close
+     * read one count.
+     */
+    @SpecRef("1.10")
+    val datedRounds: Int get() = phases.sumOf { it.datedRounds }
+
     /** The sides that started the competition, read from its first phase. */
     val participants: List<String> get() = when (val first = phases.first()) {
         is Phase.League -> first.phase.participants
@@ -65,17 +75,11 @@ data class Competition(
     private fun knockoutRoundAndLeg(phase: KnockoutPhase): Pair<Int, Int> {
         var remaining = roundIndex
         for (round in 0 until phase.rounds) {
-            val legs = if (phase.twoLegged(round)) 2 else 1
+            val legs = phase.legs(round)
             if (remaining < legs) return round to remaining + 1
             remaining -= legs
         }
         throw IllegalStateException("round index $roundIndex past the end of the knockout")
-    }
-
-    /** The last round index, in the same leg counting nextMatches reads, of the given phase. */
-    private fun lastRoundIndex(phase: Phase): Int = when (phase) {
-        is Phase.League -> phase.phase.rounds.size - 1
-        is Phase.Knockout -> (0 until phase.phase.rounds).sumOf { if (phase.phase.twoLegged(it)) 2 else 1 } - 1
     }
 
     /**
@@ -89,7 +93,7 @@ data class Competition(
         require(!finished) { "$key has finished" }
         require(matches.all { it.first.phase == phaseIndex && it.first.round == roundIndex }) { "results for another round of $key" }
         val extended = results.mapIndexed { i, list -> if (i == phaseIndex) list + matches.map { it.second } else list }
-        if (roundIndex < lastRoundIndex(phases[phaseIndex])) return copy(results = extended, roundIndex = roundIndex + 1)
+        if (roundIndex < phases[phaseIndex].datedRounds - 1) return copy(results = extended, roundIndex = roundIndex + 1)
         return advancePhase(extended)
     }
 
