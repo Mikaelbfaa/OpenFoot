@@ -1,6 +1,7 @@
 package org.openfoot.engine.season
 
 import org.openfoot.model.CompetitionKind
+import org.openfoot.model.Country
 import org.openfoot.model.SpecRef
 
 /**
@@ -9,13 +10,15 @@ import org.openfoot.model.SpecRef
  * thing that moves a club's standing over the years, and the reputation it
  * produces is what the match engine reads in section 3.3.
  *
- * Two movements, both value returning. Decay takes a fixed amount off the
- * balance for the two top reputations and a smaller one for the two below,
- * and drops the reputation one rung when the balance has fallen past the
- * rung's floor; nothing decays at reputation one or zero. Promotion reads
- * the balance against the five thresholds and raises the reputation to the
- * highest one cleared, and only raises: a club below a threshold it once
- * cleared keeps its rung until the decay's own floor takes it.
+ * Two movements, both value returning, both run once a season at the
+ * turnover. Decay takes a fixed amount off the balance and drops the
+ * reputation one rung when the balance has fallen past the rung's floor; the
+ * two top rungs decay for every club, the two below only for a club in a
+ * league, and nothing decays below reputation two: reputation one and nought
+ * are reached by birth or never. Promotion reads the balance against the five
+ * thresholds and raises the reputation to the highest one cleared, and only
+ * raises: a club below a threshold it once cleared keeps its rung until the
+ * decay's own floor takes it.
  */
 @SpecRef("5.5")
 data class Prestige(
@@ -30,13 +33,18 @@ data class Prestige(
     @SpecRef("5.5")
     fun awarded(points: Long): Prestige = copy(balance = balance + points)
 
-    /** The periodic decay of section 5.5, with the rung lost when the balance falls past the floor. */
+    /**
+     * The turnover decay of section 5.5, with the rung lost when the balance
+     * falls past the floor. inLeague says whether the club plays a national
+     * league this season; a club on the reputation path of 1.9 skips the two
+     * lower rungs' decay entirely.
+     */
     @SpecRef("5.5")
-    fun decayed(): Prestige = when (reputation) {
+    fun decayed(inLeague: Boolean): Prestige = when (reputation) {
         5 -> decayed(6_000, dropBelow = -90_000)
         4 -> decayed(600, dropBelow = -9_000)
-        3 -> decayed(50, dropBelow = -1_000)
-        2 -> copy(balance = balance - 5)
+        3 -> if (inLeague) decayed(50, dropBelow = -1_000) else this
+        2 -> if (inLeague) copy(balance = balance - 5) else this
         else -> this
     }
 
@@ -67,20 +75,34 @@ data class Prestige(
 
 /**
  * The prestige a title or a runner-up place is worth, per the table of
- * section 5.5, for a club of the given continent.
+ * section 5.5, credited the moment the competition closes.
  *
- * A prize above a thousand is scaled down for a club outside Europe, and a
- * league title won in any division but the first is worth a flat fifty
- * whatever the table says. The competitions the table does not price are
- * worth nothing, which is the table's own silence and not a default.
+ * A prize above a thousand is scaled by six tenths, but only for a club that
+ * is at once outside any active national league, which is the reputation
+ * path of section 1.9, and outside both Europe and South America: a European
+ * or South American club never takes the discount, and neither does a club
+ * of any continent that plays a league. A league title won in any division
+ * but the first is worth a flat fifty whatever the table says. The
+ * competitions the table does not price are worth nothing, which is the
+ * table's own silence and not a default; OPEN-QUESTIONS item 83 records the
+ * two club competitions it leaves out.
  */
 @SpecRef("5.5")
-fun titlePrestige(kind: CompetitionKind, champion: Boolean, european: Boolean, division: Int? = null): Long {
+fun titlePrestige(
+    kind: CompetitionKind,
+    champion: Boolean,
+    inLeague: Boolean,
+    continent: Int,
+    division: Int? = null,
+): Long {
     if (kind == CompetitionKind.NATIONAL_LEAGUE && champion && division != null && division > 1) {
         return LOWER_DIVISION_TITLE
     }
     val prize = TITLE_PRIZES[kind]?.let { if (champion) it.first else it.second } ?: 0L
-    return if (!european && prize > FOREIGN_SCALE_ABOVE) prize * FOREIGN_NUMERATOR / FOREIGN_DENOMINATOR else prize
+    val discounted = !inLeague &&
+        continent != Country.EUROPE_CONTINENT &&
+        continent != Country.SOUTH_AMERICA_CONTINENT
+    return if (discounted && prize > FOREIGN_SCALE_ABOVE) prize * FOREIGN_NUMERATOR / FOREIGN_DENOMINATOR else prize
 }
 
 /** Champion and runner-up prizes, in the order section 5.5 lists them. */

@@ -1,6 +1,7 @@
 package org.openfoot.engine.season
 
 import org.openfoot.model.CompetitionKind
+import org.openfoot.model.Country
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -10,14 +11,26 @@ class PrestigeTest {
 
     @Test
     fun `decay takes the rung's amount and drops the rung past its floor`() {
-        assertEquals(Prestige(5, -6_000), Prestige(5, 0).decayed())
-        assertEquals(Prestige(5, -90_000), Prestige(5, -84_000).decayed())
-        assertEquals(Prestige(4, -90_001), Prestige(5, -84_001).decayed())
-        assertEquals(Prestige(3, -9_001), Prestige(4, -8_401).decayed())
-        assertEquals(Prestige(2, -1_001), Prestige(3, -951).decayed())
-        assertEquals(Prestige(2, -5), Prestige(2, 0).decayed())
-        assertEquals(Prestige(1, 0), Prestige(1, 0).decayed())
-        assertEquals(Prestige(0, 0), Prestige(0, 0).decayed())
+        assertEquals(Prestige(5, -6_000), Prestige(5, 0).decayed(inLeague = true))
+        assertEquals(Prestige(5, -90_000), Prestige(5, -84_000).decayed(inLeague = true))
+        assertEquals(Prestige(4, -90_001), Prestige(5, -84_001).decayed(inLeague = true))
+        assertEquals(Prestige(3, -9_001), Prestige(4, -8_401).decayed(inLeague = true))
+        assertEquals(Prestige(2, -1_001), Prestige(3, -951).decayed(inLeague = true))
+    }
+
+    @Test
+    fun `reputation two decays without ever dropping, and one and nought do not decay`() {
+        assertEquals(Prestige(2, -1_005), Prestige(2, -1_000).decayed(inLeague = true))
+        assertEquals(Prestige(1, 0), Prestige(1, 0).decayed(inLeague = true))
+        assertEquals(Prestige(0, 0), Prestige(0, 0).decayed(inLeague = true))
+    }
+
+    @Test
+    fun `the two lower rungs only decay for a club in a league`() {
+        assertEquals(Prestige(3, 0), Prestige(3, 0).decayed(inLeague = false))
+        assertEquals(Prestige(2, 0), Prestige(2, 0).decayed(inLeague = false))
+        assertEquals(Prestige(5, -6_000), Prestige(5, 0).decayed(inLeague = false))
+        assertEquals(Prestige(4, -600), Prestige(4, 0).decayed(inLeague = false))
     }
 
     @Test
@@ -41,15 +54,24 @@ class PrestigeTest {
     }
 
     @Test
-    fun `the title table pays champions and runners up, scaled outside Europe above a thousand`() {
-        assertEquals(500, titlePrestige(CompetitionKind.NATIONAL_LEAGUE, champion = true, european = false, division = 1))
-        assertEquals(90, titlePrestige(CompetitionKind.NATIONAL_LEAGUE, champion = false, european = true, division = 1))
-        assertEquals(50, titlePrestige(CompetitionKind.NATIONAL_LEAGUE, champion = true, european = true, division = 2))
-        assertEquals(5_000, titlePrestige(CompetitionKind.CONTINENTAL_PRIMARY, champion = true, european = true))
-        assertEquals(3_000, titlePrestige(CompetitionKind.CONTINENTAL_PRIMARY, champion = true, european = false))
-        assertEquals(1_000, titlePrestige(CompetitionKind.CONTINENTAL_PRIMARY, champion = false, european = false))
-        assertEquals(24_000, titlePrestige(CompetitionKind.CLUB_WORLD_CUP, champion = true, european = false))
-        assertEquals(0, titlePrestige(CompetitionKind.RECOPA, champion = false, european = true))
-        assertEquals(0, titlePrestige(CompetitionKind.FRIENDLY, champion = true, european = true))
+    fun `the title table pays champions and runners up`() {
+        val europe = Country.EUROPE_CONTINENT
+        assertEquals(500, titlePrestige(CompetitionKind.NATIONAL_LEAGUE, champion = true, inLeague = true, continent = europe, division = 1))
+        assertEquals(90, titlePrestige(CompetitionKind.NATIONAL_LEAGUE, champion = false, inLeague = true, continent = europe, division = 1))
+        assertEquals(50, titlePrestige(CompetitionKind.NATIONAL_LEAGUE, champion = true, inLeague = true, continent = europe, division = 2))
+        assertEquals(5_000, titlePrestige(CompetitionKind.CONTINENTAL_PRIMARY, champion = true, inLeague = true, continent = europe))
+        assertEquals(0, titlePrestige(CompetitionKind.RECOPA, champion = false, inLeague = true, continent = europe))
+        assertEquals(0, titlePrestige(CompetitionKind.FRIENDLY, champion = true, inLeague = true, continent = europe))
+    }
+
+    @Test
+    fun `the discount hits only a reputation path club outside Europe and South America`() {
+        val africa = 2
+        assertEquals(3_000, titlePrestige(CompetitionKind.CONTINENTAL_PRIMARY, champion = true, inLeague = false, continent = africa))
+        assertEquals(24_000, titlePrestige(CompetitionKind.CLUB_WORLD_CUP, champion = true, inLeague = false, continent = africa))
+        assertEquals(1_000, titlePrestige(CompetitionKind.CONTINENTAL_PRIMARY, champion = false, inLeague = false, continent = africa))
+        assertEquals(5_000, titlePrestige(CompetitionKind.CONTINENTAL_PRIMARY, champion = true, inLeague = true, continent = africa))
+        assertEquals(5_000, titlePrestige(CompetitionKind.CONTINENTAL_PRIMARY, champion = true, inLeague = false, continent = Country.SOUTH_AMERICA_CONTINENT))
+        assertEquals(5_000, titlePrestige(CompetitionKind.CONTINENTAL_PRIMARY, champion = true, inLeague = false, continent = Country.EUROPE_CONTINENT))
     }
 }

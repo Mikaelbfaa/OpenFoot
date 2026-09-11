@@ -19,6 +19,10 @@ object Country {
     const val BRAZIL = 29
 
     /** Europe, singled out by the club world cup handicap of section 3.3. */
-    @SpecRef("FORMAT-SPEC, paises")
+    @SpecRef("4.4.1")
     const val EUROPE_CONTINENT = 0
+
+    /** South America, which with Europe is exempt from the prestige discount of section 5.5. */
+    @SpecRef("4.4.1")
+    const val SOUTH_AMERICA_CONTINENT = 1
 }

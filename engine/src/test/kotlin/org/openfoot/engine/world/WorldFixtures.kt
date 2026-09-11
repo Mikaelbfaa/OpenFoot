@@ -21,7 +21,7 @@ object WorldFixtures {
     const val SPAIN = 65
 
     val countries = listOf(
-        CountryEntry(index = Country.BRAZIL, name = "Brasil", level = 20, continent = 2),
+        CountryEntry(index = Country.BRAZIL, name = "Brasil", level = 20, continent = Country.SOUTH_AMERICA_CONTINENT),
         CountryEntry(index = SPAIN, name = "Espanha", level = 20, continent = Country.EUROPE_CONTINENT, majorLeague = true),
     )
 

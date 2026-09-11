@@ -23,7 +23,7 @@ import kotlin.test.assertTrue
  */
 class NationalTeamTest {
 
-    private val strongCountry = CountryEntry(index = Country.BRAZIL, name = "BRA", level = 20, continent = 2)
+    private val strongCountry = CountryEntry(index = Country.BRAZIL, name = "BRA", level = 20, continent = Country.SOUTH_AMERICA_CONTINENT)
 
     /** A generated player built by hand, so a pool can be shaped exactly. */
     private fun player(
