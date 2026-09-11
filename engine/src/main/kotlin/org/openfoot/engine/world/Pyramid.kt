@@ -47,7 +47,7 @@ fun assemblePyramids(
     for ((country, clubs) in dataset.clubs.groupBy { it.country }) {
         val ranked = clubs.sortedWith(
             compareByDescending<ClubEntry> { it.level }
-                .thenBy { tiebreak(worldRng, it.ref) }
+                .thenBy { pyramidTiebreak(worldRng, it.ref) }
                 .thenBy { it.ref },
         )
         if (country in activeLeagues && ranked.size >= candidateThreshold(country)) {
@@ -64,9 +64,11 @@ fun assemblePyramids(
 /**
  * The per club tie break of section 1.9, drawn from the club's own stream
  * family so it never disturbs the squad draws: forking consumes nothing.
+ * The state championships of FORMAT-SPEC order a state's clubs with the
+ * same draw, which is why this is internal rather than private.
  */
 @SpecRef("1.9")
-private fun tiebreak(worldRng: Rng, ref: String): Int =
+internal fun pyramidTiebreak(worldRng: Rng, ref: String): Int =
     worldRng.fork(clubKey(ref)).fork(PYRAMID_TIEBREAK_STREAM).nextInt(TIEBREAK_BOUND)
 
 @SpecRef("1.9")
