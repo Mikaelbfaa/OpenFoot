@@ -10,8 +10,10 @@ import org.openfoot.model.SpecRef
  * the country's clubs, at least eight, strong half against weak half each shuffled
  * with its own fork, and every round two legged with the weaker side hosting the
  * first leg. The novo formato of Brazil waits for the continental qualification
- * it seeds from, which names twelve seeds; its pot pattern is item eighty-two of
- * OPEN-QUESTIONS. The first round of any national cup never goes to penalties.
+ * it seeds from, which names twelve seeds; its hardcoded first round of eighty
+ * never goes to penalties, the second listed side of a level tie going through
+ * (OPEN-QUESTIONS item eighty-two), while the standard format built here schedules
+ * a shootout on every level tie.
  *
  * A knockout only competition reads its participants from the entrants of its
  * first knockout phase.
