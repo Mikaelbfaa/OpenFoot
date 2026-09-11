@@ -61,7 +61,7 @@ data class PlayerRecord(
  * squad it fields today, one record per squad member and its prestige.
  *
  * The squad is carried here rather than read from the generated club so that
- * the weekly evolution and the turnover of later plans can replace players
+ * the weekly evolution and the turnover of a later version can replace players
  * without touching world generation. Records run parallel to the squad, and
  * withRecord is the one way to change one, so the two never drift apart.
  */

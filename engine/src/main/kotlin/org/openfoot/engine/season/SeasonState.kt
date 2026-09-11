@@ -35,10 +35,10 @@ data class PlayedMatch(val date: CalendarDate, val competition: String, val matc
 data class CompetitionClose(val date: CalendarDate, val key: String, val kind: CompetitionKind, val finalOrder: List<String>)
 
 /**
- * What a later plan runs on every calendar Sunday of section 4.5: contract
- * expiry, market movement, evolution, and everything else this plan does not
- * build. NONE is what this plan passes everywhere, so a season plays a whole
- * year with every Sunday firing into a tick that changes nothing.
+ * What a later version runs on every calendar Sunday of section 4.5: contract
+ * expiry, market movement, evolution, and everything else this version does
+ * not build. NONE is what this version passes everywhere, so a season plays a
+ * whole year with every Sunday firing into a tick that changes nothing.
  */
 @SpecRef("4.5")
 fun interface WeeklyTick {

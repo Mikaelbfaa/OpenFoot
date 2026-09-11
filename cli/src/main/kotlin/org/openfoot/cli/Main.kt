@@ -352,7 +352,7 @@ internal fun resolveCountry(name: String, dataset: WorldDataset): Int {
  * which is what carries promotion, relegation and prestige from one season
  * into the calendar of the next. Every season is played all the way through
  * by playSeason before it is printed, with WeeklyTick.NONE since no later
- * plan's weekly tick exists yet to pass in its place, and RuleSets.CLASSIC
+ * version's weekly tick exists yet to pass in its place, and RuleSets.CLASSIC
  * for the same reason match already gives a career-less command: there is no
  * season of a real career behind this run to have chosen a rule set for it.
  */

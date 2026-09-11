@@ -30,8 +30,9 @@ import org.openfoot.model.TeamSide
  * and including today; lastTick then remembers the last Sunday actually
  * fired, today itself when today is a Sunday and the one before it otherwise.
  * Whether the pending Sundays fire before or after the day's matches is not
- * something section 0 states outright; before is the reading this plan takes,
- * and it is INFERIDO, recorded again where firePendingSundays is defined.
+ * something section 0 states outright; before is the reading this version
+ * takes, and it is INFERIDO, recorded again where firePendingSundays is
+ * defined.
  *
  * 3. One season rng root is forked once per round call, from the season's own
  * seed and number, never carried on the state itself; see SeasonState's own
