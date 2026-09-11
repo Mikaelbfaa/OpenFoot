@@ -55,6 +55,28 @@ data class SeasonSchedule(val year: Int, val start: CalendarDate, val slots: Lis
 
     fun on(date: CalendarDate): List<String> = slots.filter { it.date == date }.map { it.competition }
 
+    /**
+     * This schedule fitted to a competition built after the schedule was
+     * laid, on dates reserved for it from its configured shape: the
+     * competition keeps the first of its reserved dates, as many as its own
+     * datedRounds, and hands the rest back. A competition that needs more
+     * dates than were reserved for it is refused by name, since the dates
+     * after the reservation belong to the rest of the calendar. Section 1.12
+     * lets the Brazilian fourth division come out shorter than configured,
+     * which is the one caller of this, and a shorter division plays fewer
+     * rounds on the same dates.
+     */
+    @SpecRef("1.10")
+    fun fitted(competition: Competition): SeasonSchedule {
+        val reserved = slots.filter { it.competition == competition.key }
+        require(competition.datedRounds <= reserved.size) {
+            "${competition.key} was built needing ${competition.datedRounds} rounds, " +
+                "and the $year calendar reserved ${reserved.size} dates for it from its configured shape"
+        }
+        val released = reserved.drop(competition.datedRounds).toSet()
+        return copy(slots = slots.filter { it !in released })
+    }
+
     companion object {
         @SpecRef("1.10")
         fun build(year: Int, competitions: List<Competition>): SeasonSchedule {

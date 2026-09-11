@@ -6,6 +6,8 @@ import org.openfoot.engine.world.World
 import org.openfoot.engine.world.clubKey
 import org.openfoot.engine.world.pyramidTiebreak
 import org.openfoot.model.CompetitionKind
+import org.openfoot.model.Country
+import org.openfoot.model.Rng
 import org.openfoot.model.SeedDomain
 import org.openfoot.model.SpecRef
 import org.openfoot.model.SplitMix64Rng
@@ -80,7 +82,21 @@ fun interface WeeklyTick {
  * levels, since the pyramid is built once at world creation and never
  * rebuilt: the last division's promoted clubs leave from the head and its
  * relegated clubs join the tail. It is data on the state for that reason, set
- * once by openingSeason and moved only by nextSeason.
+ * once by openingSeason and moved only by nextSeason, and by the build of the
+ * Brazilian fourth division, which takes the clubs it seats out of Brazil's
+ * queue.
+ *
+ * states is every state championship division's membership and every state
+ * reserve queue of FORMAT-SPEC's state files, carried the same way: seeded
+ * once by stateSetup for season one, moved at every turnover by
+ * stateTurnover, and read by buildCompetitions to build the state
+ * competitions of the season it belongs to.
+ *
+ * fourth is present while Brazil's fourth division is fed by the state
+ * championships, section 1.9's special case: it is not seated by level but
+ * built when the season's last state competition closes. It carries the
+ * division's configured size and the door, the clubs the third division
+ * relegated at the previous turnover, which head the division's queue.
  */
 @SpecRef("1.10")
 data class SeasonState(
@@ -96,6 +112,8 @@ data class SeasonState(
     val dateIndex: Int,
     val lastTick: CalendarDate?,
     val reserves: Map<Int, List<String>>,
+    val states: StateSetup,
+    val fourth: BrazilianFourth?,
 ) {
     /** True once the cursor has walked past the last date the schedule laid. */
     @SpecRef("1.10")
@@ -123,13 +141,39 @@ data class SeasonState(
  * first season of a career; see that function's docstring for what
  * activeLeagues selects and how each competition's own rng stream is forked.
  * The country reserves of section 1.12 are seeded here, once, by
- * openingReserves.
+ * openingReserves, and the state memberships, once, by stateSetup.
+ *
+ * Section 1.9's special case of Brazil applies from season one: with the
+ * state championships on, the fourth division is not filled by level. The
+ * world generation does not know the state championships and seats a fourth
+ * division by level all the same, so when Brazil is active, the option is on
+ * and the pyramid seated a fourth division, its clubs are taken out of it
+ * here: they stand without a division and join the tail of Brazil's reserve
+ * queue in pyramid order, and the fourth is built, at its seated size, when
+ * the season's last state competition closes, as in every later season
+ * (OPEN-QUESTIONS item 113). Its dates are reserved in the schedule from its
+ * configured shape meanwhile.
  */
 @SpecRef("1.10")
 fun openingSeason(world: World, dataset: WorldDataset, activeLeagues: Set<Int>, year: Int, seed: Long): SeasonState {
-    val clubs = world.clubs.map { ClubState.fresh(it) }
+    val seated = world.clubs.map { ClubState.fresh(it) }
     val number = 1
-    val competitions = buildCompetitions(number, clubs, dataset, activeLeagues, seed)
+    val worldRng = SplitMix64Rng(seed).fork(SeedDomain.WORLDGEN)
+    val states = stateSetup(seated, dataset) { ref -> pyramidTiebreak(worldRng, ref) }
+    val levelSeatedFourth = if (fedByStates(dataset, activeLeagues)) {
+        seated.filter { it.country == Country.BRAZIL && it.standing == Standing.InDivision(BrazilianFourth.DIVISION) }
+    } else {
+        emptyList()
+    }
+    val fourth = if (levelSeatedFourth.isEmpty()) null else BrazilianFourth(size = levelSeatedFourth.size, door = emptyList())
+    val movedOut = levelSeatedFourth.map { it.key }.toSet()
+    val clubs = seated.map { if (it.key in movedOut) it.copy(standing = Standing.WithoutDivision) else it }
+    val reserves = openingReserves(seated, dataset, activeLeagues, seed).toMutableMap()
+    if (fourth != null) {
+        val queue = requireNotNull(reserves[Country.BRAZIL]) { "Brazil seated a fourth division and holds no reserve queue" }
+        reserves[Country.BRAZIL] = queue + pyramidOrder(levelSeatedFourth, worldRng)
+    }
+    val competitions = buildCompetitions(number, clubs, dataset, activeLeagues, seed, states)
 
     return SeasonState(
         number = number,
@@ -138,14 +182,25 @@ fun openingSeason(world: World, dataset: WorldDataset, activeLeagues: Set<Int>, 
         dataset = dataset,
         clubs = clubs.associateBy { it.key },
         competitions = competitions.associateBy { it.key },
-        schedule = SeasonSchedule.build(year, competitions),
+        schedule = SeasonSchedule.build(year, competitions + listOfNotNull(fourth?.reserved(dataset, number, seed))),
         played = emptyList(),
         closed = emptyList(),
         dateIndex = 0,
         lastTick = null,
-        reserves = openingReserves(clubs, dataset, activeLeagues, seed),
-    )
+        reserves = reserves,
+        states = states,
+        fourth = fourth,
+    ).withBrazilianFourthIfDue()
 }
+
+/**
+ * True when Brazil's fourth division, should one exist, is fed by the state
+ * championships rather than seated by level, per section 1.9: Brazil's league
+ * is active and the dataset's state championship option is on.
+ */
+@SpecRef("1.9")
+internal fun fedByStates(dataset: WorldDataset, activeLeagues: Set<Int>): Boolean =
+    Country.BRAZIL in activeLeagues && dataset.options.playStateChampionships
 
 /**
  * The opening queue of every country reserve of section 1.12, one per country
@@ -167,36 +222,51 @@ internal fun openingReserves(clubs: List<ClubState>, dataset: WorldDataset, acti
     val reserves = LinkedHashMap<Int, List<String>>()
     for (country in activeLeagues.sorted()) {
         if (leagueDivisions(country, clubs, dataset).isEmpty()) continue
-        reserves[country] = clubs
-            .filter { it.country == country && it.standing == Standing.WithoutDivision }
-            .sortedWith(compareByDescending<ClubState> { it.club.entry.level }.thenBy { pyramidTiebreak(worldRng, it.key) }.thenBy { it.key })
-            .map { it.key }
+        reserves[country] = pyramidOrder(clubs.filter { it.country == country && it.standing == Standing.WithoutDivision }, worldRng)
     }
     return reserves
 }
 
 /**
+ * The given clubs in section 1.9's pyramid order: level descending, ties
+ * broken by the per club draw the world generation made from worldRng, and,
+ * past that, by reference for a total order.
+ */
+@SpecRef("1.9")
+private fun pyramidOrder(clubs: List<ClubState>, worldRng: Rng): List<String> =
+    clubs
+        .sortedWith(compareByDescending<ClubState> { it.club.entry.level }.thenBy { pyramidTiebreak(worldRng, it.key) }.thenBy { it.key })
+        .map { it.key }
+
+/**
  * Builds every competition a season plays this year, per section 1.10: a
  * league competition per division and a national cup for every country of
  * activeLeagues that fields one, and a state championship competition per
- * division the state file setup lays out. Factored out of openingSeason so
- * that the turnover of section 1.12 can rebuild the following season's
- * competitions the same way, with a season number past one and a club list
- * that has already moved between divisions.
+ * division of states, the season's carried state memberships. Factored out of
+ * openingSeason so that the turnover of section 1.12 can rebuild the
+ * following season's competitions the same way, with a season number past
+ * one and a club list that has already moved between divisions.
+ *
+ * A league division is read off the clubs' standings, so a Brazilian fourth
+ * division fed by the state championships, whose clubs stand without a
+ * division until the season's last state competition closes, is not built
+ * here; withBrazilianFourthIfDue builds it then, from the same stream this
+ * function would have forked for it.
  *
  * Every competition's own rng is forked off one season root by its own key,
- * SplitMix64Rng(seed).fork(SeedDomain.SEASON).fork(number).fork(SeedDomain.FIXTURES).fork(clubKey(key)),
- * the pattern playRound itself reads competition streams from. The pyramid's
- * own tie break stream, SplitMix64Rng(seed).fork(SeedDomain.WORLDGEN), is kept
- * separate from that root on purpose: it is the same stream generateWorld
- * already drew the standings from, and stateSetup's tie break has to agree
- * with the pyramid's own ordering or the two would rank a state's clubs two
- * different ways from the same seed, in every season and not only the first.
+ * seasonFixturesRoot(seed, number).fork(clubKey(key)), the pattern playRound
+ * itself reads competition streams from.
  */
 @SpecRef("1.10")
-internal fun buildCompetitions(number: Int, clubs: List<ClubState>, dataset: WorldDataset, activeLeagues: Set<Int>, seed: Long): List<Competition> {
-    val root = SplitMix64Rng(seed).fork(SeedDomain.SEASON).fork(number.toLong()).fork(SeedDomain.FIXTURES)
-    val worldRng = SplitMix64Rng(seed).fork(SeedDomain.WORLDGEN)
+internal fun buildCompetitions(
+    number: Int,
+    clubs: List<ClubState>,
+    dataset: WorldDataset,
+    activeLeagues: Set<Int>,
+    seed: Long,
+    states: StateSetup,
+): List<Competition> {
+    val root = seasonFixturesRoot(seed, number)
     val competitions = ArrayList<Competition>()
     for (country in activeLeagues.sorted()) {
         leagueDivisions(country, clubs, dataset).forEach { division ->
@@ -204,8 +274,19 @@ internal fun buildCompetitions(number: Int, clubs: List<ClubState>, dataset: Wor
         }
         nationalCup(country, clubs, root.fork(clubKey("cup:$country")))?.let { competitions += it }
     }
-    stateSetup(clubs, dataset) { ref -> pyramidTiebreak(worldRng, ref) }.divisions.forEach { division ->
-        competitions += stateCompetition(division, root.fork(clubKey("state:${division.state}:${division.division}")))
+    states.divisions.forEach { division ->
+        competitions += stateCompetition(division, root.fork(clubKey(stateCompetitionKey(division))))
     }
     return competitions
 }
+
+/**
+ * The root every competition stream of one season forks from by the
+ * competition's key: SplitMix64Rng(seed).fork(SeedDomain.SEASON).fork(number).fork(SeedDomain.FIXTURES).
+ * It depends on the seed and the season number alone, so a competition built
+ * in the middle of a season draws exactly what it would have drawn at the
+ * season's start.
+ */
+@SpecRef("0")
+internal fun seasonFixturesRoot(seed: Long, number: Int): Rng =
+    SplitMix64Rng(seed).fork(SeedDomain.SEASON).fork(number.toLong()).fork(SeedDomain.FIXTURES)

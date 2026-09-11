@@ -144,4 +144,43 @@ class StateChampionshipsTest {
         assertEquals(division.clubs.toSet(), first.toSet(), "the shuffle is a permutation of the division's own clubs")
         assertTrue(first != division.clubs, "the queue order is actually shuffled, not carried through unchanged")
     }
+
+    @Test
+    fun `a division's two last go down, the division below's two best go up, and the last division swaps with the reserve as a queue`() {
+        val first = StateDivision(25, 1, STATE_PRESETS[0], true, listOf(true, true, true), listOf("a1", "a2", "a3", "a4", "a5", "a6"))
+        val second = first.copy(division = 2, clubs = listOf("b1", "b2", "b3", "b4", "b5", "b6"))
+        val setup = StateSetup(listOf(first, second), mapOf(25 to listOf("r1", "r2", "r3")))
+        val tables = mapOf(
+            "state:25:1" to listOf("a6", "a5", "a4", "a3", "a2", "a1"),
+            "state:25:2" to listOf("b1", "b2", "b3", "b4", "b5", "b6"),
+        )
+        val merits = mapOf("state:25:1" to tables.getValue("state:25:1"), "state:25:2" to listOf("b3", "b1", "b2", "b4", "b5", "b6"))
+
+        val next = stateTurnover(setup, { tables.getValue(it) }, { merits.getValue(it) })
+
+        assertEquals(listOf("a3", "a4", "a5", "a6", "b3", "b1"), next.divisions[0].clubs)
+        assertEquals(listOf("b2", "b4", "a2", "a1", "r1", "r2"), next.divisions[1].clubs)
+        assertEquals(mapOf(25 to listOf("r3", "b5", "b6")), next.reserve)
+        assertEquals(listOf(first.preset, second.preset), next.divisions.map { it.preset })
+    }
+
+    @Test
+    fun `a reserve shorter than the relegation zone sends down only the last of it`() {
+        val only = StateDivision(18, 1, STATE_PRESETS[0], true, listOf(true, true, true), listOf("c1", "c2", "c3", "c4", "c5", "c6"))
+        val next = stateTurnover(StateSetup(listOf(only), mapOf(18 to listOf("r1"))), { listOf("c1", "c2", "c3", "c4", "c5", "c6") }, { emptyList() })
+        assertEquals(listOf("c1", "c2", "c3", "c4", "c5", "r1"), next.divisions.single().clubs)
+        assertEquals(mapOf(18 to listOf("c6")), next.reserve)
+    }
+
+    @Test
+    fun `a club that goes up out of a division is not also sent down from it`() {
+        val first = StateDivision(25, 1, STATE_PRESETS[0], true, listOf(true, true, true), listOf("a1", "a2", "a3", "a4", "a5", "a6"))
+        val second = first.copy(division = 2, clubs = listOf("b1", "b2", "b3", "b4", "b5", "b6"))
+        val setup = StateSetup(listOf(first, second), mapOf(25 to listOf("r1", "r2")))
+        val tables = mapOf("state:25:1" to first.clubs, "state:25:2" to second.clubs)
+        val next = stateTurnover(setup, { tables.getValue(it) }, { if (it == "state:25:2") listOf("b6", "b1", "b2", "b3", "b4", "b5") else first.clubs })
+        assertEquals(listOf("a1", "a2", "a3", "a4", "b6", "b1"), next.divisions[0].clubs)
+        assertEquals(listOf("b2", "b3", "a5", "a6", "r1", "r2"), next.divisions[1].clubs)
+        assertEquals(mapOf(25 to listOf("b4", "b5")), next.reserve)
+    }
 }

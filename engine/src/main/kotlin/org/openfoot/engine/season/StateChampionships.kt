@@ -12,7 +12,9 @@ import org.openfoot.model.SpecRef
  * groups it deals them into (nought for a single table), how many of a
  * group, or of the whole table when there are no groups, go through to the
  * knockout, whether the league phase is played home and away, and how many
- * clubs the state relegates out of the division below it.
+ * of its clubs go down at the end of the season: FORMAT-SPEC's "Rebaixados e
+ * promovidos" reads the relegation count from this column, never from the
+ * nRebaixados field of the state file entry.
  */
 @SpecRef("FORMAT-SPEC, formula")
 data class StatePreset(val teams: Int, val groups: Int, val qualifiers: Int, val twoTurns: Boolean, val relegated: Int)
@@ -56,10 +58,17 @@ data class StateDivision(
 )
 
 /**
- * One season's whole reading of the state files: every division that will
- * be played, and, per state, the clubs its queue could not seat in a
- * division, kept in queue order for a later plan's lower amateur rounds to
- * read.
+ * Every state championship division of one season and every state's
+ * reserve. divisions lists the divisions state by state, ascending, and
+ * within a state from division one down. reserve is, per state, the state
+ * reserve queue of FORMAT-SPEC load rule 7: the clubs of the state left
+ * after its last division, head first, which feed promotion into that last
+ * division at the end of the season. A state whose queue seated every club
+ * holds no reserve entry.
+ *
+ * stateSetup seeds this once, for season one; every later season carries it
+ * forward through stateTurnover, so a membership is never re-read from club
+ * levels after world creation.
  */
 @SpecRef("FORMAT-SPEC, ces")
 data class StateSetup(val divisions: List<StateDivision>, val reserve: Map<Int, List<String>>)
@@ -91,12 +100,16 @@ data class StateSetup(val divisions: List<StateDivision>, val reserve: Map<Int, 
  * legged. A division takes the first preset.teams clubs of the queue.
  *
  * Whatever the queue could not seat in a division becomes that state's
- * reserve, in queue order, for a later plan's lower rounds to draw on.
+ * reserve, in queue order, the state reserve queue of load rule 7.
+ *
+ * This is the season one seeder only. A later season's divisions come from
+ * the previous season's memberships moved by stateTurnover, never from a
+ * fresh reading of club levels.
  *
  * The Sao Paulo real groups option of load rule 6, which can replace the
  * dealt groups of preset 7 with the state's own recorded regional groups,
- * is out of this plan; it is left as an implementation item for the plan
- * that adds it (see Task 10).
+ * is not built; OPEN-QUESTIONS item 118 records it among the deferred
+ * formats.
  */
 @SpecRef("FORMAT-SPEC, ces")
 fun stateSetup(clubs: List<ClubState>, dataset: WorldDataset, tiebreak: (String) -> Int): StateSetup {
@@ -130,6 +143,86 @@ fun stateSetup(clubs: List<ClubState>, dataset: WorldDataset, tiebreak: (String)
     }
     return StateSetup(divisions, reserve)
 }
+
+/**
+ * The state memberships of the next season, per FORMAT-SPEC's "Rebaixados e
+ * promovidos": setup is the season just played, tableOf gives a division's
+ * first phase overall table and meritOf its merit list, both by the
+ * division's competition key.
+ *
+ * Every state is moved on its own, its boundaries processed from division
+ * one down, one at a time, as section 1.12 processes a pyramid. A division
+ * relegates the preset's relegated count, the last clubs of its first phase
+ * overall table, which is one shared table even for a grouped preset: the
+ * relegation is never read group by group. The division below sends up as
+ * many clubs, the head of its merit list (champion, runner up, then the
+ * knockout's earlier losers in bracket order, completed by the table). The
+ * two lists trade places only when they are the same size, which the
+ * distributed presets always give.
+ *
+ * The last division trades with the state reserve as a queue: out go the
+ * last min(relegated, reserve size) clubs of its relegation zone, still in
+ * table order, and in come as many clubs from the head of the reserve;
+ * the relegated join the reserve's tail.
+ *
+ * A club that has already gone up out of a division at this turnover is no
+ * longer in it when its relegation zone is read, so a club that won a
+ * division's knockout from the foot of its table goes up and is not also
+ * sent down; the zone is then the last clubs of the table among those still
+ * there. The original's own processing order, top boundary first, gives the
+ * same reading.
+ *
+ * A division's new membership is its kept clubs in their previous
+ * membership order, then the clubs arriving from above in their table
+ * order, then the clubs arriving from below in merit order, or from the
+ * reserve in queue order. The order matters because a grouped preset deals
+ * its clubs k modulo the group count; it is OPEN-QUESTIONS item 123's bet,
+ * INFERIDO.
+ */
+@SpecRef("FORMAT-SPEC, ces")
+fun stateTurnover(setup: StateSetup, tableOf: (String) -> List<String>, meritOf: (String) -> List<String>): StateSetup {
+    val divisions = ArrayList<StateDivision>()
+    val reserves = mutableMapOf<Int, List<String>>()
+    val states = (setup.divisions.map { it.state } + setup.reserve.keys).distinct().sorted()
+    for (state in states) {
+        val own = setup.divisions.filter { it.state == state }.sortedBy { it.division }
+        var reserve = setup.reserve[state].orEmpty()
+        val leaving = own.map { mutableSetOf<String>() }
+        val fromAbove = own.map { ArrayList<String>() }
+        val fromBelow = own.map { ArrayList<String>() }
+        for (index in own.indices) {
+            val division = own[index]
+            val key = stateCompetitionKey(division)
+            val zone = tableOf(key).filter { it !in leaving[index] }.takeLast(division.preset.relegated)
+            if (index + 1 < own.size) {
+                val lower = own[index + 1]
+                val up = meritOf(stateCompetitionKey(lower)).take(division.preset.relegated)
+                if (up.size == zone.size) {
+                    leaving[index] += zone
+                    fromBelow[index] += up
+                    leaving[index + 1] += up
+                    fromAbove[index + 1] += zone
+                }
+            } else {
+                val count = minOf(zone.size, reserve.size)
+                val down = zone.takeLast(count)
+                leaving[index] += down
+                fromBelow[index] += reserve.take(count)
+                reserve = reserve.drop(count) + down
+            }
+        }
+        own.forEachIndexed { index, division ->
+            val kept = division.clubs.filter { it !in leaving[index] }
+            divisions += division.copy(clubs = kept + fromAbove[index] + fromBelow[index])
+        }
+        if (reserve.isNotEmpty()) reserves[state] = reserve
+    }
+    return StateSetup(divisions, reserves)
+}
+
+/** The key of the competition one state division plays, naming the state and the division number. */
+@SpecRef("FORMAT-SPEC, ces")
+internal fun stateCompetitionKey(division: StateDivision): String = "state:${division.state}:${division.division}"
 
 /**
  * Builds the competition one state division plays: a league phase over the
@@ -190,7 +283,7 @@ fun stateCompetition(division: StateDivision, rng: Rng): Competition {
         }
     }
     return Competition(
-        key = "state:${division.state}:${division.division}",
+        key = stateCompetitionKey(division),
         kind = CompetitionKind.STATE,
         country = Country.BRAZIL,
         division = division.division,

@@ -167,4 +167,18 @@ class ScheduleTest {
         val error = assertFailsWith<IllegalArgumentException> { SeasonSchedule.build(2026, listOf(huge)) }
         assertRefusedByName(error, "big", 22, 20)
     }
+
+    @Test
+    fun `a competition built after the schedule keeps the first of its reserved dates and hands the rest back`() {
+        val reserved = league("league:29:4", twenty.take(8), turns = 1)
+        val schedule = SeasonSchedule.build(2026, listOf(league("l", twenty), reserved))
+        val slots = schedule.slots.filter { it.competition == "league:29:4" }
+        assertEquals(7, slots.size)
+        val fitted = schedule.fitted(league("league:29:4", twenty.take(6), turns = 1))
+        assertEquals(slots.take(5), fitted.slots.filter { it.competition == "league:29:4" })
+        assertEquals(schedule.slots.filter { it.competition == "l" }, fitted.slots.filter { it.competition == "l" })
+        val refused = assertFailsWith<IllegalArgumentException> { schedule.fitted(league("league:29:4", twenty.take(10), turns = 1)) }
+        assertTrue(refused.message!!.contains("league:29:4"), refused.message)
+        assertTrue(refused.message!!.contains("9 rounds"), refused.message)
+    }
 }

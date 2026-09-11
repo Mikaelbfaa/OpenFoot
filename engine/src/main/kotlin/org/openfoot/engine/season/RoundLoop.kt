@@ -71,7 +71,10 @@ import org.openfoot.model.TeamSide
  * 8. A competition that has just finished, past every one of its phases,
  * closes now: its final order is drawn, the close is recorded, and section
  * 5.5's prestige is credited to its champion and its runner-up the moment it
- * closes rather than waiting for any later turnover.
+ * closes rather than waiting for any later turnover. When the close was the
+ * season's last state competition, sections 1.9 and 1.12 build the Brazilian
+ * fourth division fed by the states now, from this season's state results,
+ * through withBrazilianFourthIfDue.
  *
  * 9. The cursor advances one date, whether or not anything was scheduled on
  * the one just played; a date with nothing scheduled on it simply advances
@@ -136,7 +139,7 @@ fun playRound(state: SeasonState, rules: RuleSet, tick: WeeklyTick): SeasonState
         }
         current = current.withCompetition(advanced)
         if (advanced.finished) {
-            current = current.close(advanced, date, rules, fixturesRng)
+            current = current.close(advanced, date, rules, fixturesRng).withBrazilianFourthIfDue()
         }
     }
     return current.copy(dateIndex = current.dateIndex + 1)

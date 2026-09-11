@@ -160,8 +160,8 @@ class TurnoverTest {
 
     /**
      * Four Brazilian divisions of ten over a reserve of four, with no club
-     * belonging to a state, so the fourth division is rebuilt at the turnover
-     * from an empty state champions' queue and drops most of its members.
+     * belonging to a state: the state queue is empty every season, so the
+     * fourth division is filled from the door and the stateless clubs alone.
      */
     private fun fourDivisions() = WorldFixtures.dataset(
         clubs = (1..44).map { index ->
@@ -174,17 +174,25 @@ class TurnoverTest {
         },
     )
 
+    private fun divisionsOneToThree(state: SeasonState) =
+        state.clubs.values.filter { (it.standing as? Standing.InDivision)?.division in 1..3 }.map { it.key }.toSet()
+
     @Test
-    fun `clubs the Brazilian fourth division drops join the tail of the reserve queue in final order`() {
+    fun `with no state club, the fourth is filled from the stateless clubs in world order and the clubs it drops join the queue's tail`() {
         val data = fourDivisions()
         assertTrue(data.options.playStateChampionships)
+        val worldOrder = data.clubs.map { it.ref }
         val start = opening(data, 8)
+        val first = worldOrder.filter { it !in divisionsOneToThree(start) }.take(10)
+        assertEquals(first.toSet(), start.competitions.getValue("league:29:4").participants.toSet())
+
         val end = play(start)
-        val fourth = end.closed.single { it.key == "league:29:4" }.finalOrder
+        val door = end.closed.single { it.key == "league:29:3" }.finalOrder.takeLast(2)
+        val dropped = end.closed.single { it.key == "league:29:4" }.finalOrder.drop(2)
         val next = turn(end)
-        val dropped = fourth.filter { next.club(it).standing == Standing.WithoutDivision }
-        assertTrue(dropped.isNotEmpty())
-        assertEquals(start.reserves.getValue(Country.BRAZIL) + dropped, next.reserves.getValue(Country.BRAZIL))
+        val second = door + worldOrder.filter { it !in divisionsOneToThree(next) && it !in door }.take(8)
+        assertEquals(second.toSet(), next.competitions.getValue("league:29:4").participants.toSet())
+        assertEquals((end.reserves.getValue(Country.BRAZIL) + door + dropped).filter { it !in second }, next.reserves.getValue(Country.BRAZIL))
         assertEquals(next.clubs.values.filter { it.standing == Standing.WithoutDivision }.map { it.key }.toSet(), next.reserves.getValue(Country.BRAZIL).toSet())
     }
 
@@ -210,17 +218,20 @@ class TurnoverTest {
     }
 
     @Test
-    fun `the fourth division rebuild skips divisioned and already chosen clubs`() {
-        val relegatedOfThird = listOf("r1", "r2")
-        val queue = listOf("d1", "r1", "q1", "q2", "q3", "q4")
-        val excluded = setOf("d1")
-        val members = rebuiltFourth(relegatedOfThird, queue, excluded, size = 5)
-        assertEquals(listOf("r1", "r2", "q1", "q2", "q3"), members)
+    fun `the fourth division takes the door, then the state queue, then the stateless, skipping divisioned and already chosen clubs`() {
+        val members = rebuiltFourth(
+            door = listOf("r1", "r2"),
+            stateQueue = listOf("d1", "r1", "q1", "q2"),
+            stateless = listOf("q2", "s1", "s2", "s3"),
+            excluded = setOf("d1", "s1"),
+            size = 6,
+        )
+        assertEquals(listOf("r1", "r2", "q1", "q2", "s2", "s3"), members)
     }
 
     @Test
-    fun `a short queue leaves the fourth division short rather than failing`() {
-        val members = rebuiltFourth(listOf("r1"), listOf("q1"), emptySet(), size = 5)
-        assertEquals(listOf("r1", "q1"), members)
+    fun `the fourth division stops at its size and is left short when the candidates run out`() {
+        assertEquals(listOf("r1", "q1", "q2"), rebuiltFourth(listOf("r1"), listOf("q1", "q2", "q3"), listOf("s1"), emptySet(), size = 3))
+        assertEquals(listOf("r1", "q1", "s1"), rebuiltFourth(listOf("r1"), listOf("q1"), listOf("s1"), emptySet(), size = 5))
     }
 }

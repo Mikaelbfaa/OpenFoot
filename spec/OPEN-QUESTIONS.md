@@ -2721,17 +2721,30 @@ da fase anterior, sem sorteio. É a mesma leitura que a 1.13 já registra para a
 forte contra metade fraca, cada metade sorteada só dentro de si), generalizada para todo campo que não
 é um dos três tamanhos publicados.
 
-### 113. A 4a divisão brasileira da primeira temporada fica como a pirâmide semeou; só é reconstruída pela fila estadual a partir da segunda
+### 113. A 4a divisão brasileira com estaduais é montada quando fecha o último estadual da temporada, já na primeira
 
-A seção 1.12 documenta a fila de campeões e vice-campeões estaduais que alimenta a 4a divisão
-brasileira, mas não diz se essa fila também decide a composição da 4a divisão da primeira temporada de
-uma carreira nova, antes de qualquer estadual ter sido jogado, ou só a partir da segunda.
+A seção 1.9 é explícita: "Com os estaduais ligados, a 4a divisão brasileira não é preenchida por
+nível: as vagas dela vêm da classificação nos estaduais." A 1.12 acrescenta que ela "é reconstruída a
+cada temporada a partir da fila de campeões e vice-campeões estaduais". Nenhuma das duas diz em que
+momento da temporada a divisão é montada, nem com que tamanho quando a pirâmide não a preencheu.
 
-**Resolução (INFERIDO):** nextSeason só chama rebuildBrazilianFourth a partir da segunda temporada,
-porque é a primeira virada que tem um fechamento de estadual (`state.closed`) de onde ler a fila; a
-primeira temporada de uma carreira nova não tem temporada anterior nenhuma para ter fechado um
-estadual, e openingSeason deixa a 4a divisão exatamente como generateWorld e a pirâmide da 1.9 a
-semearam. Isto é uma aposta sobre uma pergunta que a 1.12 não responde, não um fato lido do original.
+**Resolução:** que a 4a divisão não é preenchida por nível, também na primeira temporada, é
+CONFIRMADO pela 1.9. O resto é INFERIDO:
+
+- a geração do mundo não conhece os estaduais e a pirâmide semeia a 4a divisão por nível mesmo assim
+  (com a base real, 64 clubes). Quando o Brasil está ativo, a opção de estaduais está ligada e a
+  pirâmide semeou uma 4a divisão, openingSeason tira esses clubes dela antes da primeira temporada:
+  eles ficam sem divisão e entram no fim da fila de reserva do Brasil, na ordem da pirâmide;
+- o tamanho configurado da divisão é o que a pirâmide semeou (o `nTimes` do `.cfg` quando cabe, senão
+  o degrau padrão da 1.9), e fica guardado de uma temporada para a outra;
+- a divisão é montada no instante em que fecha a última competição estadual da temporada, antes do
+  início das ligas, com a fila dos estaduais dessa mesma temporada (item 122). Uma temporada sem
+  nenhuma competição estadual monta a divisão já na abertura;
+- o calendário reserva as datas da 4a divisão a partir do formato configurado antes de ela existir;
+  uma divisão montada mais curta joga nas primeiras datas reservadas e devolve as demais, e uma que
+  precisaria de mais datas é recusada pelo nome;
+- o fluxo aleatório da divisão é o mesmo que a montagem de início de temporada usaria para a chave
+  `league:29:4`, de modo que o momento da montagem não move sorteio nenhum.
 
 ### 114. Domingos pendentes disparam antes das partidas do dia
 
@@ -2851,30 +2864,67 @@ do último grupo) e semeia essa ordem 1, 2, 3... no campo do mata-mata, que por 
 mesma regra do item 112: o melhor semeado contra o pior. O efeito final é forte contra fraco pela
 combinação de grupo e colocação, sem nenhuma tabela de pares específica, porque a 1.11 não dá uma.
 
-### 121. O boundary 3a contra 4a divisão brasileira continua promovendo a 4a para a 3a, mesmo sem playoff de acesso
+### 121. O boundary 3a contra 4a divisão brasileira: a 3a rebaixa direto para a porta e a 4a ainda promove seus melhores
 
-A seção 1.12 proíbe só o playoff de acesso da 4a divisão para a 3a ("nenhum playoff de acesso"); não
-diz explicitamente se a promoção direta continua valendo nesse boundary quando os estaduais estão
-ativos e a 4a divisão é reconstruída pela fila em vez de manter uma tabela própria de uma temporada
-para a outra.
+A seção 1.12, no caso especial da 4a divisão brasileira alimentada pelos estaduais, diz: "Quando os
+estaduais estão ativos (padrão ligado) e a 4a divisão do Brasil não é preenchida por nível na criação
+do mundo (seção 1.9), ela também não participa do swap normal de fim de temporada contra a 3a
+divisão: a 3a divisão brasileira relega seus times **direto** (o motor força `rebaixadosDireto =
+nRebaixados` nesse caso específico, mesmo que o `.cfg` dissesse outra coisa - nenhum playoff de acesso
+à 3a divisão a partir da 4a). A 4a divisão, por sua vez, é reconstruída a cada temporada a partir da
+**fila de campeões e vice-campeões estaduais**, não por uma tabela geral própria que carrega
+candidatos de uma temporada para a seguinte." E, sobre a fila: "Times que a temporada anterior já
+deixou 'na porta' da 4a divisão (rebaixados da 3a divisão quando ela já estava associada aos
+estaduais) entram no início da fila, à frente dos candidatos novos dos estaduais dessa temporada."
 
-**Resolução (INFERIDO):** rebuildBrazilianFourth continua promovendo os melhores colocados da 4a
-divisão para a 3a, em número igual ao que a 3a rebaixa, pela ordem final da própria 4a divisão dessa
-temporada - exatamente como o boundary faria em qualquer outra fronteira de divisão. O que a 4a perde,
-por não ter um playoff de acesso, é só a chance de subir mais do que o rebaixamento da 3a abre vaga; a
-promoção em si, na leitura desta fase, não é o playoff que a 1.12 proíbe.
+O texto diz para onde vão os rebaixados da 3a, mas não diz quem ocupa as vagas que eles abrem na 3a.
 
-### 122. A fila de campeões estaduais pula clube já em divisão um a três e nome já escolhido; fila curta deixa a 4a divisão curta
+**Resolução:** que a 3a rebaixa direto, sem playoff, e que os rebaixados esperam na porta e encabeçam
+a fila da temporada seguinte é CONFIRMADO pela 1.12. Na virada, os rebaixados da 3a (os últimos da
+ordem final dela) ficam sem divisão, entram na fila de reserva do Brasil e são guardados como a porta
+da próxima 4a divisão; não entram na 4a na hora, porque ela não participa do swap normal. Quem sobe é
+INFERIDO: os melhores da ordem final da própria 4a divisão, em número igual ao que a 3a rebaixa, sobem
+para a 3a, o que mantém a 3a no seu tamanho. A 1.12 proíbe o playoff de acesso a partir da 4a, não diz
+que a promoção direta deixa de existir, e sem ela as vagas da 3a ficariam vazias. Todo o resto da 4a
+antiga fica sem divisão e entra no fim da fila de reserva do Brasil, na ordem final da divisão.
 
-A seção 1.12 não diz o que acontece quando um nome da fila de campeões e vice-campeões estaduais já
-está fadado a uma divisão de um a três nesta mesma virada (por exemplo o próprio campeão estadual que
-também é um clube promovido à 3a divisão), nem o que acontece quando a fila se esgota antes de
-preencher toda a 4a divisão.
+### 122. A fila da 4a divisão brasileira: porta, fila estadual, clubes sem divisão estadual; lista curta fica curta
 
-**Resolução (INFERIDO):** rebuiltFourth pula qualquer nome da fila que já esteja marcado para as
-divisões um a três nesta virada (o conjunto excluded de rebuildBrazilianFourth, calculado depois que
-todo outro boundary do país já moveu clubes) e pula qualquer nome já escolhido, como um campeão
-estadual que também é um dos clubes que a 3a acabou de rebaixar. Uma fila curta demais para preencher
-o tamanho da 4a divisão simplesmente deixa a divisão com menos membros do que o preset pede, em vez de
-completar com qualquer outro clube só para fechar o número. A ordem de caminhada da própria fila, por
-nível de prioridade dos estados e depois por colocação, continua sendo a aposta do item 81.
+A seção 1.12 monta a fila da 4a divisão brasileira alimentada pelos estaduais em quatro passos: a
+tabela de estados por nível (passo 1), a caminhada por colocação com a porta à frente (passo 2), e
+então: "3. Se a fila de candidatos dos estaduais não chegar ao tamanho configurado, o motor completa
+com clubes brasileiros sem divisão estadual nenhuma, na ordem em que aparecem no mundo. 4. Faltando
+ainda candidatos, a lista fica menor que o configurado (o motor não força um tamanho artificial)."
+
+**Resolução:** o completamento do passo 3 e a lista curta do passo 4 são CONFIRMADO pela 1.12. A
+divisão toma, nesta ordem, a porta (os rebaixados da 3a na virada anterior, item 121), a fila estadual
+da temporada (a caminhada do item 81) e os clubes brasileiros sem divisão estadual nenhuma nessa
+temporada, na ordem dos clubes na base de dados. Com a base real todo clube brasileiro tem estado, então
+os clubes sem divisão estadual são os que estão na reserva de um estado e os de estados pequenos demais
+para ter campeonato. A lista para no tamanho configurado ou quando os candidatos acabam.
+
+Dois pontos são INFERIDO:
+
+- um clube que já está nas divisões um a três, e um nome já escolhido (por exemplo um campeão estadual
+  que também está na porta), é pulado. A 1.12 não escreve essa regra; ela é a única leitura
+  compatível com um clube numa só divisão, da 1.9;
+- a recusa pelo nome. A 1.12 diz que a lista fica curta, não como uma lista curta se reparte nos
+  grupos configurados; uma lista curta que não pode ser jogada (menos de dois clubes, um número
+  ímpar, ou um número que não se reparte em grupos iguais e pares no `nGrupos` configurado) é recusada
+  com uma exceção que nomeia `league:29:4`, em vez de montar um formato inventado.
+
+### 123. A ordem de uma divisão estadual carregada de uma temporada para a outra
+
+A FORMAT-SPEC diz quem desce e quem sobe entre divisões estaduais e entre a última divisão e a reserva
+do estado ("Rebaixados e promovidos"), mas não diz em que ordem fica a lista de clubes da divisão na
+temporada seguinte. A ordem importa porque um preset com grupos (7 e 10) reparte a lista da divisão
+pela regra de carga 6, o k-ésimo clube no grupo `k mod nGrupos`, sem sorteio.
+
+**Resolução (INFERIDO):** a lista nova de uma divisão é, nesta ordem, os clubes que ficaram, na ordem
+da lista anterior; os que desceram da divisão de cima, na ordem da tabela geral da primeira fase dela;
+e os que subiram da divisão de baixo, na ordem de mérito dela, ou os que vieram da reserva do estado,
+na ordem da fila. As fronteiras de um estado são processadas de cima para baixo, uma por vez, como na
+1.12: um clube que já subiu de uma divisão nesta virada não está mais nela quando a zona de
+rebaixamento é lida, e a zona passa a ser os últimos da tabela entre os que ficaram. Com a base
+distribuída nenhum estado tem segunda divisão, então a única troca que roda é a da divisão 1 com a
+reserva, e só São Paulo (preset 7) tem grupos cuja formação depende desta aposta.
