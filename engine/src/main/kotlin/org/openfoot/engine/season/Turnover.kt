@@ -133,6 +133,13 @@ fun stateChampionsQueue(closes: List<CompetitionClose>, stateOf: (String) -> Int
  * bare but for an injury still running, and a fresh set of competitions and
  * schedule built from the moved clubs.
  *
+ * The card records start the new season empty because section 3.8 keeps them
+ * per competition, each belonging to one competition of the season just
+ * finished, and every competition is rebuilt here; section 1.4's per club
+ * reset is only a resync of a cached club link and zeroes nothing. An injury
+ * is a date on the calendar rather than a count, so it carries across. Both
+ * are OPEN-QUESTIONS item 116, INFERIDO.
+ *
  * rules is unused by this plan; nextSeason keeps it as a parameter because
  * the next plan's aging, retirement and youth intake run at this same
  * turnover and read the rule set for their own MODERN fields, and adding the

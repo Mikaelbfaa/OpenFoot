@@ -1,11 +1,15 @@
 package org.openfoot.engine.season
 
 import org.openfoot.dataset.LeagueConfigEntry
+import org.openfoot.engine.match.Lineups
+import org.openfoot.engine.match.MatchEvent
+import org.openfoot.engine.world.ScriptedInts
 import org.openfoot.engine.world.WorldFixtures
 import org.openfoot.engine.world.generateWorld
 import org.openfoot.model.CompetitionKind
 import org.openfoot.model.Country
 import org.openfoot.model.Position
+import org.openfoot.model.Rng
 import org.openfoot.model.RuleSets
 import org.openfoot.model.SplitMix64Rng
 import org.openfoot.model.TeamSide
@@ -13,6 +17,8 @@ import org.openfoot.model.Trait
 import org.openfoot.model.rand
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
@@ -122,6 +128,52 @@ class RoundLoopTest {
         assertEquals(45 + 14, end.played.size, "forty five league matches and a cup of eight over two legs")
     }
 
+    /**
+     * Section 0 fires the weekly tick on every Sunday of the calendar year,
+     * matches or not, and says outright that no Sunday is skipped. This
+     * fixture's league finishes in the spring, so every Sunday from then to
+     * the end of December has no round left to carry it; playSeason still
+     * fires each of them, once, in order, before it returns. The expected
+     * list is counted with CalendarDate alone, from the season's first
+     * Sunday to the thirty first of December of its year.
+     */
+    @Test
+    fun `a whole season fires every Sunday of its year exactly once`() {
+        val seen = ArrayList<CalendarDate>()
+        val end = playSeason(opening(5), RuleSets.CLASSIC, WeeklyTick { state, sunday -> seen += sunday; state })
+        val expected = generateSequence(CalendarDate.seasonStart(2026)) { it.plusDays(7) }
+            .takeWhile { it <= CalendarDate(2026, 12, 31) }
+            .toList()
+        assertEquals(expected, seen)
+        assertEquals(expected.last(), end.lastTick)
+    }
+
+    /**
+     * A club can play only one match of a competition's round. A round that
+     * names one club twice is refused before any of it is played, and the
+     * message names both the club and the competition, so a broken format
+     * is caught where it is scheduled rather than as a silently doubled set
+     * of records.
+     */
+    @Test
+    fun `a club scheduled twice in one competition's round is refused`() {
+        val state = opening(1)
+        val league = state.competitions.getValue(LEAGUE)
+        val first = (league.phases[0] as Phase.League).phase
+        val (a, b, c) = first.participants
+        val doubled = Round(listOf(Fixture(a, b), Fixture(c, a)))
+        val broken = league.copy(
+            phases = league.phases.mapIndexed { i, phase ->
+                if (i == 0) Phase.League(first.copy(rounds = listOf(doubled) + first.rounds.drop(1))) else phase
+            },
+        )
+        val error = assertFailsWith<IllegalArgumentException> {
+            playRound(state.withCompetition(broken), RuleSets.CLASSIC, WeeklyTick.NONE)
+        }
+        val message = error.message.orEmpty()
+        assertTrue(a in message && LEAGUE in message, message)
+    }
+
     @Test
     fun `the same seed plays the same season`() {
         val once = playSeason(opening(6), RuleSets.CLASSIC, WeeklyTick.NONE)
@@ -131,26 +183,99 @@ class RoundLoopTest {
     }
 
     /**
-     * The controller ruling for this task tests postRound through its own
-     * internal seam rather than steering a whole simulated cup to an actual
-     * elimination: doing that reliably, against a randomly decided knockout,
-     * would take well past the forty line budget the ruling allows, for a
-     * fact the pure function already proves on its own. A club with no match
-     * today (appeared null, an eliminated cup participant on a round the cup
-     * still plays) keeps a suspended man suspended, since served() is never
-     * called on him, while every man still recovers energy, since recovery
-     * reads only the age and the played flag and never the discipline.
+     * The sequence the round loop runs for one club at the end of one of its
+     * matches in a competition: the discipline step of that match, then the
+     * post round. The man at squad index five is the one the tests book.
+     */
+    private fun ClubState.plays(competition: String, log: List<MatchEvent> = emptyList(), rng: Rng = ScriptedInts()): ClubState =
+        disciplineAfterMatch(competition, log, TeamSide.HOME, rng).postRound(appeared = emptySet())
+
+    private fun ClubState.fields(competition: String): Boolean =
+        availability(CalendarDate(2026, 3, 1), competition).of(MAN, squad[MAN]).canPlay
+
+    private val man = Lineups.player(slot = 5, strength = 50, id = MAN)
+
+    /**
+     * Section 3.1 serves suspensions before it applies the round's cards, and
+     * section 3.8 keeps the record per competition. A third yellow earned in
+     * league match k therefore costs league match k plus one and nothing
+     * else: the man is back for k plus two, and a cup match between the two
+     * neither stops him nor serves his league suspension.
      */
     @Test
-    fun `a club with no match today keeps a suspension but still recovers energy`() {
-        val club = opening(8).club("c01")
-        val tired = club.withRecord(0) { it.copy(energy = 40, discipline = DisciplineRecord(yellows = 3)) }
-        val afterBye = tired.postRound(appeared = null)
-        assertTrue(afterBye.records[0].discipline.suspended, "no match today, so nothing serves the suspension")
-        assertTrue(afterBye.records[0].energy > 40, "a bye still recovers energy")
+    fun `a third league yellow costs the next league match and never a cup match`() {
+        var club = opening(8).club("c01").withRecord(MAN) { it.withDiscipline(LEAGUE, DisciplineRecord(yellows = 2)) }
+        club = club.plays(LEAGUE, listOf(MatchEvent.Booking(10, TeamSide.HOME, man)))
+        assertFalse(club.fields(LEAGUE), "the third yellow keeps him out of league match k+1")
+        assertTrue(club.fields(CUP), "a league suspension never keeps him out of the cup")
+        club = club.plays(CUP)
+        assertFalse(club.fields(LEAGUE), "the cup match in between serves nothing in the league")
+        club = club.plays(LEAGUE)
+        assertTrue(club.fields(LEAGUE), "league match k+1 served it, so he is back for k+2")
+    }
 
-        val afterPlayed = tired.postRound(appeared = emptySet())
-        assertTrue(!afterPlayed.records[0].discipline.suspended, "the club played, so the suspended man serves")
+    /**
+     * A direct red drawn at 750 of a thousand is a two match ban, per the
+     * ladder of section 3.8. Only league matches serve it, one each; the cup
+     * matches played between them leave it where it was.
+     */
+    @Test
+    fun `a two match league ban is served only by league matches`() {
+        var club = opening(8).club("c01")
+        club = club.plays(LEAGUE, listOf(MatchEvent.SendingOff(30, TeamSide.HOME, man, secondYellow = false)), ScriptedInts(750))
+        assertEquals(DisciplineRecord(ban = 2), club.records[MAN].disciplineIn(LEAGUE))
+        club = club.plays(CUP)
+        assertEquals(DisciplineRecord(ban = 2), club.records[MAN].disciplineIn(LEAGUE), "a cup match does not reduce it")
+        club = club.plays(LEAGUE)
+        assertEquals(DisciplineRecord(ban = 1), club.records[MAN].disciplineIn(LEAGUE))
+        assertFalse(club.fields(LEAGUE))
+        club = club.plays(CUP)
+        club = club.plays(LEAGUE)
+        assertEquals(DisciplineRecord.CLEAN, club.records[MAN].disciplineIn(LEAGUE))
+        assertTrue(club.fields(LEAGUE))
+    }
+
+    @Test
+    fun `yellows in two competitions never add up to a suspension`() {
+        var club = opening(8).club("c01")
+        val booked = listOf(MatchEvent.Booking(10, TeamSide.HOME, man))
+        club = club.plays(LEAGUE, booked).plays(LEAGUE, booked).plays(CUP, booked)
+        assertEquals(DisciplineRecord(yellows = 2), club.records[MAN].disciplineIn(LEAGUE))
+        assertEquals(DisciplineRecord(yellows = 1), club.records[MAN].disciplineIn(CUP))
+        assertTrue(club.fields(LEAGUE) && club.fields(CUP))
+    }
+
+    /**
+     * Sections 1.10 and 3.8 serve a suspension only by a match the club
+     * actually plays in that competition. The season is walked to the first
+     * cup date whose round leaves one entrant idle, an eliminated side the
+     * cup still lists; that round is then replayed with one suspended man at
+     * the idle club and one at a club that plays. The playing club serves,
+     * the idle club serves nothing, and the idle club still recovers energy,
+     * which is item 117.
+     */
+    @Test
+    fun `a club with no match in a competition that plays today serves nothing in it`() {
+        var state = opening(9)
+        var idle: String? = null
+        var playing: String? = null
+        while (idle == null) {
+            val date = requireNotNull(state.today)
+            val trial = playRound(state, RuleSets.CLASSIC, WeeklyTick.NONE)
+            val cup = trial.played.filter { it.date == date && it.competition == CUP }
+            val sides = cup.flatMap { listOf(it.result.home, it.result.away) }.toSet()
+            idle = state.competitions.getValue(CUP).participants.firstOrNull { cup.isNotEmpty() && it !in sides }
+            playing = sides.firstOrNull()
+            if (idle == null) state = trial
+        }
+        val suspended = DisciplineRecord(ban = 1)
+        val seeded = state
+            .withClub(state.club(idle).withRecord(MAN) { it.withDiscipline(CUP, suspended).copy(energy = 40) })
+            .withClub(state.club(requireNotNull(playing)).withRecord(MAN) { it.withDiscipline(CUP, suspended) })
+        val after = playRound(seeded, RuleSets.CLASSIC, WeeklyTick.NONE)
+        assertEquals(suspended, after.club(idle).records[MAN].disciplineIn(CUP), "no cup match today, nothing served")
+        assertTrue(after.club(idle).records[MAN].energy > 40, "the idle club still recovers")
+        assertEquals(DisciplineRecord.CLEAN, after.club(playing).records[MAN].disciplineIn(CUP), "the club that played served")
     }
 
     /**
@@ -179,5 +304,11 @@ class RoundLoopTest {
             assertEquals(home, homeAgain, "seed $seed: the home stream did not replay from the same match seed")
             assertEquals(away, awayAgain, "seed $seed: the away stream did not replay from the same match seed")
         }
+    }
+
+    private companion object {
+        const val LEAGUE = "league:29:1"
+        const val CUP = "cup:29"
+        const val MAN = 5
     }
 }

@@ -40,14 +40,19 @@ import org.openfoot.model.TeamSide
  * 4. Every competition scheduled today, in the schedule's own order, is asked
  * for its matches; each match forks its own stream from the root by the date
  * and the two clubs, assembles both sides with the season's own per club
- * availability of section 5.4, plays it and rates it with the very same
+ * availability of section 5.4 for that competition, each club read by its
+ * key from the season as it stands, plays it and rates it with the very same
  * stream the match was played from, so a match and its ratings replay
  * together from one seed.
  *
  * 5. Every match writes itself onto both clubs' records before the next match
- * of the round is even assembled, so a club playing twice in one round, were
- * that ever legal, would carry the first match's marks into the second. See
- * ClubState.afterMatch below for what each field reads and from where.
+ * of the round is even assembled. That includes discipline in section 3.1's
+ * post round order: the competition's suspensions are served first, then the
+ * match's cards are applied, so a ban earned today is served by the club's
+ * next match in the same competition and not by today's. A club may play at
+ * most one match of one competition's round, and a round that names a club
+ * twice is refused before any of it is played. See ClubState.afterMatch
+ * below for what each field reads and from where.
  *
  * 6. The competition records the round's results and the match joins the
  * season's played history.
@@ -56,10 +61,12 @@ import org.openfoot.model.TeamSide
  * runs for every one of its participants, home and away sides together with
  * every club the competition still lists that did not play today at all,
  * such as a cup entrant a previous round already eliminated; see postRound
- * below for the suspension and recovery rule and its own INFERIDO point. No
- * club's post round runs twice in one day; a club appearing in two
- * competitions scheduled the same day cannot happen under Task 7's own
- * invariant, and this is required rather than assumed.
+ * below for the recovery rule and its own INFERIDO point. Suspensions are
+ * not served here but by the match itself, in step 5, so a club with no
+ * match in the competition today serves nothing in it. No club's post round
+ * runs twice in one day; a club appearing in two competitions scheduled the
+ * same day cannot happen under the schedule's own construction, and this is
+ * required rather than assumed.
  *
  * 8. A competition that has just finished, past every one of its phases,
  * closes now: its final order is drawn, the close is recorded, and section
@@ -82,6 +89,12 @@ fun playRound(state: SeasonState, rules: RuleSet, tick: WeeklyTick): SeasonState
         val competition = current.competitions.getValue(key)
         val fixturesRng = root.fork(SeedDomain.FIXTURES).fork(clubKey(key))
         val matches = competition.nextMatches(rules, fixturesRng)
+        val scheduled = mutableSetOf<String>()
+        for (match in matches) {
+            for (side in listOf(match.fixture.home, match.fixture.away)) {
+                require(scheduled.add(side)) { "$side is scheduled twice in the round of $key on $date" }
+            }
+        }
         val recorded = ArrayList<Pair<ScheduledMatch, Result>>()
         val appeared = mutableMapOf<String, Set<Int>>()
 
@@ -89,6 +102,7 @@ fun playRound(state: SeasonState, rules: RuleSet, tick: WeeklyTick): SeasonState
             val home = match.fixture.home
             val away = match.fixture.away
             val matchRng = root.fork(SeedDomain.MATCH).fork(date.ordinal.toLong()).fork(clubKey(home)).fork(clubKey(away))
+            val beforeMatch = current
             val assembled = assembleMatch(
                 home = current.club(home),
                 away = current.club(away),
@@ -96,7 +110,7 @@ fun playRound(state: SeasonState, rules: RuleSet, tick: WeeklyTick): SeasonState
                 kind = competition.kind,
                 season = current.number,
                 rules = rules,
-                availabilityOf = { competitor -> (competitor as ClubState).availability(date) },
+                availabilityOf = { competitor -> beforeMatch.club(competitor.key).availability(date, key) },
                 rng = matchRng,
             )
             val report = simulateMatch(assembled.setup, matchRng, assembled.homeBench, assembled.awayBench)
@@ -104,8 +118,8 @@ fun playRound(state: SeasonState, rules: RuleSet, tick: WeeklyTick): SeasonState
             val result = Result(home, away, report.homeGoals, report.awayGoals)
 
             current = current
-                .withClub(current.club(home).afterMatch(report, ratings, TeamSide.HOME, date, matchRng))
-                .withClub(current.club(away).afterMatch(report, ratings, TeamSide.AWAY, date, matchRng))
+                .withClub(current.club(home).afterMatch(report, ratings, TeamSide.HOME, date, key, matchRng))
+                .withClub(current.club(away).afterMatch(report, ratings, TeamSide.AWAY, date, key, matchRng))
             appeared[home] = ratings.home.keys.map { it.value }.toSet()
             appeared[away] = ratings.away.keys.map { it.value }.toSet()
 
@@ -129,13 +143,22 @@ fun playRound(state: SeasonState, rules: RuleSet, tick: WeeklyTick): SeasonState
 }
 
 /**
- * Plays every remaining round of a season, in order, until it is finished.
+ * Plays every remaining round of a season, in order, until it is finished,
+ * and then fires every Sunday still pending through the thirty first of
+ * December of the season's year.
+ *
+ * Section 0 fires the weekly tick on every Sunday of the calendar, matches or
+ * not, and says that no Sunday is skipped. playRound only fires the Sundays
+ * up to the date it plays, so the Sundays after the season's last scheduled
+ * date have no round to carry them; they fire here, oldest first, each once,
+ * before the finished season is handed back, and the turnover that follows
+ * starts the next year from a season that has seen its whole calendar.
  */
-@SpecRef("3.1")
+@SpecRef("0")
 fun playSeason(state: SeasonState, rules: RuleSet, tick: WeeklyTick): SeasonState {
     var current = state
     while (!current.finished) current = playRound(current, rules, tick)
-    return current
+    return firePendingSundays(current, CalendarDate.seasonEnd(current.year), tick)
 }
 
 /**
@@ -182,13 +205,14 @@ private fun firePendingSundays(state: SeasonState, date: CalendarDate, tick: Wee
  * is on the other side's log of events and is never read from this side's
  * pass over it.
  *
- * Discipline (3.8): the side's own log entries, bookings and sendings off,
- * are applied to a map built fresh from the records' own discipline fields
- * and read back onto them; disciplineRng below is this function's own fork of
- * the match's rng, separate from every stream the match itself drew, so which
- * round writes the discipline back never moves any draw the match made while
- * it was being played, and separate per side, so the home call and the away
- * call of this same function never share one stream between them.
+ * Discipline (3.1, 3.8): disciplineAfterMatch below runs last, for the
+ * competition this match belongs to, serving that competition's suspensions
+ * and then applying this match's cards to it. Its stream is disciplineRng,
+ * this function's own fork of the match's rng, separate from every stream
+ * the match itself drew, so writing the discipline back never moves any draw
+ * the match made while it was being played, and separate per side, so the
+ * home call and the away call of this same function never share one stream
+ * between them.
  *
  * Injuries (3.8): every MatchEvent.Injury of this side with a positive day
  * count sets the injured player's expiry to the match date plus that many
@@ -198,7 +222,14 @@ private fun firePendingSundays(state: SeasonState, date: CalendarDate, tick: Wee
  * squad it was given.
  */
 @SpecRef("3.8")
-private fun ClubState.afterMatch(report: MatchReport, ratings: MatchRatings, side: TeamSide, date: CalendarDate, rng: Rng): ClubState {
+private fun ClubState.afterMatch(
+    report: MatchReport,
+    ratings: MatchRatings,
+    side: TeamSide,
+    date: CalendarDate,
+    competition: String,
+    rng: Rng,
+): ClubState {
     var updated = this
     for ((id, energy) in report.energy(side)) {
         updated = updated.withRecord(id.value) { it.copy(namedSinceTick = true, energy = energy) }
@@ -235,12 +266,34 @@ private fun ClubState.afterMatch(report: MatchReport, ratings: MatchRatings, sid
             else -> Unit
         }
     }
-    val discipline = updated.records.mapIndexed { i, record -> PlayerId(i) to record.discipline }.toMap()
-        .afterMatch(report.log, side, disciplineRng(rng, side))
-    for ((id, record) in discipline) {
-        updated = updated.withRecord(id.value) { it.copy(discipline = record) }
-    }
-    return updated
+    return updated.disciplineAfterMatch(competition, report.log, side, disciplineRng(rng, side))
+}
+
+/**
+ * The discipline of one club at the end of one of its matches in the given
+ * competition, in the order section 3.1's post round gives: suspensions are
+ * served first, then the match's cards are applied.
+ *
+ * Serving reads DisciplineRecord.served on every record the competition
+ * holds, which leaves an unsuspended record as it was and applies section
+ * 3.8's yellows-first rule to a suspended one, so a man holding three yellows
+ * and a ban clears the yellows this match and starts on the ban the next.
+ * The cards then land on the same competition's records through the side's
+ * own discipline stream. A ban earned in this match is therefore still whole
+ * when the club's next match in the competition is assembled, and that match
+ * is the one that serves it, which is the whole point of the order.
+ *
+ * Every other competition's records are left alone: section 3.8 runs this
+ * test at the end of each match of the player's club in that competition,
+ * and section 1.10 adds that a competition in which the club has no match
+ * serves nothing. Serving draws nothing, so the discipline stream sees the
+ * same draws in the same order as the cards alone would give it.
+ */
+@SpecRef("3.1")
+internal fun ClubState.disciplineAfterMatch(competition: String, log: List<MatchEvent>, side: TeamSide, rng: Rng): ClubState {
+    val served = records.map { it.withDiscipline(competition, it.disciplineIn(competition).served()) }
+    val cards = served.mapIndexed { i, record -> PlayerId(i) to record.disciplineIn(competition) }.toMap().afterMatch(log, side, rng)
+    return copy(records = served.mapIndexed { i, record -> cards[PlayerId(i)]?.let { record.withDiscipline(competition, it) } ?: record })
 }
 
 /**
@@ -275,14 +328,12 @@ internal fun disciplineRng(matchRng: Rng, side: TeamSide): Rng = matchRng.fork(S
  * club's post round still runs every round the competition plays after that,
  * with no match of its own to read.
  *
- * Suspension serving (1.10, 3.8) reads a suspended discipline record's
- * served() only when appeared is not null, which is the controller ruling
- * this task implements: section 1.10 counts a served round as one the club
- * actually played in that competition, so a club sitting out today, eliminated
- * or merely without a fixture, does not serve one, and a man suspended before
- * elimination stays suspended in the season's own bookkeeping for as long as
- * the competition keeps asking about his club, which is a fact about the
- * competition's own history and not a bug in this function.
+ * Suspensions are not served here. Section 3.1 serves them before it
+ * applies the round's cards, and section 3.8 runs that test at the end of
+ * each match the club plays in the competition, so both belong to the match
+ * itself and run in disciplineAfterMatch. A club with no match today,
+ * appeared null, therefore serves nothing in this competition, which is
+ * section 1.10's own rule, while it still recovers below.
  *
  * Recovery (3.9) runs for every record regardless: weeklyRecovery reads only
  * the player's age and whether he personally played, never the club's
@@ -298,9 +349,8 @@ internal fun ClubState.postRound(appeared: Set<Int>?): ClubState =
     copy(
         records = records.mapIndexed { index, record ->
             val played = appeared != null && index in appeared
-            val discipline = if (appeared != null && record.discipline.suspended) record.discipline.served() else record.discipline
             val gain = weeklyRecovery(squad[index].age, played = played, humanManaged = false)
-            record.copy(discipline = discipline, energy = recover(record.energy, gain))
+            record.copy(energy = recover(record.energy, gain))
         },
     )
 

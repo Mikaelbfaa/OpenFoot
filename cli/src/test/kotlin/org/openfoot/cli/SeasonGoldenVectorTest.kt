@@ -49,22 +49,33 @@ import kotlin.test.assertEquals
  *
  * Every league row was checked by hand against its own wins, draws and
  * losses: three times wins plus draws is that row's points on every line
- * (for instance the champion, clube-08, sixty-four points from nineteen
- * wins and seven draws, three times nineteen plus seven), wins plus draws
- * plus losses is thirty-six on every line, and the champion, clube-08, sits
- * first, which is the table's own order since this league has no final
- * phase past its one round robin for finalOrder to read instead.
+ * (for instance the champion, clube-08, sixty-one points from eighteen
+ * wins and seven draws, three times eighteen plus seven), wins plus draws
+ * plus losses is thirty-six on every line, goals for and goals against both
+ * total six hundred and twelve, and the champion, clube-08, sits first,
+ * which is the table's own order since this league has no final phase past
+ * its one round robin for finalOrder to read instead. The one tie on points,
+ * clube-02 and clube-04 at fifty-four, is broken by wins before goal
+ * difference, as section 1.2's fixed comparator orders it: clube-02 has
+ * sixteen wins to fourteen and sits above, although clube-04's goal
+ * difference is the better of the two.
  *
- * The five top scorers are ordered by goals descending and then, on the two
- * ties at eighty and at seventy, by name and then by club exactly as the
- * task's own total order asks: clube-02 jogador 2 before clube-04 jogador 1
- * (02 sorts before 04), and clube-07 jogador 2 before clube-08 jogador 2
- * (07 sorts before 08). The high goal counts, up to ninety-one from a
- * single man, are a direct consequence of the two-midfielder fixture rather
- * than a defect of this printer or of the season engine: with only two men
- * ever eligible for a club's midfield and attack across a hundred and
- * ninety-four matches of a whole season, the same pair of names is credited
- * with essentially every goal their own club ever scores.
+ * The five top scorers are ordered by goals descending, and no two of them
+ * share a count this season, so the name and club tie break below goals is
+ * not reached here. The high goal counts, up to eighty-eight from a single
+ * man, are a direct consequence of the two-midfielder fixture rather than a
+ * defect of this printer or of the season engine: with only two men ever
+ * eligible for a club's midfield and attack across a hundred and ninety-four
+ * matches of a whole season, the same pair of names is credited with
+ * essentially every goal their own club ever scores.
+ *
+ * Suspensions cost matches. Section 3.1 serves a club's suspensions before
+ * it applies the match's cards and section 3.8 keeps the card record per
+ * competition, so a ban earned in a league match is served by the club's
+ * next league match and never by a cup match. In squads this small a man
+ * sitting out a ban is felt at once, which is why the league table here is
+ * not the one a season with bans served the day they were earned printed;
+ * the cup, played by the same sides over six Wednesdays, came out the same.
  *
  * The pinned string below was produced by running this exact season and
  * copying the printed text verbatim, then checked line by line against
@@ -87,24 +98,24 @@ class SeasonGoldenVectorTest {
             season    1  year 2026  rounds 42  matches 194
               cup:701  NATIONAL_CUP  champion clube-01  runner-up clube-03
                 final order: clube-01, clube-03, clube-02, clube-04, clube-08, clube-07, clube-06, clube-05
-              league:701:1  NATIONAL_LEAGUE  champion clube-08  runner-up clube-02
+              league:701:1  NATIONAL_LEAGUE  champion clube-08  runner-up clube-01
                 pos  club      pts  pld   w   d   l  gf  ga
-                  1  clube-08   64   36  19   7  10  67  60
-                  2  clube-02   62   36  19   5  12  69  60
-                  3  clube-05   55   36  15  10  11  60  53
-                  4  clube-07   54   36  15   9  12  66  56
-                  5  clube-04   51   36  13  12  11  72  63
-                  6  clube-01   50   36  14   8  14  75  63
-                  7  clube-10   47   36  13   8  15  59  67
-                  8  clube-06   44   36  11  11  14  58  60
-                  9  clube-09   38   36  10   8  18  45  62
-                 10  clube-03   33   36   9   6  21  48  75
+                  1  clube-08   61   36  18   7  11  63  60
+                  2  clube-01   58   36  17   7  12  78  61
+                  3  clube-05   56   36  15  11  10  60  51
+                  4  clube-07   55   36  15  10  11  67  56
+                  5  clube-02   54   36  16   6  14  67  63
+                  6  clube-04   54   36  14  12  10  71  61
+                  7  clube-10   46   36  13   7  16  57  65
+                  8  clube-06   43   36  11  10  15  56  61
+                  9  clube-03   36   36  10   6  20  48  71
+                 10  clube-09   35   36   9   8  19  45  63
               top scorers
-                91  clube-01 jogador 1  clube-01
-                80  clube-02 jogador 2  clube-02
-                80  clube-04 jogador 1  clube-04
-                70  clube-07 jogador 2  clube-07
-                70  clube-08 jogador 2  clube-08
+                88  clube-01 jogador 1  clube-01
+                77  clube-04 jogador 1  clube-04
+                76  clube-02 jogador 2  clube-02
+                68  clube-07 jogador 2  clube-07
+                65  clube-08 jogador 2  clube-08
             """.trimIndent() + "\n",
             describeSeason(state),
         )

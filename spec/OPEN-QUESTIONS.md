@@ -2735,16 +2735,23 @@ leitura de "convenção estadual" que o docstring de leagueCompetition já regis
 distribuído usa essa combinação de campos, então esta aposta também fica sem exemplo real para
 confirmar ou refutar.
 
-### 116. Vira de temporada: registros por jogador voltam ao zero, lesão sobrevive pela data
+### 116. Vira de temporada: a disciplina recomeça limpa porque é por competição, a lesão sobrevive pela data
 
-A seção 1.4 descreve a virada de temporada resetando "vários estados por time" mas não lista campo por
-campo o que sobrevive de um PlayerRecord para o outro.
+A seção 1.4 descreve o reset de temporada por time como uma resincronização do vínculo de clube
+guardado em cache, não como um zeramento de estatística, e não lista campo por campo o que sobrevive
+de um PlayerRecord para o outro.
 
-**Resolução (INFERIDO):** nextSeason reconstrói todo PlayerRecord como `PlayerRecord(injuredUntil =
-it.injuredUntil)` - energia volta a cheia, disciplina volta limpa, presença, nota e gols voltam a
-zero, e só a data de expiração de uma lesão em andamento atravessa a virada, porque uma lesão real é
-uma data no calendário e não um contador de temporada. Nenhuma outra leitura foi encontrada para o que
-sobrevive, então esta é a aposta mais simples consistente com "reset geral, lesão é a exceção".
+**Resolução (INFERIDO):** o reset por time da 1.4 não zera nada, e não é ele que devolve qualquer
+campo ao início. A disciplina recomeça limpa por outro caminho: a 3.8 guarda o registro de cartões
+por competição ("o teste que roda ao fim de cada partida do clube do jogador nessa competição"), o
+PlayerRecord guarda um registro por chave de competição, e cada registro pertence a uma instância de
+competição da temporada que terminou. nextSeason reconstrói toda competição, então os mapas de
+disciplina da temporada seguinte começam vazios e nenhum amarelo nem gancho atravessa a virada. A
+lesão é uma data de expiração no calendário (seção 0), não um contador de temporada, e atravessa a
+virada: nextSeason reconstrói todo PlayerRecord como `PlayerRecord(injuredUntil = it.injuredUntil)`.
+Energia cheia e presenças, notas e gols zerados continuam sendo a aposta mais simples deste item para
+os demais campos, por serem contagens da temporada que terminou; nenhuma leitura da 1.4 os sustenta
+nem os contradiz.
 
 ### 117. Um clube sem partida na rodada de sua competição recupera como se não tivesse jogado
 

@@ -17,11 +17,20 @@ import org.openfoot.model.SpecRef
  * says the original stores rather than a round count, the flag section 4.5
  * sets when a man is named to a matchday squad, and the season tallies the
  * star of section 4.10 and the printed top scorers read.
+ *
+ * The cards are kept one record per competition, keyed by the competition's
+ * own key, because section 3.8 runs its test at the end of each match of the
+ * player's club in that competition and nowhere else. A league ban therefore
+ * never keeps a man out of a cup match, and yellows booked in two different
+ * competitions never add up to a suspension. A competition absent from the
+ * map holds the clean record, and withDiscipline keeps it that way by
+ * dropping a record the moment it is clean again, so two players with the
+ * same cards compare equal however they came by them.
  */
 @SpecRef("3.8")
 data class PlayerRecord(
     @property:SpecRef("3.9") val energy: Int = SideState.FULL_ENERGY,
-    @property:SpecRef("3.8") val discipline: DisciplineRecord = DisciplineRecord.CLEAN,
+    @property:SpecRef("3.8") val discipline: Map<String, DisciplineRecord> = emptyMap(),
     @property:SpecRef("0") val injuredUntil: CalendarDate? = null,
     @property:SpecRef("4.5") val namedSinceTick: Boolean = false,
     val appearances: Int = 0,
@@ -33,7 +42,18 @@ data class PlayerRecord(
     @SpecRef("0")
     fun injured(on: CalendarDate): Boolean = injuredUntil != null && on < injuredUntil
 
-    fun canPlay(on: CalendarDate): Boolean = !discipline.suspended && !injured(on)
+    /** The card record of the given competition, clean when the competition has none. */
+    @SpecRef("3.8")
+    fun disciplineIn(competition: String): DisciplineRecord = discipline[competition] ?: DisciplineRecord.CLEAN
+
+    /** This record with the given competition's cards replaced, a clean record kept as an absent key. */
+    @SpecRef("3.8")
+    fun withDiscipline(competition: String, record: DisciplineRecord): PlayerRecord =
+        copy(discipline = if (record == DisciplineRecord.CLEAN) discipline - competition else discipline + (competition to record))
+
+    /** Fit on the given day and not suspended in the given competition; a suspension elsewhere does not count. */
+    @SpecRef("3.8")
+    fun canPlay(on: CalendarDate, competition: String): Boolean = !disciplineIn(competition).suspended && !injured(on)
 }
 
 /**
@@ -67,11 +87,11 @@ data class ClubState(
     @SpecRef("5.5")
     val inLeague: Boolean get() = standing is Standing.InDivision
 
-    /** Section 5.4's two questions answered from the records, for the given day. */
+    /** Section 5.4's two questions answered from the records, for a match of the given competition on the given day. */
     @SpecRef("5.4")
-    fun availability(on: CalendarDate): Availability = Availability { index, _ ->
+    fun availability(on: CalendarDate, competition: String): Availability = Availability { index, _ ->
         val record = records[index]
-        PlayerAvailability(canPlay = record.canPlay(on), energy = record.energy)
+        PlayerAvailability(canPlay = record.canPlay(on, competition), energy = record.energy)
     }
 
     @SpecRef("5.6")

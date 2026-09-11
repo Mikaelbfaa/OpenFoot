@@ -52,6 +52,14 @@ data class CalendarDate(val year: Int, val month: Int, val day: Int) : Comparabl
             return first.plusDays(Math.floorMod(SUNDAY - first.weekday, DAYS_IN_WEEK))
         }
 
+        /**
+         * The thirty first of December, the last day of the calendar year
+         * section 0 lays a season over, and so the last day a Sunday of that
+         * season can fall on.
+         */
+        @SpecRef("0")
+        fun seasonEnd(year: Int): CalendarDate = CalendarDate(year, MONTHS, daysInMonth(year, MONTHS))
+
         fun fromOrdinal(ordinal: Int): CalendarDate {
             var year = ordinal / AVERAGE_YEAR_LENGTH
             while (daysBeforeYear(year) > ordinal) year--
