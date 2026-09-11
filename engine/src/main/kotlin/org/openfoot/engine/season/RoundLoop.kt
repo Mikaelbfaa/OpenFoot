@@ -184,10 +184,11 @@ private fun firePendingSundays(state: SeasonState, date: CalendarDate, tick: Wee
  *
  * Discipline (3.8): the side's own log entries, bookings and sendings off,
  * are applied to a map built fresh from the records' own discipline fields
- * and read back onto them; SEASON_DISCIPLINE_STREAM is this function's own
- * fork of the match's rng, separate from every stream the match itself drew,
- * so which round writes the discipline back never moves any draw the match
- * made while it was being played.
+ * and read back onto them; disciplineRng below is this function's own fork of
+ * the match's rng, separate from every stream the match itself drew, so which
+ * round writes the discipline back never moves any draw the match made while
+ * it was being played, and separate per side, so the home call and the away
+ * call of this same function never share one stream between them.
  *
  * Injuries (3.8): every MatchEvent.Injury of this side with a positive day
  * count sets the injured player's expiry to the match date plus that many
@@ -235,12 +236,33 @@ private fun ClubState.afterMatch(report: MatchReport, ratings: MatchRatings, sid
         }
     }
     val discipline = updated.records.mapIndexed { i, record -> PlayerId(i) to record.discipline }.toMap()
-        .afterMatch(report.log, side, rng.fork(SEASON_DISCIPLINE_STREAM))
+        .afterMatch(report.log, side, disciplineRng(rng, side))
     for ((id, record) in discipline) {
         updated = updated.withRecord(id.value) { it.copy(discipline = record) }
     }
     return updated
 }
+
+/**
+ * The stream section 3.8's post match discipline draw reads from, forked by
+ * side as well as by the season discipline tag.
+ *
+ * afterMatch is called once for TeamSide.HOME and once for TeamSide.AWAY of
+ * the very same match, both times handed the same matchRng, since that is the
+ * one seed source the whole match and its ratings already replay from. Rng.fork
+ * depends only on the parent's origin and the tag, never on how much the
+ * parent or any other child has already produced, so forking only
+ * SEASON_DISCIPLINE_STREAM off that shared matchRng twice would hand both
+ * calls the identical child stream: a home side's direct red and an away
+ * side's direct red in the same match would then draw the same ban length off
+ * the ladder of directRedBan, which is not two independent draws and not what
+ * section 3.8 describes. Forking the side's own ordinal in as a second tag
+ * keeps the two sides' discipline apart the same way every other per side
+ * stream in this codebase already is, while still replaying identically from
+ * the match's own seed.
+ */
+@SpecRef("3.8")
+internal fun disciplineRng(matchRng: Rng, side: TeamSide): Rng = matchRng.fork(SEASON_DISCIPLINE_STREAM).fork(side.ordinal.toLong())
 
 /**
  * The post round of section 3.1 for one club of one competition that played

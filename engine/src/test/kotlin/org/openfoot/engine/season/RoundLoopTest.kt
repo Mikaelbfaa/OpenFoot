@@ -7,9 +7,13 @@ import org.openfoot.model.CompetitionKind
 import org.openfoot.model.Country
 import org.openfoot.model.Position
 import org.openfoot.model.RuleSets
+import org.openfoot.model.SplitMix64Rng
+import org.openfoot.model.TeamSide
 import org.openfoot.model.Trait
+import org.openfoot.model.rand
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class RoundLoopTest {
@@ -147,5 +151,33 @@ class RoundLoopTest {
 
         val afterPlayed = tired.postRound(appeared = emptySet())
         assertTrue(!afterPlayed.records[0].discipline.suspended, "the club played, so the suspended man serves")
+    }
+
+    /**
+     * Fix for the review finding on this task's first round: afterMatch is
+     * called once for TeamSide.HOME and once for TeamSide.AWAY of the same
+     * match, both times handed the very same matchRng, so forking only the
+     * season discipline tag off it would hand both calls one identical child
+     * stream and give a home direct red and an away direct red of the same
+     * match the same drawn ban length. disciplineRng forks the side's own
+     * ordinal in as well, so the two draw from different streams; checked
+     * over a handful of seeds so the assertion does not rest on one seed's
+     * coincidence, and checked that each side's own stream still replays
+     * identically from the same match seed, which is what makes the season
+     * reproducible in the first place.
+     */
+    @Test
+    fun `each side of a match draws its own discipline stream`() {
+        for (seed in 1L..5L) {
+            val matchRng = SplitMix64Rng(seed)
+            val home = disciplineRng(matchRng, TeamSide.HOME).rand(1000)
+            val away = disciplineRng(matchRng, TeamSide.AWAY).rand(1000)
+            assertNotEquals(home, away, "seed $seed: the two sides drew the same first discipline value")
+
+            val homeAgain = disciplineRng(SplitMix64Rng(seed), TeamSide.HOME).rand(1000)
+            val awayAgain = disciplineRng(SplitMix64Rng(seed), TeamSide.AWAY).rand(1000)
+            assertEquals(home, homeAgain, "seed $seed: the home stream did not replay from the same match seed")
+            assertEquals(away, awayAgain, "seed $seed: the away stream did not replay from the same match seed")
+        }
     }
 }
