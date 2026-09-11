@@ -107,42 +107,16 @@ data class SeasonState(
  *
  * Every club of the world starts with ClubState.fresh: no history, a clean
  * discipline record and full energy, per section 1.10's own account of what a
- * new season begins with. activeLeagues names which countries field a
- * national league this season, and each of those gets both a league
- * competition per division, read off the standings leagueDivisions built, and
- * a national cup when the country has enough clubs; state championships are
- * built independently of activeLeagues, since section FORMAT-SPEC's own
- * eligibility is a Brazilian club count and not a flag this function is asked.
- *
- * Every competition's own rng is forked off one season root by its own key,
- * SplitMix64Rng(seed).fork(SeedDomain.SEASON).fork(1).fork(SeedDomain.FIXTURES).fork(clubKey(key)),
- * the pattern playRound itself reads competition streams from, fixed at one
- * for season one specifically because this function only ever opens the
- * first season of a career. The pyramid's own tie break stream,
- * SplitMix64Rng(seed).fork(SeedDomain.WORLDGEN), is separate from that root on
- * purpose: it is the same stream generateWorld already drew the standings
- * from, and stateSetup's tie break has to agree with the pyramid's own
- * ordering or the two would rank a state's clubs two different ways from the
- * same seed.
+ * new season begins with. Its competitions are buildCompetitions' own, called
+ * here with number fixed at one because this function only ever opens the
+ * first season of a career; see that function's docstring for what
+ * activeLeagues selects and how each competition's own rng stream is forked.
  */
 @SpecRef("1.10")
 fun openingSeason(world: World, dataset: WorldDataset, activeLeagues: Set<Int>, year: Int, seed: Long): SeasonState {
     val clubs = world.clubs.map { ClubState.fresh(it) }
     val number = 1
-    val root = SplitMix64Rng(seed).fork(SeedDomain.SEASON).fork(number.toLong()).fork(SeedDomain.FIXTURES)
-    val worldRng = SplitMix64Rng(seed).fork(SeedDomain.WORLDGEN)
-
-    val competitions = ArrayList<Competition>()
-    for (country in activeLeagues.sorted()) {
-        leagueDivisions(country, clubs, dataset).forEach { division ->
-            competitions += leagueCompetition(division, root.fork(clubKey("league:$country:${division.division}")))
-        }
-        nationalCup(country, clubs, root.fork(clubKey("cup:$country")))?.let { competitions += it }
-    }
-    val states = stateSetup(clubs, dataset) { ref -> pyramidTiebreak(worldRng, ref) }
-    states.divisions.forEach { division ->
-        competitions += stateCompetition(division, root.fork(clubKey("state:${division.state}:${division.division}")))
-    }
+    val competitions = buildCompetitions(number, clubs, dataset, activeLeagues, seed)
 
     return SeasonState(
         number = number,
@@ -157,4 +131,39 @@ fun openingSeason(world: World, dataset: WorldDataset, activeLeagues: Set<Int>, 
         dateIndex = 0,
         lastTick = null,
     )
+}
+
+/**
+ * Builds every competition a season plays this year, per section 1.10: a
+ * league competition per division and a national cup for every country of
+ * activeLeagues that fields one, and a state championship competition per
+ * division the state file setup lays out. Factored out of openingSeason so
+ * that the turnover of section 1.12 can rebuild the following season's
+ * competitions the same way, with a season number past one and a club list
+ * that has already moved between divisions.
+ *
+ * Every competition's own rng is forked off one season root by its own key,
+ * SplitMix64Rng(seed).fork(SeedDomain.SEASON).fork(number).fork(SeedDomain.FIXTURES).fork(clubKey(key)),
+ * the pattern playRound itself reads competition streams from. The pyramid's
+ * own tie break stream, SplitMix64Rng(seed).fork(SeedDomain.WORLDGEN), is kept
+ * separate from that root on purpose: it is the same stream generateWorld
+ * already drew the standings from, and stateSetup's tie break has to agree
+ * with the pyramid's own ordering or the two would rank a state's clubs two
+ * different ways from the same seed, in every season and not only the first.
+ */
+@SpecRef("1.10")
+internal fun buildCompetitions(number: Int, clubs: List<ClubState>, dataset: WorldDataset, activeLeagues: Set<Int>, seed: Long): List<Competition> {
+    val root = SplitMix64Rng(seed).fork(SeedDomain.SEASON).fork(number.toLong()).fork(SeedDomain.FIXTURES)
+    val worldRng = SplitMix64Rng(seed).fork(SeedDomain.WORLDGEN)
+    val competitions = ArrayList<Competition>()
+    for (country in activeLeagues.sorted()) {
+        leagueDivisions(country, clubs, dataset).forEach { division ->
+            competitions += leagueCompetition(division, root.fork(clubKey("league:$country:${division.division}")))
+        }
+        nationalCup(country, clubs, root.fork(clubKey("cup:$country")))?.let { competitions += it }
+    }
+    stateSetup(clubs, dataset) { ref -> pyramidTiebreak(worldRng, ref) }.divisions.forEach { division ->
+        competitions += stateCompetition(division, root.fork(clubKey("state:${division.state}:${division.division}")))
+    }
+    return competitions
 }
