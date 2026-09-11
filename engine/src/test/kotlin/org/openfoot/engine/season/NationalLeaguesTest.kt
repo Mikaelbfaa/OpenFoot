@@ -7,6 +7,7 @@ import org.openfoot.model.Country
 import org.openfoot.model.SplitMix64Rng
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class NationalLeaguesTest {
@@ -55,6 +56,33 @@ class NationalLeaguesTest {
         assertEquals(2, league.groups.size)
         assertTrue(league.gamesInsideGroup)
         assertEquals(2, competition.phases.size)
+    }
+
+    /**
+     * Four groups over the shared fixture's twenty club division is five clubs a group, an odd
+     * size RoundRobinPhase.grouped's own round robin per group refuses; leagueCompetition now
+     * catches this itself before handing the split to RoundRobinPhase, with a message that names
+     * the division rather than one from deep inside the phase code.
+     */
+    @Test
+    fun `a division that does not split into equal even groups is refused by name`() {
+        val config = LeagueConfigEntry(country = Country.BRAZIL, division = 1, teamCount = 20, relegated = 4, turns = 1, penaltiesTiebreak = true, groups = 4, knockoutQualifiers = 2)
+        val division = leagueDivisions(Country.BRAZIL, clubs(), data.copy(leagues = listOf(config))).single()
+        val failure = assertFailsWith<IllegalArgumentException> { leagueCompetition(division, SplitMix64Rng(5)) }
+        assertTrue(failure.message!!.contains("league:${Country.BRAZIL}:1"), failure.message!!)
+    }
+
+    /**
+     * Two groups of ten with three qualifiers each seeds a final phase field of six, which is
+     * not a power of two; leagueCompetition refuses this itself rather than letting
+     * KnockoutPhase's own init throw from deep inside the phase code.
+     */
+    @Test
+    fun `a final phase field that is not a power of two is refused by name`() {
+        val config = LeagueConfigEntry(country = Country.BRAZIL, division = 1, teamCount = 20, relegated = 4, turns = 1, penaltiesTiebreak = true, groups = 2, knockoutQualifiers = 3)
+        val division = leagueDivisions(Country.BRAZIL, clubs(), data.copy(leagues = listOf(config))).single()
+        val failure = assertFailsWith<IllegalArgumentException> { leagueCompetition(division, SplitMix64Rng(5)) }
+        assertTrue(failure.message!!.contains("league:${Country.BRAZIL}:1"), failure.message!!)
     }
 
     @Test

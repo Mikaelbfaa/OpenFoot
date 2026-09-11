@@ -97,7 +97,10 @@ fun leagueDivisions(country: Int, clubs: List<ClubState>, dataset: WorldDataset)
  * records rather than hides. The sixty eight club preliminary knockout that
  * 1.11 describes ahead of the Brazilian fourth division's groups, when the
  * candidate queue overflows the configured field by four, is likewise not
- * built here and is deferred the same way.
+ * built here and is deferred the same way. A configured division whose club
+ * count does not divide into config.groups equal, even sized groups, or
+ * whose final phase field would not be a power of two, is refused rather
+ * than built: that shape is outside what this version builds.
  */
 @SpecRef("1.11")
 fun leagueCompetition(division: LeagueDivision, rng: Rng): Competition {
@@ -110,11 +113,19 @@ fun leagueCompetition(division: LeagueDivision, rng: Rng): Competition {
         phases += Phase.League(RoundRobinPhase.single(order, division.turns))
         qualifiers = { _, _ -> emptyList() }
     } else {
+        val label = "league:${division.country}:${division.division}"
+        require(order.size % groups == 0 && (order.size / groups) % 2 == 0) {
+            "$label deals ${order.size} clubs into $groups groups, which is not an equal, even split; that shape is outside what this version builds"
+        }
         val dealt = (0 until groups).map { g -> order.filterIndexed { index, _ -> index % groups == g } }
         phases += Phase.League(RoundRobinPhase.grouped(dealt, division.turns, config.gamesInsideGroup))
         val perGroup = config.knockoutQualifiers
         if (perGroup in 1..MAX_KNOCKOUT_FIELD) {
-            phases += Phase.Knockout(KnockoutPhase(emptyList(), legsPerRound = List(LeagueConfigEntry.PLAYOFF_ROUNDS) { true }, penalties = true, field = perGroup * groups))
+            val field = perGroup * groups
+            require(field >= 2 && field and (field - 1) == 0) {
+                "$label would seed a final phase field of $field, which is not a power of two; that shape is outside what this version builds"
+            }
+            phases += Phase.Knockout(KnockoutPhase(emptyList(), legsPerRound = List(LeagueConfigEntry.PLAYOFF_ROUNDS) { true }, penalties = true, field = field))
         }
         qualifiers = { phase, results ->
             val picked = if (config.qualifyByOverallTable) {
