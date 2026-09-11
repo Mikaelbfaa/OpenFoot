@@ -310,4 +310,19 @@ class WorldDatasetTest {
         assertTrue(options.playStateChampionships)
         assertTrue(options.realStateGroups)
     }
+
+    @Test
+    fun `a league entry defaults to the embedded flat format and validates its group fields`() {
+        val entry = sampleLeague()
+        assertEquals(0, entry.groups)
+        assertTrue(entry.gamesInsideGroup)
+        assertEquals(entry.relegated, entry.directRelegated)
+        assertEquals(0, entry.promotionPlayoffPlaces)
+        assertEquals(listOf(false, false, false), entry.relegationPlayoffLegs)
+        assertFailsWith<IllegalArgumentException> { entry.copy(groups = -1) }
+        assertFailsWith<IllegalArgumentException> { entry.copy(directRelegated = entry.relegated + 1) }
+        assertFailsWith<IllegalArgumentException> { entry.copy(promotionPlayoffPlaces = 3) }
+        assertFailsWith<IllegalArgumentException> { entry.copy(relegationPlayoffLegs = listOf(true)) }
+        assertFailsWith<IllegalArgumentException> { entry.copy(knockoutQualifiers = -1) }
+    }
 }

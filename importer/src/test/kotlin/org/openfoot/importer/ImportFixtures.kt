@@ -55,6 +55,17 @@ object ImportFixtures {
         val nRebaixados: Int = 0,
         val formula: Int = 0,
         val desempate: Int = 0,
+        val nGrupos: Int = 0,
+        val jogosDentroGrupo: Boolean = true,
+        val rebaixadoPeloGrupo: Boolean = false,
+        val numeroTimesMataMata: Int = 0,
+        val classificaPeloGeral: Boolean = false,
+        val melhoresTerceiros: Boolean = false,
+        val rebaixadosDireto: Int = nRebaixados,
+        val vagasSobemPeloMataMata: Int = 0,
+        val duasVoltasplayoffReb: BooleanArray = booleanArrayOf(false, false, false),
+        val duasVoltasMataMataSobe: BooleanArray = booleanArrayOf(false, false, false),
+        val versaoArquivo: Int = 22,
     ) : Serializable
 
     class Pyramid(val a: ArrayList<Tier>) : Serializable

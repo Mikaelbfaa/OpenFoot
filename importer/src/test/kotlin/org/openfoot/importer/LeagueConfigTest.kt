@@ -5,6 +5,7 @@ import org.openfoot.importer.ImportFixtures.bytes
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 /**
  * Reads a national league configuration file into [LeagueConfigEntry] rows.
@@ -113,5 +114,49 @@ class LeagueConfigTest {
         val byCountry = entries.associateBy { it.country }
         assertEquals(true, byCountry.getValue(65).penaltiesTiebreak)
         assertEquals(false, byCountry.getValue(29).penaltiesTiebreak)
+    }
+
+    @Test
+    fun `the group and playoff fields are read, with the flat defaults when absent`() {
+        val entries = LeagueConfigReader.read(
+            bytes(
+                ImportFixtures.Pyramid(
+                    arrayListOf(
+                        ImportFixtures.Tier(
+                            pais = 29, divisao = 4, nTimes = 64, nRebaixados = 4,
+                            nGrupos = 8, numeroTimesMataMata = 4, rebaixadosDireto = 4,
+                        ),
+                        ImportFixtures.Tier(
+                            pais = 65, divisao = 2, nTimes = 22, nRebaixados = 3,
+                            rebaixadosDireto = 2, vagasSobemPeloMataMata = 1,
+                            duasVoltasplayoffReb = booleanArrayOf(true, false, false),
+                            duasVoltasMataMataSobe = booleanArrayOf(true, true, false),
+                        ),
+                        ImportFixtures.Tier(pais = 29, divisao = 3, nTimes = 20, nRebaixados = 4, numeroTimesMataMata = 1020),
+                    ),
+                ),
+            ),
+        )
+        val brazilFour = entries[0]
+        assertEquals(8, brazilFour.groups)
+        assertEquals(4, brazilFour.knockoutQualifiers)
+        assertTrue(brazilFour.gamesInsideGroup)
+        assertEquals(4, brazilFour.directRelegated)
+
+        val spainTwo = entries[1]
+        assertEquals(2, spainTwo.directRelegated)
+        assertEquals(1, spainTwo.promotionPlayoffPlaces)
+        assertEquals(listOf(true, false, false), spainTwo.relegationPlayoffLegs)
+        assertEquals(listOf(true, true, false), spainTwo.promotionPlayoffLegs)
+
+        assertEquals(LeagueConfigEntry.SERIE_C_FORMAT, entries[2].knockoutQualifiers)
+    }
+
+    @Test
+    fun `a promotion playoff count outside nought to two is read as nought`() {
+        val entries = LeagueConfigReader.read(
+            bytes(ImportFixtures.Pyramid(arrayListOf(ImportFixtures.Tier(pais = 65, divisao = 2, nTimes = 22, vagasSobemPeloMataMata = 5)))),
+        )
+        assertEquals(0, entries.single().promotionPlayoffPlaces)
     }
 }

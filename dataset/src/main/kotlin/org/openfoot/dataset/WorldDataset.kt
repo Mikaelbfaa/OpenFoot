@@ -261,6 +261,10 @@ data class PlayerEntry(
  * order is preserved and duplicates are legal rather than rejected: a later
  * entry for the same pair is simply never reached, exactly as in the
  * original's concatenated configuration list.
+ *
+ * The group, final phase and playoff fields of FORMAT-SPEC's ConfigLigaType
+ * section default to the flat format the embedded generator uses, so a
+ * version 2 file without them still decodes.
  */
 @Serializable
 data class LeagueConfigEntry(
@@ -270,6 +274,16 @@ data class LeagueConfigEntry(
     @property:SpecRef("1.9") val relegated: Int,
     @property:SpecRef("1.3") val turns: Int,
     @property:SpecRef("FORMAT-SPEC, desempate") val penaltiesTiebreak: Boolean,
+    @property:SpecRef("1.11") val groups: Int = 0,
+    @property:SpecRef("1.11") val gamesInsideGroup: Boolean = true,
+    @property:SpecRef("1.11") val relegatedByGroup: Boolean = false,
+    @property:SpecRef("1.11") val knockoutQualifiers: Int = 0,
+    @property:SpecRef("1.11") val qualifyByOverallTable: Boolean = false,
+    @property:SpecRef("1.11") val bestThirds: Boolean = false,
+    @property:SpecRef("1.12") val directRelegated: Int = relegated,
+    @property:SpecRef("1.12") val promotionPlayoffPlaces: Int = 0,
+    @property:SpecRef("1.12") val relegationPlayoffLegs: List<Boolean> = listOf(false, false, false),
+    @property:SpecRef("1.12") val promotionPlayoffLegs: List<Boolean> = listOf(false, false, false),
 ) {
     init {
         require(country >= 0) { "league configuration for negative country $country" }
@@ -277,11 +291,23 @@ data class LeagueConfigEntry(
             "league division $division, and section 1.9 builds at most $MAX_DIVISION"
         }
         require(teamCount > 0) { "a league tier of $teamCount teams" }
-        require(relegated in 0..teamCount) {
-            "$relegated relegated from a tier of $teamCount teams"
-        }
+        require(relegated in 0..teamCount) { "$relegated relegated from a tier of $teamCount teams" }
         require(turns in 1..MAX_TURNS) { "a league of $turns turns, section 1.3 knows 1 to $MAX_TURNS" }
+        require(groups >= 0) { "a tier of $groups groups" }
+        require(knockoutQualifiers >= 0) { "a tier with $knockoutQualifiers knockout qualifiers" }
+        require(directRelegated in 0..relegated) {
+            "$directRelegated relegated directly out of $relegated"
+        }
+        require(promotionPlayoffPlaces in 0..MAX_PLAYOFF_PLACES) {
+            "$promotionPlayoffPlaces promotion playoff places, the format allows 0 to $MAX_PLAYOFF_PLACES"
+        }
+        require(relegationPlayoffLegs.size == PLAYOFF_ROUNDS && promotionPlayoffLegs.size == PLAYOFF_ROUNDS) {
+            "playoff legs are $PLAYOFF_ROUNDS flags each"
+        }
     }
+
+    /** True when the division decides part of its relegation or promotion by a playoff (1.12). */
+    val hasRelegationPlayoff: Boolean get() = directRelegated < relegated
 
     companion object {
         @SpecRef("1.9")
@@ -289,6 +315,16 @@ data class LeagueConfigEntry(
 
         @SpecRef("1.3")
         const val MAX_TURNS = 4
+
+        @SpecRef("FORMAT-SPEC, ConfigLigaType")
+        const val MAX_PLAYOFF_PLACES = 2
+
+        @SpecRef("FORMAT-SPEC, ConfigLigaType")
+        const val PLAYOFF_ROUNDS = 3
+
+        /** The sentinel value of the knockout qualifiers field that selects the Serie C format of 1.11. */
+        @SpecRef("1.11")
+        const val SERIE_C_FORMAT = 1020
     }
 }
 

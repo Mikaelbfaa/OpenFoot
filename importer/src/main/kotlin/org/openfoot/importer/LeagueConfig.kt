@@ -35,6 +35,9 @@ object LeagueConfigReader {
                     it.coerceIn(0, teamCount)
                 }
             }
+            val directRelegated = (tier.intOrNull(DIRECT_RELEGATED) ?: relegated).coerceIn(0, relegated)
+            val playoffPlaces = (tier.intOrNull(PROMOTION_PLAYOFF_PLACES) ?: 0)
+                .let { if (it in 0..LeagueConfigEntry.MAX_PLAYOFF_PLACES) it else 0 }
             LeagueConfigEntry(
                 country = country,
                 division = division,
@@ -42,6 +45,16 @@ object LeagueConfigReader {
                 relegated = relegated,
                 turns = resolveTurns(teamCount, tier.intOrNull(FORMULA) ?: 0),
                 penaltiesTiebreak = (tier.intOrNull(TIEBREAK) ?: 0) == 0,
+                groups = (tier.intOrNull(GROUPS) ?: 0).coerceAtLeast(0),
+                gamesInsideGroup = tier.fields[GAMES_INSIDE_GROUP] as? Boolean ?: true,
+                relegatedByGroup = tier.fields[RELEGATED_BY_GROUP] as? Boolean ?: false,
+                knockoutQualifiers = (tier.intOrNull(KNOCKOUT_QUALIFIERS) ?: 0).coerceAtLeast(0),
+                qualifyByOverallTable = tier.fields[QUALIFY_BY_OVERALL] as? Boolean ?: false,
+                bestThirds = tier.fields[BEST_THIRDS] as? Boolean ?: false,
+                directRelegated = directRelegated,
+                promotionPlayoffPlaces = playoffPlaces,
+                relegationPlayoffLegs = legs(tier.fields[RELEGATION_PLAYOFF_LEGS]),
+                promotionPlayoffLegs = legs(tier.fields[PROMOTION_PLAYOFF_LEGS]),
             )
         }
     }
@@ -66,6 +79,24 @@ object LeagueConfigReader {
 
     @SpecRef("FORMAT-SPEC, configuracoes")
     private const val TIEBREAK = "desempate"
+
+    /** Three leg flags, false where the file holds nothing readable. */
+    @SpecRef("FORMAT-SPEC, ConfigLigaType")
+    private fun legs(value: Any?): List<Boolean> {
+        val flags = (value as? List<*>)?.map { it == true } ?: emptyList()
+        return List(LeagueConfigEntry.PLAYOFF_ROUNDS) { flags.getOrElse(it) { false } }
+    }
+
+    @SpecRef("FORMAT-SPEC, ConfigLigaType") private const val GROUPS = "nGrupos"
+    @SpecRef("FORMAT-SPEC, ConfigLigaType") private const val GAMES_INSIDE_GROUP = "jogosDentroGrupo"
+    @SpecRef("FORMAT-SPEC, ConfigLigaType") private const val RELEGATED_BY_GROUP = "rebaixadoPeloGrupo"
+    @SpecRef("FORMAT-SPEC, ConfigLigaType") private const val KNOCKOUT_QUALIFIERS = "numeroTimesMataMata"
+    @SpecRef("FORMAT-SPEC, ConfigLigaType") private const val QUALIFY_BY_OVERALL = "classificaPeloGeral"
+    @SpecRef("FORMAT-SPEC, ConfigLigaType") private const val BEST_THIRDS = "melhoresTerceiros"
+    @SpecRef("FORMAT-SPEC, ConfigLigaType") private const val DIRECT_RELEGATED = "rebaixadosDireto"
+    @SpecRef("FORMAT-SPEC, ConfigLigaType") private const val PROMOTION_PLAYOFF_PLACES = "vagasSobemPeloMataMata"
+    @SpecRef("FORMAT-SPEC, ConfigLigaType") private const val RELEGATION_PLAYOFF_LEGS = "duasVoltasplayoffReb"
+    @SpecRef("FORMAT-SPEC, ConfigLigaType") private const val PROMOTION_PLAYOFF_LEGS = "duasVoltasMataMataSobe"
 }
 
 /**
