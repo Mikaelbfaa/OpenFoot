@@ -353,7 +353,8 @@ Ficam registrados aqui para quando o código chegar nessas partes.
   sequer agendar a disputa, incondicional e independente da opção `desempate` que liga ou desliga o
   defeito equivalente do estadual. Esta fase não constrói o novo formato (item 118 de
   `OPEN-QUESTIONS.md`, apostas declaradas na fase 2 da temporada): o que existe hoje é só o formato
-  padrão de copa, que sempre agenda a disputa de pênaltis numa igualdade. Quando o novo formato for
+  padrão de copa, que sempre agenda a disputa de pênaltis numa igualdade, e a copa que deveria usar o
+  novo formato diz isso numa linha `note:` da saída da temporada. Quando o novo formato for
   construído, `CLASSIC` deve reproduzir o avanço incondicional do segundo listado nesta rodada
   específica e `MODERN` deve jogar a disputa de pênaltis normal ali também (item 82 de
   `OPEN-QUESTIONS.md`).

@@ -47,6 +47,16 @@ class KnockoutTest {
         assertEquals(listOf(listOf(2, 7), listOf(4, 5), listOf(1, 8), listOf(3, 6)), groupedSeeds(groups = 4, perGroup = 2))
     }
 
+    /**
+     * Two groups of four, pinned literally: the eight side bracket's pairs
+     * (2,7) and (4,5) go to group A and (1,8) and (3,6) to group B, so in
+     * each group place one meets place four and place two meets place three.
+     */
+    @Test
+    fun `two groups of four take the literal seeds of the eight side bracket`() {
+        assertEquals(listOf(listOf(2, 4, 5, 7), listOf(1, 3, 6, 8)), groupedSeeds(groups = 2, perGroup = 4))
+    }
+
     @Test
     fun `one group seeds its places in table order`() {
         assertEquals(listOf((1..8).toList()), groupedSeeds(groups = 1, perGroup = 8))

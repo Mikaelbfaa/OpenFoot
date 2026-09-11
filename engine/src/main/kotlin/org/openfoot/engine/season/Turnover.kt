@@ -297,6 +297,16 @@ data class BrazilianFourth(val size: Int, val door: List<String>) {
  * or already chosen, is skipped, and the list stops at the configured size
  * or when the candidates run out; 1.12 step 4 leaves a short list short.
  *
+ * Section 1.11 puts a preliminary knockout ahead of the groups of a fourth
+ * configured at PRELIMINARY_CONFIGURED_SIZE when the candidates reach
+ * PRELIMINARY_SUPPLY. The supply is counted by the one walk that seats the
+ * division, rebuiltFourth run to the larger of the two sizes, whose first
+ * size names are exactly the members, so the count follows the same skips
+ * as the membership and no second queue rule exists. This version does not
+ * play the preliminary: the first size candidates are seated, and the
+ * division lists Approximation.PRELIMINARY_NOT_PLAYED in its
+ * approximations, OPEN-QUESTIONS item 118's announced fallback.
+ *
  * The competition is leagueCompetition over that list, from the fork
  * buildCompetitions would take for its key. The schedule has reserved the
  * dates of the configured shape; SeasonSchedule.fitted hands a short
@@ -324,13 +334,15 @@ internal fun SeasonState.withBrazilianFourthIfDue(): SeasonState {
     val stateless = dataset.clubs
         .filter { it.country == Country.BRAZIL && it.ref in clubs && it.ref !in inStateDivision }
         .map { it.ref }
-    val members = rebuiltFourth(fourth.door, stateQueue, stateless, excluded, fourth.size)
+    val supply = rebuiltFourth(fourth.door, stateQueue, stateless, excluded, maxOf(fourth.size, PRELIMINARY_SUPPLY))
+    val members = supply.take(fourth.size)
     require(members.size >= 2 && members.size % 2 == 0) {
         "${BrazilianFourth.KEY} gathered ${members.size} clubs of the ${fourth.size} configured, and an odd or single club field cannot be played"
     }
     val competition = leagueCompetition(
         LeagueDivision(Country.BRAZIL, BrazilianFourth.DIVISION, BrazilianFourth.configuration(dataset), members),
         BrazilianFourth.fourthRng(seed, number),
+        preliminary = fourth.size == PRELIMINARY_CONFIGURED_SIZE && supply.size >= PRELIMINARY_SUPPLY,
     )
     val queue = requireNotNull(reserves[Country.BRAZIL]) { "Brazil feeds its fourth division from the states and carries no reserve queue" }
     val seated = members.toSet()
@@ -409,6 +421,14 @@ internal fun rebuiltFourth(door: List<String>, stateQueue: List<String>, statele
 
 @SpecRef("1.12")
 private const val THIRD_DIVISION = 3
+
+/** The configured size of a fourth division for which section 1.11 describes the preliminary knockout. */
+@SpecRef("1.11")
+private const val PRELIMINARY_CONFIGURED_SIZE = 64
+
+/** The candidate count at which section 1.11's preliminary knockout is due for a fourth of the configured size above. */
+@SpecRef("1.11")
+private const val PRELIMINARY_SUPPLY = 68
 
 /** The five priority tiers of Brazilian states of 1.12, by state index of FORMAT-SPEC. */
 @SpecRef("1.12")

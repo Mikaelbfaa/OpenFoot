@@ -153,6 +153,25 @@ class LeagueConfigTest {
     }
 
     @Test
+    fun `the group flags are read as true when a configuration sets them`() {
+        val entry = LeagueConfigReader.read(
+            bytes(
+                ImportFixtures.Pyramid(
+                    arrayListOf(
+                        ImportFixtures.Tier(
+                            pais = 29, divisao = 4, nTimes = 64, nRebaixados = 4, nGrupos = 8, numeroTimesMataMata = 4,
+                            rebaixadoPeloGrupo = true, classificaPeloGeral = true, melhoresTerceiros = true,
+                        ),
+                    ),
+                ),
+            ),
+        ).single()
+        assertTrue(entry.relegatedByGroup)
+        assertTrue(entry.qualifyByOverallTable)
+        assertTrue(entry.bestThirds)
+    }
+
+    @Test
     fun `a promotion playoff count outside nought to two is read as nought`() {
         val entries = LeagueConfigReader.read(
             bytes(ImportFixtures.Pyramid(arrayListOf(ImportFixtures.Tier(pais = 65, divisao = 2, nTimes = 22, vagasSobemPeloMataMata = 5)))),

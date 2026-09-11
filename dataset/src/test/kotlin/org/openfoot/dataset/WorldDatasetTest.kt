@@ -304,6 +304,55 @@ class WorldDatasetTest {
         assertEquals(emptyList(), dataset().stateChampionships)
     }
 
+    /**
+     * The cup format option joined DatasetOptions with a default, after
+     * version 2 files had already been written: such a file, whose options
+     * name every other field and not this one, still decodes, to the option
+     * on, the default the original ships with. That is why the schema
+     * version did not change.
+     */
+    @Test
+    fun `a version two file written before the cup format option decodes with the option on`() {
+        val document = """
+            {
+              "version": 2,
+              "countries": [
+                { "index": 29, "name": "Brasil", "level": 20, "continent": 2 }
+              ],
+              "clubs": [
+                {
+                  "ref": "clube_bra",
+                  "name": "Clube",
+                  "country": 29,
+                  "level": 18,
+                  "reputation": 4,
+                  "squad": [
+                    {
+                      "name": "Goleiro",
+                      "age": 30,
+                      "country": 29,
+                      "position": "GOALKEEPER",
+                      "firstTrait": "REFLEXES",
+                      "secondTrait": "POSITIONING"
+                    }
+                  ]
+                }
+              ],
+              "options": {
+                "individualAbilities": false,
+                "monthlyWages": true,
+                "playStateChampionships": true,
+                "realStateGroups": true
+              }
+            }
+        """.trimIndent()
+
+        val decoded = Json.decodeFromString<WorldDataset>(document)
+        assertEquals(2, decoded.version)
+        assertTrue(decoded.options.newCupFormat)
+        assertTrue(DatasetOptions().newCupFormat)
+    }
+
     @Test
     fun `the state options default to what the original ships with`() {
         val options = DatasetOptions()

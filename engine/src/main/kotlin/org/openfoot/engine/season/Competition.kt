@@ -17,6 +17,14 @@ import org.openfoot.model.SpecRef
  * kept alongside them. Competition is a value: recorded returns the next
  * state instead of mutating this one, the same way every other part of the
  * season is played.
+ *
+ * approximations lists, as the text of each Approximation, every format the
+ * dataset asked of this competition that this version does not build, and
+ * so replaced by the generic fallback the factory played instead:
+ * OPEN-QUESTIONS item 118's bet is that a fallback is acceptable while it is
+ * announced, so the factory that falls back says so here and the season
+ * printout shows it. It is plain data, empty for a competition built as
+ * configured, so two competitions built alike still compare equal.
  */
 @SpecRef("1.10")
 data class Competition(
@@ -26,6 +34,7 @@ data class Competition(
     val division: Int?,
     val phases: List<Phase>,
     val qualifiers: Qualifiers,
+    val approximations: List<String> = emptyList(),
     val results: List<List<Result>>,
     val phaseIndex: Int,
     val roundIndex: Int,
@@ -137,6 +146,64 @@ data class Competition(
         }
         return order
     }
+}
+
+/**
+ * A format the dataset can ask for that this version does not build yet,
+ * with the stable text a competition lists in its approximations when its
+ * factory falls back to a generic format in its place. OPEN-QUESTIONS item
+ * 118 records all seven and the bet that an announced fallback is
+ * acceptable until each format is built. A competition lists its notes in
+ * this declaration order, whatever order its factory checked them in, so the
+ * printout of one seed never depends on the checking code's order.
+ */
+@SpecRef("1.11")
+enum class Approximation(val text: String) {
+    /**
+     * Section 1.11's Serie C sentinel of numeroTimesMataMata: the flat first
+     * phase is played, and the second phase of two groups of four and the
+     * final between the group winners are not.
+     */
+    SERIE_C_AS_FLAT_LEAGUE("the Serie C format is played as a flat league, with no second phase and no final"),
+
+    /**
+     * Section 1.11's preliminary knockout of the Brazilian fourth division,
+     * due when the division is configured for sixty four and its candidates
+     * reach sixty eight: the first sixty four candidates are seated instead.
+     */
+    PRELIMINARY_NOT_PLAYED("the sixty eight club preliminary is not played; the first sixty four candidates are seated"),
+
+    /**
+     * Section 1.12's relegation playoff, directRelegated below relegated, or
+     * promotion playoff places above nought: every relegated and promoted
+     * club moves directly off the final order instead.
+     */
+    PLAYOFFS_AS_DIRECT_MOVEMENT("the relegation and promotion playoffs are replaced by direct movement"),
+
+    /**
+     * Section 1.13's novo formato, due with the option on and ninety one
+     * clubs or more in the country: the standard bracket is built instead.
+     */
+    NEW_CUP_FORMAT_AS_STANDARD("the novo formato cup is built in the standard format"),
+
+    /**
+     * FORMAT-SPEC load rule six, the real regional groups of Sao Paulo's
+     * first division on preset 7: the groups are dealt from the queue instead.
+     */
+    REAL_STATE_GROUPS_IGNORED("the Sao Paulo real groups option is ignored; the groups are dealt from the queue"),
+
+    /**
+     * Section 1.11's best thirds on a grouped league: the final phase takes
+     * each group's own qualifiers only.
+     */
+    BEST_THIRDS_IGNORED("the best thirds option is ignored; the final phase takes each group's qualifiers only"),
+
+    /**
+     * FORMAT-SPEC's rebaixadoPeloGrupo on a grouped league: relegation is read
+     * off the one shared final order rather than group by group. Without
+     * groups the two readings are the same, so no note is due there.
+     */
+    RELEGATION_BY_GROUP_IGNORED("relegation by group is ignored; the overall final order relegates"),
 }
 
 /**

@@ -92,6 +92,7 @@ object ImportFixtures {
         val velocidade: Int,
         val jogaEstadual: Boolean = true,
         val usaGrupoPadraoEstadual: Boolean = true,
+        val novoFormatoCopa: Boolean = true,
     ) : Serializable
 
     fun squadman(

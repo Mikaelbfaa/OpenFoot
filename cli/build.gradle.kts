@@ -14,4 +14,5 @@ dependencies {
 application {
     mainClass.set("org.openfoot.cli.MainKt")
     applicationName = "openfoot-cli"
+    applicationDefaultJvmArgs = listOf("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
 }

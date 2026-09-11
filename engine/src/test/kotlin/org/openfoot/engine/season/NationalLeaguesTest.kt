@@ -163,8 +163,8 @@ class NationalLeaguesTest {
 
     /**
      * Two qualifiers a group: first against second of the same group, and
-     * FORMAT-SPEC's "o melhor recebe a volta", the group's first hosting the
-     * return leg and its second the first leg.
+     * FORMAT-SPEC's "o melhor colocado recebe a volta", the group's first
+     * hosting the return leg and its second the first leg.
      */
     @Test
     fun `two qualifiers a group meet first against second of their group, the first hosting the return leg`() {
@@ -223,7 +223,7 @@ class NationalLeaguesTest {
         val division = LeagueDivision(Country.BRAZIL, 2, config, (1..9).map { "g$it" })
         val failure = assertFailsWith<IllegalArgumentException> { leagueCompetition(division, SplitMix64Rng(7)) }
         val message = failure.message.orEmpty()
-        assertTrue("league:${Country.BRAZIL}:2" in message && "9" in message, message)
+        assertTrue("league:${Country.BRAZIL}:2" in message && "9 clubs" in message, message)
     }
 
     @Test
@@ -233,5 +233,70 @@ class NationalLeaguesTest {
         val moved = movement(division, order, promotedCount = 2)
         assertEquals(order.takeLast(4), moved.relegated)
         assertEquals(order.take(2), moved.promoted)
+    }
+
+    /** A configured division of Brazil over clubs named n01 upward, built straight from its configuration. */
+    private fun configured(config: LeagueConfigEntry): Competition =
+        leagueCompetition(LeagueDivision(Country.BRAZIL, config.division, config, (1..config.teamCount).map { "n${it.toString().padStart(2, '0')}" }), SplitMix64Rng(3))
+
+    private fun tier(division: Int, teams: Int, relegated: Int) =
+        LeagueConfigEntry(country = Country.BRAZIL, division = division, teamCount = teams, relegated = relegated, turns = 1, penaltiesTiebreak = true)
+
+    @Test
+    fun `a division built as configured carries no note`() {
+        assertEquals(emptyList(), configured(tier(2, 20, 4)).approximations)
+        assertEquals(emptyList(), configured(tier(2, 20, 4).copy(groups = 2, knockoutQualifiers = 2)).approximations)
+    }
+
+    /** Section 1.11's Serie C sentinel is played as one flat league with no final phase, and the competition says so. */
+    @Test
+    fun `the Serie C sentinel plays a flat league and notes it`() {
+        val competition = configured(tier(3, 20, 4).copy(knockoutQualifiers = LeagueConfigEntry.SERIE_C_FORMAT))
+        assertEquals(1, competition.phases.size)
+        assertEquals(listOf(Approximation.SERIE_C_AS_FLAT_LEAGUE.text), competition.approximations)
+    }
+
+    /** Either playoff field of section 1.12, a relegation playoff or promotion playoff places, is replaced by direct movement, and noted. */
+    @Test
+    fun `a playoff configuration notes that movement is direct`() {
+        val note = listOf(Approximation.PLAYOFFS_AS_DIRECT_MOVEMENT.text)
+        assertEquals(note, configured(tier(2, 22, 3).copy(directRelegated = 2)).approximations)
+        assertEquals(note, configured(tier(2, 22, 3).copy(promotionPlayoffPlaces = 1)).approximations)
+    }
+
+    @Test
+    fun `a grouped league with best thirds notes that they are ignored`() {
+        val competition = configured(tier(2, 20, 4).copy(groups = 2, knockoutQualifiers = 2, bestThirds = true))
+        assertEquals(listOf(Approximation.BEST_THIRDS_IGNORED.text), competition.approximations)
+    }
+
+    /**
+     * Relegation by group is only a different reading when there are groups:
+     * Brazil's distributed divisions one and three set the flag without any,
+     * and carry no note for it, while a grouped division that sets it does.
+     */
+    @Test
+    fun `relegation by group is noted only on a grouped league`() {
+        assertEquals(emptyList(), configured(tier(1, 20, 4).copy(relegatedByGroup = true)).approximations)
+        assertEquals(
+            listOf(Approximation.SERIE_C_AS_FLAT_LEAGUE.text),
+            configured(tier(3, 20, 4).copy(relegatedByGroup = true, knockoutQualifiers = LeagueConfigEntry.SERIE_C_FORMAT)).approximations,
+        )
+        assertEquals(
+            listOf(Approximation.RELEGATION_BY_GROUP_IGNORED.text),
+            configured(tier(2, 20, 4).copy(groups = 2, knockoutQualifiers = 2, relegatedByGroup = true)).approximations,
+        )
+    }
+
+    /** Several approximations on one division are listed in the declaration order of Approximation, whatever the configuration. */
+    @Test
+    fun `several notes are listed in one fixed order`() {
+        val competition = configured(
+            tier(2, 20, 4).copy(groups = 2, knockoutQualifiers = 2, relegatedByGroup = true, bestThirds = true, directRelegated = 3, promotionPlayoffPlaces = 2),
+        )
+        assertEquals(
+            listOf(Approximation.PLAYOFFS_AS_DIRECT_MOVEMENT, Approximation.BEST_THIRDS_IGNORED, Approximation.RELEGATION_BY_GROUP_IGNORED).map { it.text },
+            competition.approximations,
+        )
     }
 }

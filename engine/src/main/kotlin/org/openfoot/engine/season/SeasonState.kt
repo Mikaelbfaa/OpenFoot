@@ -262,6 +262,11 @@ private fun pyramidOrder(clubs: List<ClubState>, worldRng: Rng): List<String> =
  * Every competition's own rng is forked off one season root by its own key,
  * seasonFixturesRoot(seed, number).fork(clubKey(key)), the pattern playRound
  * itself reads competition streams from.
+ *
+ * The cup and the state competitions are handed the dataset options they
+ * would be shaped by, the novo formato option of 1.13 and the real groups
+ * option of FORMAT-SPEC load rule six, only so each can say, in its
+ * approximations, when the format the option asks for is not the one built.
  */
 @SpecRef("1.10")
 internal fun buildCompetitions(
@@ -278,10 +283,10 @@ internal fun buildCompetitions(
         leagueDivisions(country, clubs, dataset).forEach { division ->
             competitions += leagueCompetition(division, root.fork(clubKey("league:$country:${division.division}")))
         }
-        nationalCup(country, clubs, root.fork(clubKey("cup:$country")))?.let { competitions += it }
+        nationalCup(country, clubs, dataset.options.newCupFormat, root.fork(clubKey("cup:$country")))?.let { competitions += it }
     }
     states.divisions.forEach { division ->
-        competitions += stateCompetition(division, root.fork(clubKey(stateCompetitionKey(division))))
+        competitions += stateCompetition(division, dataset.options.realStateGroups, root.fork(clubKey(stateCompetitionKey(division))))
     }
     return competitions
 }

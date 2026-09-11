@@ -7,11 +7,12 @@ import org.openfoot.model.SpecRef
  * Reads the options file of an installation.
  *
  * The file holds dozens of settings, almost all of them about how the game looks
- * or how fast it plays. Only four change what a world is, and only those four
+ * or how fast it plays. Only five change what a world is, and only those five
  * are read: whether players carry seven individual abilities or a single
  * strength, whether wages are shown by the week or by the month, whether
- * Brazil's state championships are played, and whether the Sao Paulo first
- * division seats the real groups of FORMAT-SPEC's load rule six.
+ * Brazil's state championships are played, whether the Sao Paulo first
+ * division seats the real groups of FORMAT-SPEC's load rule six, and whether
+ * the national cup of section 1.13 takes the novo formato.
  *
  * Anything absent keeps the default the original ships with, so an installation
  * that has never had its options touched still imports.
@@ -28,8 +29,12 @@ object OptionsFileReader {
             playStateChampionships = record.fields[PLAY_STATE_CHAMPIONSHIPS] as? Boolean
                 ?: defaults.playStateChampionships,
             realStateGroups = record.fields[REAL_STATE_GROUPS] as? Boolean ?: defaults.realStateGroups,
+            newCupFormat = record.fields[NEW_CUP_FORMAT] as? Boolean ?: defaults.newCupFormat,
         )
     }
+
+    @SpecRef("1.13")
+    private const val NEW_CUP_FORMAT = "novoFormatoCopa"
 
     @SpecRef("FORMAT-SPEC, ces")
     private const val PLAY_STATE_CHAMPIONSHIPS = "jogaEstadual"

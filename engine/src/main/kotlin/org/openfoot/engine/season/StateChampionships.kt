@@ -93,7 +93,7 @@ data class StateSetup(val divisions: List<StateDivision>, val reserve: Map<Int, 
  * count counted once at the start rather than the clubs still left in the
  * queue. FORMAT-SPEC's own check reads that way, against the total rather
  * than the remaining count, and OPEN-QUESTIONS item 69 records it as the
- * literal, if surprising, rule this plan reproduces: a state can lose a
+ * literal, if surprising, rule this version reproduces: a state can lose a
  * division's shape to a later division's shortfall. Without a matching
  * entry, or when the entry's preset does not fit, the division falls to the
  * default format: preset zero, penalties on, every knockout round two
@@ -108,8 +108,8 @@ data class StateSetup(val divisions: List<StateDivision>, val reserve: Map<Int, 
  *
  * The Sao Paulo real groups option of load rule 6, which can replace the
  * dealt groups of preset 7 with the state's own recorded regional groups,
- * is not built; OPEN-QUESTIONS item 118 records it among the deferred
- * formats.
+ * is not built; stateCompetition says so on the division it concerns, and
+ * OPEN-QUESTIONS item 118 records it among the deferred formats.
  */
 @SpecRef("FORMAT-SPEC, ces")
 fun stateSetup(clubs: List<ClubState>, dataset: WorldDataset, tiebreak: (String) -> Int): StateSetup {
@@ -262,9 +262,17 @@ internal fun stateCompetitionKey(division: StateDivision): String = "state:${div
  * are in. The competition's key names the state and the division number so
  * two divisions of the same state, or the same division number of two
  * states, never collide.
+ *
+ * realStateGroups is the dataset option of FORMAT-SPEC load rule six. With
+ * it on, Sao Paulo's first division on preset 7 would seat the state's
+ * recorded regional groups when every listed club is present; this version
+ * always deals the queue, so that division lists
+ * Approximation.REAL_STATE_GROUPS_IGNORED in its approximations, whether or
+ * not every listed club is there, OPEN-QUESTIONS item 118's announced
+ * fallback. No other division reads the option.
  */
 @SpecRef("FORMAT-SPEC, ces")
-fun stateCompetition(division: StateDivision, rng: Rng): Competition {
+fun stateCompetition(division: StateDivision, realStateGroups: Boolean, rng: Rng): Competition {
     val preset = division.preset
     val turns = if (preset.twoTurns) 2 else 1
     val league = if (preset.groups == 0) {
@@ -274,6 +282,7 @@ fun stateCompetition(division: StateDivision, rng: Rng): Competition {
         RoundRobinPhase.grouped(groups, turns, gamesInsideGroup = false)
     }
     val qualifiers = if (preset.groups == 0) Qualifiers.OverallTable(preset.qualifiers) else Qualifiers.PerGroup(preset.qualifiers)
+    val realGroupsDue = realStateGroups && division.state == SAO_PAULO && division.division == 1 && preset == STATE_PRESETS[REAL_GROUPS_PRESET]
     return Competition(
         key = stateCompetitionKey(division),
         kind = CompetitionKind.STATE,
@@ -284,6 +293,7 @@ fun stateCompetition(division: StateDivision, rng: Rng): Competition {
             Phase.Knockout(KnockoutPhase(emptyList(), division.twoLeggedRounds, division.penalties, field = preset.qualifiers * maxOf(1, preset.groups))),
         ),
         qualifiers = qualifiers,
+        approximations = if (realGroupsDue) listOf(Approximation.REAL_STATE_GROUPS_IGNORED.text) else emptyList(),
         results = listOf(emptyList()),
         phaseIndex = 0,
         roundIndex = 0,
@@ -297,3 +307,11 @@ private const val MINIMUM_STATE_CLUBS = 6
 /** How many divisions the queue can fill, one championship per state per division number. */
 @SpecRef("FORMAT-SPEC, ces")
 private const val MAX_STATE_DIVISIONS = 4
+
+/** Sao Paulo's state index, the one state whose first division load rule six can seat by its real groups. */
+@SpecRef("FORMAT-SPEC, ces")
+private const val SAO_PAULO = 25
+
+/** The preset index whose dealt groups load rule six replaces with Sao Paulo's real groups. */
+@SpecRef("FORMAT-SPEC, ces")
+private const val REAL_GROUPS_PRESET = 7

@@ -261,4 +261,35 @@ class StateSeasonsTest {
         swap.promoted.forEach { assertEquals(Standing.InDivision(4), next.standingOf(it)) }
         swap.relegated.forEach { assertEquals(Standing.WithoutDivision, next.standingOf(it)) }
     }
+
+    /**
+     * Brazil's distributed shape of the fourth, sixty four clubs in eight
+     * groups, under divisions one to three of four clubs each, over
+     * clubCount Brazilian clubs of no state. With no state championship to
+     * wait for, the fourth is built at the opening, and its candidates are
+     * every club outside divisions one to three: sixty eight of eighty, or
+     * sixty seven of seventy nine.
+     */
+    private fun wideFourth(clubCount: Int): WorldDataset = WorldFixtures.dataset(
+        clubs = (1..clubCount).map { WorldFixtures.club(ref = "w${it.toString().padStart(2, '0')}", level = maxOf(6, 20 - it / 8)) },
+    ).copy(
+        leagues = (1..3).map { LeagueConfigEntry(country = Country.BRAZIL, division = it, teamCount = 4, relegated = 1, turns = 1, penaltiesTiebreak = true) } +
+            LeagueConfigEntry(country = Country.BRAZIL, division = 4, teamCount = 64, relegated = 4, turns = 1, penaltiesTiebreak = true, groups = 8, knockoutQualifiers = 4),
+    )
+
+    /**
+     * Section 1.11's preliminary knockout runs for a fourth configured at
+     * sixty four whose candidate supply reaches sixty eight. This version
+     * seats the first sixty four and plays no preliminary, and the division
+     * says so; one candidate fewer is no preliminary by the spec itself.
+     */
+    @Test
+    fun `a fourth of sixty four whose candidates reach sixty eight notes the preliminary it does not play`() {
+        val full = opening(wideFourth(80), 19).competitions.getValue(BrazilianFourth.KEY)
+        assertEquals(64, full.participants.size)
+        assertEquals(listOf(Approximation.PRELIMINARY_NOT_PLAYED.text), full.approximations)
+        val short = opening(wideFourth(79), 19).competitions.getValue(BrazilianFourth.KEY)
+        assertEquals(64, short.participants.size)
+        assertEquals(emptyList(), short.approximations)
+    }
 }

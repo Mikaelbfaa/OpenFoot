@@ -108,8 +108,10 @@ private val USAGE = """
       season   generates a world from a dataset and a seed, plays one or more
                seasons over it and prints each: every competition's champion,
                runner-up and, where it applies, table or final order, and the
-               season's top scorers. --seasons defaults to one; the same
-               dataset, seed and active leagues always print the same seasons.
+               season's top scorers. --seasons is at least one and defaults
+               to one; the same dataset, seed and active leagues always print
+               the same seasons. A competition played over a format this
+               version approximates says so in a note line.
 
       --leagues names the countries whose leagues take part, by dataset name,
                comma separated, or the word all for every one; the default is
@@ -359,6 +361,7 @@ private fun season(args: List<String>) {
     val seedText = options["--seed"] ?: fail("season needs --seed <number>")
     val seed = seedText.toLongOrNull() ?: fail("seed '$seedText' is not a number")
     val seasons = options["--seasons"]?.let { it.toIntOrNull() ?: fail("seasons '$it' is not a number") } ?: 1
+    if (seasons < 1) fail("seasons must be at least one, was $seasons")
     val dataset = loadDataset(path)
     val activeLeagues = parseLeagues(options["--leagues"], dataset)
     val world = generateWorld(dataset, seed, activeLeagues)
@@ -370,8 +373,13 @@ private fun season(args: List<String>) {
     }
 }
 
-/** The calendar year of season one, a fixed choice since no career date exists yet to derive it from. */
-@SpecRef("0")
+/**
+ * The calendar year of season one. The command line section of the v0.3
+ * design document, "Interface de linha de comando", has a season run from a
+ * dataset, a seed, a season count and the active leagues, and names no year;
+ * with no career date yet to derive one from, the year is a fixed choice of
+ * this command rather than a number of the spec, and so cites no section.
+ */
 private const val SEASON_ONE_YEAR = 2026
 
 /**

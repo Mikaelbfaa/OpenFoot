@@ -69,7 +69,7 @@ class StateChampionshipsTest {
     @Test
     fun `a six team division is a two turn league feeding a final of two`() {
         val setup = states(dataset(mapOf(25 to 6)))
-        val competition = stateCompetition(setup.divisions.single(), SplitMix64Rng(9))
+        val competition = stateCompetition(setup.divisions.single(), realStateGroups = true, rng = SplitMix64Rng(9))
         val league = (competition.phases[0] as Phase.League).phase
         assertEquals(10, league.rounds.size)
         assertEquals(2, competition.phases.size)
@@ -86,7 +86,7 @@ class StateChampionshipsTest {
     @Test
     fun `a sixteen team preset deals four groups and seeds the quarters within each group`() {
         val setup = states(dataset(mapOf(25 to 16), listOf(StateChampionshipEntry(25, 1, 7, true, listOf(false, false, true)))))
-        val competition = stateCompetition(setup.divisions.single(), SplitMix64Rng(9))
+        val competition = stateCompetition(setup.divisions.single(), realStateGroups = true, rng = SplitMix64Rng(9))
         val league = (competition.phases[0] as Phase.League).phase
         assertEquals(4, league.groups.size)
         assertTrue(league.groups.all { it.size == 4 })
@@ -96,7 +96,7 @@ class StateChampionshipsTest {
     @Test
     fun `the group seeding pairs each quarter final inside its group, and the semis cross group A with B and C with D`() {
         val setup = states(dataset(mapOf(25 to 16), listOf(StateChampionshipEntry(25, 1, 7, true, listOf(false, false, true)))))
-        val competition = stateCompetition(setup.divisions.single(), SplitMix64Rng(9))
+        val competition = stateCompetition(setup.divisions.single(), realStateGroups = true, rng = SplitMix64Rng(9))
         val league = (competition.phases[0] as Phase.League).phase
 
         val entrants = competition.qualifiers.pick(league, emptyList())
@@ -120,8 +120,8 @@ class StateChampionshipsTest {
         val setup = states(dataset(mapOf(25 to 16), listOf(StateChampionshipEntry(25, 1, 7, true, listOf(false, false, true)))))
         val division = setup.divisions.single()
 
-        val groupsFirstRng = (stateCompetition(division, SplitMix64Rng(9)).phases[0] as Phase.League).phase.groups
-        val groupsOtherRng = (stateCompetition(division, SplitMix64Rng(1)).phases[0] as Phase.League).phase.groups
+        val groupsFirstRng = (stateCompetition(division, realStateGroups = true, rng = SplitMix64Rng(9)).phases[0] as Phase.League).phase.groups
+        val groupsOtherRng = (stateCompetition(division, realStateGroups = true, rng = SplitMix64Rng(1)).phases[0] as Phase.League).phase.groups
         assertEquals(groupsFirstRng, groupsOtherRng, "the deal reads the queue, not the rng")
 
         for (g in 0 until 4) {
@@ -138,8 +138,8 @@ class StateChampionshipsTest {
         val setup = states(dataset(mapOf(25 to 6)))
         val division = setup.divisions.single()
 
-        val first = (stateCompetition(division, SplitMix64Rng(9)).phases[0] as Phase.League).phase.participants
-        val repeated = (stateCompetition(division, SplitMix64Rng(9)).phases[0] as Phase.League).phase.participants
+        val first = (stateCompetition(division, realStateGroups = true, rng = SplitMix64Rng(9)).phases[0] as Phase.League).phase.participants
+        val repeated = (stateCompetition(division, realStateGroups = true, rng = SplitMix64Rng(9)).phases[0] as Phase.League).phase.participants
         assertEquals(first, repeated, "the same rng draws the same shuffle")
         assertEquals(division.clubs.toSet(), first.toSet(), "the shuffle is a permutation of the division's own clubs")
         assertTrue(first != division.clubs, "the queue order is actually shuffled, not carried through unchanged")
@@ -182,5 +182,27 @@ class StateChampionshipsTest {
         assertEquals(listOf("a1", "a2", "a3", "a4", "b6", "b1"), next.divisions[0].clubs)
         assertEquals(listOf("b2", "b3", "a5", "a6", "r1", "r2"), next.divisions[1].clubs)
         assertEquals(mapOf(25 to listOf("b4", "b5")), next.reserve)
+    }
+
+    /**
+     * FORMAT-SPEC load rule six: Sao Paulo's first division on preset 7 with
+     * the real groups option on would seat the recorded regional groups when
+     * every listed club is present. This version always deals by the queue,
+     * and the competition says so when the option asks for more; with the
+     * option off, or another state on the same preset, nothing is noted.
+     */
+    @Test
+    fun `Sao Paulo's first division on preset 7 notes the real groups option it ignores`() {
+        val entries = listOf(
+            StateChampionshipEntry(state = 25, division = 1, preset = 7, penaltiesTiebreak = true, twoLeggedRounds = listOf(false, false, true)),
+            StateChampionshipEntry(state = 18, division = 1, preset = 7, penaltiesTiebreak = true, twoLeggedRounds = listOf(false, false, true)),
+        )
+        val setup = states(dataset(mapOf(25 to 16, 18 to 16), entries))
+        val saoPaulo = setup.divisions.single { it.state == 25 }
+        val rio = setup.divisions.single { it.state == 18 }
+        assertEquals(STATE_PRESETS[7], saoPaulo.preset)
+        assertEquals(listOf(Approximation.REAL_STATE_GROUPS_IGNORED.text), stateCompetition(saoPaulo, realStateGroups = true, rng = SplitMix64Rng(9)).approximations)
+        assertEquals(emptyList(), stateCompetition(saoPaulo, realStateGroups = false, rng = SplitMix64Rng(9)).approximations)
+        assertEquals(emptyList(), stateCompetition(rio, realStateGroups = true, rng = SplitMix64Rng(9)).approximations)
     }
 }

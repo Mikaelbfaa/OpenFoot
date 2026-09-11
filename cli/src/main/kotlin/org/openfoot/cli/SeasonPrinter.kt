@@ -17,7 +17,7 @@ import org.openfoot.engine.season.TableRow
  * Competitions are then printed in the order they closed, state.closed's own
  * order, rather than sorted by key or by kind: which competition finishes
  * first is a real fact about the season the schedule produced (the national
- * cup of this plan's own calendar policy always closes well before the
+ * cup of this version's own calendar policy always closes well before the
  * league it shares a country with, since it plays a handful of fortnightly
  * Wednesdays against thirty-odd weekly Sundays), and reading it off state.closed
  * costs nothing further since every finished competition is already recorded
@@ -25,9 +25,14 @@ import org.openfoot.engine.season.TableRow
  *
  * Each competition prints its key, its kind and its champion and runner-up,
  * the first two names of CompetitionClose.finalOrder, since every format
- * this plan builds seats at least two sides. A competition with a league
- * phase then prints that phase's own overall table (the first Phase.League
- * of its phase list, which is the only one for every shape this plan builds:
+ * this version builds seats at least two sides. Right under that header
+ * comes one note line for each of the competition's approximations, in the
+ * competition's own order: a format the dataset asked for and this version
+ * replaced by a fallback is shown, never played silently, per OPEN-QUESTIONS
+ * item 118. A competition built as configured prints no note. A competition
+ * with a league phase then prints that phase's own overall table (the first
+ * Phase.League of its phase list, which is the only one for every shape this
+ * version builds:
  * a plain division, a grouped division or a state championship's group stage
  * all keep their league phase first); a competition whose last phase is a
  * knockout then also prints the final order line, so a state championship
@@ -62,6 +67,7 @@ private fun appendCompetition(builder: StringBuilder, state: SeasonState, close:
     val champion = close.finalOrder[0]
     val runnerUp = close.finalOrder[1]
     builder.appendLine("  ${close.key}  ${close.kind}  champion $champion  runner-up $runnerUp")
+    competition.approximations.forEach { builder.appendLine("    note: $it") }
 
     val leagueIndex = competition.phases.indexOfFirst { it is Phase.League }
     if (leagueIndex >= 0) {

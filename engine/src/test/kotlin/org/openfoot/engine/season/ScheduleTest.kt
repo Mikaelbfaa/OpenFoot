@@ -10,19 +10,19 @@ class ScheduleTest {
 
     private fun league(key: String, clubs: List<String>, turns: Int = 2) = Competition(
         key, CompetitionKind.NATIONAL_LEAGUE, 29, 1,
-        listOf(Phase.League(RoundRobinPhase.single(clubs, turns))), Qualifiers.None, listOf(emptyList()), 0, 0,
+        listOf(Phase.League(RoundRobinPhase.single(clubs, turns))), Qualifiers.None, emptyList(), listOf(emptyList()), 0, 0,
     )
 
     private fun cup(key: String, clubs: List<String>) = Competition(
         key, CompetitionKind.NATIONAL_CUP, 29, null,
         listOf(Phase.Knockout(KnockoutPhase(clubs.mapIndexed { i, c -> Entrant(c, i + 1) }, List(7) { true }, true))),
-        Qualifiers.None, listOf(emptyList()), 0, 0,
+        Qualifiers.None, emptyList(), listOf(emptyList()), 0, 0,
     )
 
     private fun state(key: String, clubs: List<String>) = Competition(
         key, CompetitionKind.STATE, 29, 1,
         listOf(Phase.League(RoundRobinPhase.single(clubs, 2)), Phase.Knockout(KnockoutPhase(emptyList(), listOf(true, true, true), true, field = 2))),
-        Qualifiers.OverallTable(2), listOf(emptyList()), 0, 0,
+        Qualifiers.OverallTable(2), emptyList(), listOf(emptyList()), 0, 0,
     )
 
     private val twenty = (1..20).map { "c$it" }
@@ -162,7 +162,7 @@ class ScheduleTest {
         val huge = Competition(
             "big", CompetitionKind.NATIONAL_CUP, 29, null,
             listOf(Phase.Knockout(KnockoutPhase(emptyList(), List(11) { true }, true, field = 2048))),
-            Qualifiers.None, listOf(emptyList()), 0, 0,
+            Qualifiers.None, emptyList(), listOf(emptyList()), 0, 0,
         )
         val error = assertFailsWith<IllegalArgumentException> { SeasonSchedule.build(2026, listOf(huge)) }
         assertRefusedByName(error, "big", 22, 20)

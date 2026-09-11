@@ -100,19 +100,22 @@ fun leagueDivisions(country: Int, clubs: List<ClubState>, dataset: WorldDataset)
  * config.knockoutQualifiers equal to LeagueConfigEntry.SERIE_C_FORMAT
  * selects the hand written Brazilian Serie C format of 1.11 (a flat first
  * phase, then two groups of four playing a second phase, then a two legged
- * final between the group winners) rather than an ordinary qualifier count;
- * this plan does not build that dedicated format and treats the sentinel as
- * a flat league with no final phase instead, a deferral this docstring
- * records rather than hides. The sixty eight club preliminary knockout that
- * 1.11 describes ahead of the Brazilian fourth division's groups, when the
- * candidate queue overflows the configured field by four, is likewise not
- * built here and is deferred the same way. A configured division whose club
- * count does not divide into config.groups equal, even sized groups, or
- * whose final phase field would not be a power of two, is refused rather
- * than built: that shape is outside what this version builds.
+ * final between the group winners) rather than an ordinary qualifier count.
+ * This version does not build that dedicated format: it plays the sentinel
+ * as a flat league with no final phase, and says so. The sixty eight club
+ * preliminary knockout that 1.11 describes ahead of the Brazilian fourth
+ * division's groups is likewise not built; preliminary is true when the
+ * caller, the fourth's build at state close, found that the preliminary was
+ * due, and the division then seats its configured field directly and says
+ * so. Every such fallback is listed in the competition's approximations, by
+ * leagueApproximations, and OPEN-QUESTIONS item 118 records them all. A
+ * configured division whose club count does not divide into config.groups
+ * equal, even sized groups, or whose final phase field would not be a power
+ * of two, is refused rather than built: that shape is outside what this
+ * version builds.
  */
 @SpecRef("1.11")
-fun leagueCompetition(division: LeagueDivision, rng: Rng): Competition {
+fun leagueCompetition(division: LeagueDivision, rng: Rng, preliminary: Boolean = false): Competition {
     val key = "league:${division.country}:${division.division}"
     require(division.clubs.size % 2 == 0) {
         "$key holds ${division.clubs.size} clubs, and an odd count plays no round robin of section 1.3; that shape is outside what this version builds"
@@ -147,10 +150,43 @@ fun leagueCompetition(division: LeagueDivision, rng: Rng): Competition {
         division = division.division,
         phases = phases,
         qualifiers = qualifiers,
+        approximations = leagueApproximations(config, preliminary),
         results = listOf(emptyList()),
         phaseIndex = 0,
         roundIndex = 0,
     )
+}
+
+/**
+ * The formats of a configured division this version replaces by a generic
+ * fallback, as the texts of Approximation in its declaration order, per
+ * OPEN-QUESTIONS item 118:
+ *
+ * the Serie C sentinel of 1.11, whenever config.knockoutQualifiers is
+ * LeagueConfigEntry.SERIE_C_FORMAT; the sixty eight club preliminary of
+ * 1.11, whenever the caller says it was due; the playoffs of 1.12, whenever
+ * config.directRelegated is below config.relegated or
+ * config.promotionPlayoffPlaces is above nought; and, on a division with
+ * groups only, config.bestThirds and config.relegatedByGroup. Without groups
+ * there are no thirds to rank across groups and one shared table is every
+ * group's table, so those two flags change nothing there and earn no note:
+ * Brazil's distributed divisions one and three set relegatedByGroup
+ * without groups. A division without a configuration is the embedded
+ * default of 1.9, which is built exactly, and notes only a due preliminary.
+ */
+@SpecRef("1.11")
+internal fun leagueApproximations(config: LeagueConfigEntry?, preliminary: Boolean): List<String> {
+    val grouped = config != null && config.groups > 0
+    return Approximation.entries.filter { note ->
+        when (note) {
+            Approximation.SERIE_C_AS_FLAT_LEAGUE -> config?.knockoutQualifiers == LeagueConfigEntry.SERIE_C_FORMAT
+            Approximation.PRELIMINARY_NOT_PLAYED -> preliminary
+            Approximation.PLAYOFFS_AS_DIRECT_MOVEMENT -> config != null && (config.hasRelegationPlayoff || config.promotionPlayoffPlaces > 0)
+            Approximation.BEST_THIRDS_IGNORED -> grouped && config.bestThirds
+            Approximation.RELEGATION_BY_GROUP_IGNORED -> grouped && config.relegatedByGroup
+            Approximation.NEW_CUP_FORMAT_AS_STANDARD, Approximation.REAL_STATE_GROUPS_IGNORED -> false
+        }
+    }.map { it.text }
 }
 
 /**
@@ -163,16 +199,18 @@ fun leagueCompetition(division: LeagueDivision, rng: Rng): Competition {
  *
  * A division whose config.relegatedByGroup is set would, per 1.12, read
  * its relegation zone group by group rather than off one shared table; the
- * only distributed division that sets it is the Brazilian first division,
- * which carries no groups and so the flag is moot there, and no distributed
- * grouped division sets it. This plan therefore always reads the shared
- * final order, matching every distributed case.
+ * distributed divisions that set it, Brazil's first and third, carry no
+ * groups, so the flag is moot there, and no distributed grouped division
+ * sets it. This version always reads the shared final order, matching every
+ * distributed case, and a grouped division that sets the flag says so in
+ * its approximations.
  *
- * A division whose config.directRelegated is less than config.relegated
- * decides part of its movement by the promotion and relegation playoffs of
- * 1.12 rather than straight off the table; this plan treats every relegated
- * or promoted club as direct and defers the playoff mechanism, recording it
- * here rather than building it silently into the direct reading.
+ * A division whose config.directRelegated is less than config.relegated,
+ * or whose config.promotionPlayoffPlaces is above nought, decides part of
+ * its movement by the promotion and relegation playoffs of 1.12 rather than
+ * straight off the table; this version treats every relegated or promoted
+ * club as direct and defers the playoff mechanism, and such a division says
+ * so in its approximations. OPEN-QUESTIONS item 118 records both fallbacks.
  */
 @SpecRef("1.12")
 data class Movement(val relegated: List<String>, val promoted: List<String>)

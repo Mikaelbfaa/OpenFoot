@@ -142,6 +142,25 @@ class InstallationImporterTest {
     }
 
     @Test
+    fun `the novo formato cup option is read from the options file`() {
+        fun imported(novoFormatoCopa: Boolean) = InstallationImporter.importFrom(
+            installation(
+                root(),
+                listOf(team()),
+                options = ImportFixtures.Options(
+                    habilidadeIndividual = false,
+                    salarioMensal = true,
+                    velocidade = 4,
+                    novoFormatoCopa = novoFormatoCopa,
+                ),
+            ),
+        ).dataset.options.newCupFormat
+
+        assertTrue(!imported(novoFormatoCopa = false))
+        assertTrue(imported(novoFormatoCopa = true))
+    }
+
+    @Test
     fun `state championship configurations reach the dataset in file order`() {
         val result = InstallationImporter.importFrom(
             installation(

@@ -81,10 +81,16 @@ data class WorldDataset(
  * with different options is a different world and a dataset should say which one
  * it describes. Every default is what the original ships with.
  *
- * The two state championship flags are carried for the season that will read
- * them: whether Brazil's state championships are played at all, and whether
- * the Sao Paulo first division uses the real groups of FORMAT-SPEC's load rule
- * six when every listed club is present. Nothing in v0.2 consults either.
+ * The two state championship flags are read by the season: whether Brazil's
+ * state championships are played at all, and whether the Sao Paulo first
+ * division uses the real groups of FORMAT-SPEC's load rule six when every
+ * listed club is present. newCupFormat is the novo formato option of section
+ * 1.13, on by default as the original ships it, which picks the national
+ * cup's format for a country of ninety one clubs or more.
+ *
+ * Every field has a default, so a version 2 file written before a field
+ * joined still decodes, to what the original ships with: adding one is not a
+ * schema version change.
  */
 @Serializable
 data class DatasetOptions(
@@ -92,6 +98,7 @@ data class DatasetOptions(
     @property:SpecRef("4.8") val monthlyWages: Boolean = true,
     @property:SpecRef("FORMAT-SPEC, ces") val playStateChampionships: Boolean = true,
     @property:SpecRef("FORMAT-SPEC, ces") val realStateGroups: Boolean = true,
+    @property:SpecRef("1.13") val newCupFormat: Boolean = true,
 )
 
 /**

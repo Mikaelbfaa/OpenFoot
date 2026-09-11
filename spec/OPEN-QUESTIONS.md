@@ -2802,45 +2802,55 @@ sempre que o clube não tem partida no dia (appeared nulo), a mesma regra de rec
 descansou que qualquer outro jogador não escalado recebe. Nenhuma leitura da 3.9 cobre esse caso
 especificamente.
 
-### 118. Formatos adiados para um plano posterior
+### 118. Formatos adiados: cada aproximação é anunciada, nunca silenciosa
 
-A implementação desta fase constrói o formato padrão de liga nacional, o formato padrão de copa
+A implementação da temporada constrói o formato padrão de liga nacional, o formato padrão de copa
 nacional e o formato do estadual da `.ces`, mas deixa de fora, deliberadamente, todo formato que
-exigiria um motor dedicado sem um exemplo real para validar contra ele nesta fase:
+exigiria um motor dedicado sem um exemplo real para validar contra ele. São sete, e para cada um a
+temporada joga uma aproximação genérica no lugar:
 
-- o formato sentinela da 3a divisão brasileira (Série C), `numeroTimesMataMata = 1020` (item 77);
-- a fase preliminar de 68 clubes que antecede os grupos da 4a divisão brasileira quando a fila de
-  candidatos estaduais ultrapassa o campo configurado em quatro;
-- os playoffs de promoção e rebaixamento entre divisões de um `.cfg` (`rebaixadosDireto < nRebaixados`
-  ou `vagasSobemPeloMataMata > 0`, item 80);
-- o "novo formato" da Copa Nacional (item 82);
-- a opção de grupos reais de São Paulo da regra de carga 6 da FORMAT-SPEC (grupos regionais
-  registrados no lugar do dealt por fila).
+1. o formato sentinela da 3a divisão brasileira (Série C, `numeroTimesMataMata = 1020`, seção 1.11 e
+   item 77): a divisão joga só a primeira fase, uma liga de pontos corridos, sem a segunda fase de dois
+   grupos de quatro e sem a final;
+2. a fase preliminar de 68 clubes da 4a divisão brasileira (seção 1.11): quando a divisão está
+   configurada para 64 e a oferta de candidatos (porta, fila estadual e clubes sem divisão estadual,
+   depois dos pulos da 1.12) chega a 68, a preliminar de 8 clubes não é jogada e os 64 primeiros
+   candidatos entram direto nos grupos;
+3. os playoffs de rebaixamento e de acesso de um `.cfg` (`rebaixadosDireto < nRebaixados` ou
+   `vagasSobemPeloMataMata > 0`, seção 1.12 e item 80): todo rebaixado e todo promovido sai direto
+   da ordem final, os `nRebaixados` do fim e os primeiros do topo;
+4. o "novo formato" da Copa Nacional (seção 1.13 e item 82): com a opção `novoFormatoCopa` ligada, o
+   padrão, e 91 clubes ou mais no país, a copa é montada no formato padrão, a chave de potência de
+   dois com cabeça de chave forte contra fraco;
+5. a opção de grupos reais de São Paulo (regra de carga 6 da FORMAT-SPEC): com
+   `usaGrupoPadraoEstadual` ligada, a 1a divisão de SP no preset 7 continua distribuída pela fila,
+   `k` módulo o número de grupos;
+6. `melhoresTerceiros` numa liga com grupos (seção 1.11): a vaga dos melhores terceiros é ignorada, e
+   a fase final recebe só os classificados de cada grupo;
+7. `rebaixadoPeloGrupo` numa liga com grupos (campo da FORMAT-SPEC, seção 1.11): o rebaixamento é lido
+   da ordem final compartilhada, nunca grupo a grupo. Numa divisão sem grupos as duas leituras
+   coincidem, e por isso as divisões 1 e 3 do `BRA.cfg`, que ligam o campo sem ter grupos, não são
+   aproximação.
 
-**Resolução (INFERIDO):** cada um destes é tratado como fora do escopo desta fase, mas nenhum dos
-cinco recusa a configuração por exceção; o código lê o campo, não reconhece o formato dedicado e
-constrói silenciosamente uma aproximação genérica no lugar, sem avisar. Uma base de dados que hoje
-configura qualquer um destes cinco recebe essa aproximação, não um erro:
+**Resolução (INFERIDO):** nenhum dos sete recusa a configuração. A aposta declarada é que uma
+aproximação anunciada é aceitável até cada formato ser construído, e por isso ela nunca é silenciosa:
+cada competição carrega a lista `approximations`, preenchida pela fábrica que caiu no formato genérico
+(`leagueCompetition`, a montagem da 4a divisão quando fecha o último estadual, `nationalCup` e
+`stateCompetition`), e a saída de `openfoot-cli season` imprime cada item como uma linha `note:` logo
+abaixo do cabeçalho da competição, na ordem fixa da lista acima. As condições são exatamente as da
+lista: a nota da Série C quando `numeroTimesMataMata` é o sentinela; a da preliminar quando o tamanho
+configurado é 64 e a oferta de candidatos, contada pela mesma varredura que monta a divisão, chega a
+68; a dos playoffs quando qualquer um dos dois campos pede playoff; a da copa quando a opção está
+ligada e o país tem 91 clubes ou mais; a de São Paulo quando a opção está ligada, o estado é o 25, a
+divisão é a 1 e o preset é o 7, estejam ou não presentes os 16 clubes da lista; as de
+`melhoresTerceiros` e de `rebaixadoPeloGrupo` só quando a liga tem grupos.
 
-- o sentinela da Série C (`numeroTimesMataMata = 1020`) cai fora da faixa que
-  `leagueCompetition` aceita como contagem de classificados (`config.knockoutQualifiers in
-  1..MAX_KNOCKOUT_FIELD`, `NationalLeagues.kt`, por volta das linhas 91 a 99 e 123): nenhuma fase de
-  mata-mata é adicionada, e a divisão joga como uma liga simples sem fase final nenhuma;
-- a fase preliminar de 68 clubes tem o mesmo destino pelo mesmo motivo: `leagueCompetition` nunca a
-  constrói, e a divisão que a exigiria joga sem ela (mesmo docstring, por volta das linhas 97 a 99);
-- os playoffs de promoção e rebaixamento entre divisões (`rebaixadosDireto < nRebaixados` ou
-  `vagasSobemPeloMataMata > 0`) não são lidos: `movement`, em `NationalLeagues.kt` (por volta das
-  linhas 167 a 171), sempre lê `division.relegated` clubes do fim da tabela como rebaixados e
-  `promotedCount` do topo como promovidos, tratando toda promoção e todo rebaixamento como diretos,
-  qualquer que seja o valor desses dois campos na configuração;
-- o "novo formato" da Copa Nacional não é detectado: `nationalCup`, em `NationalCup.kt`, sempre monta
-  o mata-mata padrão (chave de potência de dois, cabeça de chave forte contra fraco) e nunca lê
-  `Options.novoFormatoCopa` nem conta se o país tem 91 ou mais clubes para decidir entre os dois
-  formatos;
-- a opção de grupos reais de São Paulo da regra de carga 6 é ignorada: `stateSetup`, em
-  `StateChampionships.kt` (por volta das linhas 96 a 99), sempre deala um preset com grupos pela fila
-  ordenada por nível, `k` módulo o número de grupos, e nunca lê os grupos regionais que essa opção
-  registraria no lugar do deal por fila.
+**MEDIDO:** `NationalLeaguesTest` prende a nota da Série C, a dos playoffs, a de `melhoresTerceiros`
+e a de `rebaixadoPeloGrupo`, e a ausência desta última numa divisão sem grupos; `NationalCupTest`
+prende a nota da copa a partir de 91 clubes e sua ausência com 90 ou com a opção desligada;
+`StateChampionshipsTest`, a de São Paulo; `StateSeasonsTest`, a da preliminar com 68 candidatos e sua
+ausência com 67; `SeasonNotesTest`, na CLI, prende que cada nota sai impressa sob o cabeçalho da sua
+competição.
 
 ### 119. Liga nacional agrupada com jogos dentro do grupo: a 1.3 e a 1.11 discordam, a implementação segue a 1.3
 
@@ -2865,15 +2875,19 @@ próprio grupo, 1o do grupo contra 2o do grupo, nos grupos A, B, C e D nessa ord
 semifinais entre os vencedores de A e B e de C e D. O parêntese contradiz ao mesmo tempo a frase que
 ele comenta e a FORMAT-SPEC. A 1.11 também não diz como parear mais de dois classificados por grupo.
 
-**Resolução:** a regra da FORMAT-SPEC vence o parêntese da 1.11. Com dois classificados por grupo, o
-pareamento é CONFIRMADO pela FORMAT-SPEC (presets 7 e 10) e pela 1.11, que diz que a liga usa o mesmo
-motor; o parêntese é lido como erro de redação. Em cada confronto o melhor colocado recebe a volta,
-como a FORMAT-SPEC diz do estadual ("o melhor colocado recebe a volta"). Uma só função de semeadura
-(`groupedSeeds`) serve aos estaduais e às ligas, e para quatro grupos de dois ela dá exatamente a chave
-dos presets 7 e 10.
+**Resolução.** Ponto CONFIRMADO, só o que os textos dizem: a FORMAT-SPEC pareia as quartas dos
+presets 7 e 10 dentro do próprio grupo, 1o contra 2o, nos grupos A, B, C e D nessa ordem, e a frase
+principal da 1.11 diz que a fase final de uma liga agrupada usa esse mesmo motor, emparelhando dentro
+do próprio grupo nas rodadas iniciais. Em cada confronto o melhor colocado recebe a volta, como a
+FORMAT-SPEC diz do estadual ("o melhor colocado recebe a volta"). Uma só função de semeadura
+(`groupedSeeds`) serve aos estaduais e às ligas, e para quatro grupos de dois ela dá exatamente a
+chave dos presets 7 e 10.
 
 Pontos INFERIDO:
 
+- o parêntese da 1.11, "1o de cada grupo contra o 2o do grupo seguinte etc.", é lido como erro de
+  redação e cede à frase que ele comenta e à FORMAT-SPEC. Nenhum dos dois textos diz isso; é a leitura
+  escolhida para que os três trechos não se contradigam;
 - com q classificados por grupo, q acima de 2, as rodadas iniciais ficam dentro de cada grupo, a
   colocação p contra a colocação q+1-p, até sobrar um clube por grupo. Os confrontos da primeira
   rodada do campo inteiro, na ordem da chave (a da FORMAT-SPEC para 4 e 8 times, a semeadura por força
@@ -2884,13 +2898,19 @@ Pontos INFERIDO:
 - os sobreviventes de cada grupo se enfrentam depois em ordem de chave: A contra B, C contra D, e
   assim por diante. Com um só classificado por grupo, os grupos já se cruzam assim na primeira rodada.
   Entre clubes de grupos diferentes, recebe a volta quem a função de semeadura pôs com a semente menor;
+- com q de 8 ou mais, a repartição em blocos põe o confronto da 1a colocação e o da 2a colocação de um
+  grupo lado a lado na chave, e os vencedores dos dois se enfrentam já na segunda rodada: o 1o e o 2o
+  de um grupo podem se encontrar antes da final do próprio grupo, ao contrário de uma chave semeada
+  comum, que os separaria até ela. É consequência da aposta do primeiro ponto acima, e inalcançável
+  com os dados distribuídos, cuja única liga agrupada, a 4a divisão brasileira, leva 4 classificados
+  por grupo;
 - com `classificaPeloGeral` ligado, a 1.11 ignora os grupos: os primeiros da tabela geral são semeados
   na ordem da tabela, forte contra fraco, pela mesma chave do estadual sem grupos.
 
-**MEDIDO:** `KnockoutTest` prende que a função reproduz a chave dos presets 7 e 10 e mantém todo
-confronto dentro do grupo até sobrar um por grupo em vários formatos; `NationalLeaguesTest` prende o
-mesmo numa liga jogada de quatro grupos com quatro classificados cada, o mando da volta com dois
-classificados por grupo e a semeadura pela tabela geral.
+**MEDIDO:** `KnockoutTest` prende que a função reproduz a chave dos presets 7 e 10, prende literalmente
+a semeadura de dois grupos de quatro e mantém todo confronto dentro do grupo até sobrar um por grupo
+em vários formatos; `NationalLeaguesTest` prende o mesmo numa liga jogada de quatro grupos com quatro
+classificados cada, o mando da volta com dois classificados por grupo e a semeadura pela tabela geral.
 
 ### 121. O boundary 3a contra 4a divisão brasileira: a 3a rebaixa direto para a porta e a 4a ainda promove seus melhores
 
