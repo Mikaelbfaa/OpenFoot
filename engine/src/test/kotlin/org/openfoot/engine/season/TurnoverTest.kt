@@ -82,4 +82,19 @@ class TurnoverTest {
         assertEquals(listOf("25-1", "18-1", "17-1", "8-1", "24-1", "7-1", "25-2", "18-2", "25-3", "18-3"), queue)
         assertEquals(18, stateChampionsQueue(closes, stateOf, size = 40).size)
     }
+
+    @Test
+    fun `the fourth division rebuild skips divisioned and already chosen clubs`() {
+        val relegatedOfThird = listOf("r1", "r2")
+        val queue = listOf("d1", "r1", "q1", "q2", "q3", "q4")
+        val excluded = setOf("d1")
+        val members = rebuiltFourth(relegatedOfThird, queue, excluded, size = 5)
+        assertEquals(listOf("r1", "r2", "q1", "q2", "q3"), members)
+    }
+
+    @Test
+    fun `a short queue leaves the fourth division short rather than failing`() {
+        val members = rebuiltFourth(listOf("r1"), listOf("q1"), emptySet(), size = 5)
+        assertEquals(listOf("r1", "q1"), members)
+    }
 }
