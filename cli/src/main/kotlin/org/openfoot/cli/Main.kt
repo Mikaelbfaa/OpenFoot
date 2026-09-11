@@ -8,6 +8,10 @@ import org.openfoot.dataset.WorldDataset
 import org.openfoot.engine.lineup.Availability
 import org.openfoot.engine.lineup.assembleMatch
 import org.openfoot.engine.match.simulateMatch
+import org.openfoot.engine.season.WeeklyTick
+import org.openfoot.engine.season.nextSeason
+import org.openfoot.engine.season.openingSeason
+import org.openfoot.engine.season.playSeason
 import org.openfoot.engine.world.Competitor
 import org.openfoot.engine.world.NationalTeam
 import org.openfoot.engine.world.Standing
@@ -50,6 +54,11 @@ internal fun dispatch(args: Array<String>): Int {
                 0
             }
 
+            "season" -> {
+                season(args.drop(1))
+                0
+            }
+
             "import" -> {
                 importInstallation(args.drop(1))
                 0
@@ -82,6 +91,7 @@ private val USAGE = """
            openfoot-cli worldgen --dataset <path> --seed <number> [--leagues BRA,ESP|all]
            openfoot-cli callup   --dataset <path> --seed <number> --country <name> [--leagues BRA,ESP|all]
            openfoot-cli match    --dataset <path> --seed <number> --home <ref> --away <ref> [--leagues BRA,ESP|all]
+           openfoot-cli season   --dataset <path> --seed <number> [--seasons <n>] [--leagues BRA,ESP|all]
 
       import   reads your own installation of the original game and writes a
                dataset. Nothing is copied but numbers, and the files stay put.
@@ -95,6 +105,11 @@ private val USAGE = """
                is a club ref, or national:<name> for a country's national
                team; two national teams play on neutral ground. The same
                dataset, seed and sides always print the same match.
+      season   generates a world from a dataset and a seed, plays one or more
+               seasons over it and prints each: every competition's champion,
+               runner-up and, where it applies, table or final order, and the
+               season's top scorers. --seasons defaults to one; the same
+               dataset, seed and active leagues always print the same seasons.
 
       --leagues names the countries whose leagues take part, by dataset name,
                comma separated, or the word all for every one; the default is
@@ -324,6 +339,40 @@ internal fun resolveCountry(name: String, dataset: WorldDataset): Int {
     return dataset.countries.firstOrNull { it.name.uppercase() == trimmed }?.index
         ?: fail("no country named '$trimmed' in this dataset")
 }
+
+/**
+ * Reads a dataset, generates a world and plays one or more seasons over it,
+ * printing each as it finishes.
+ *
+ * openingSeason builds season one; every season after the first comes from
+ * nextSeason applied to the one just played, over the same active leagues,
+ * which is what carries promotion, relegation and prestige from one season
+ * into the calendar of the next. Every season is played all the way through
+ * by playSeason before it is printed, with WeeklyTick.NONE since no later
+ * plan's weekly tick exists yet to pass in its place, and RuleSets.CLASSIC
+ * for the same reason match already gives a career-less command: there is no
+ * season of a real career behind this run to have chosen a rule set for it.
+ */
+private fun season(args: List<String>) {
+    val options = parseOptions(args)
+    val path = options["--dataset"] ?: fail("season needs --dataset <path>")
+    val seedText = options["--seed"] ?: fail("season needs --seed <number>")
+    val seed = seedText.toLongOrNull() ?: fail("seed '$seedText' is not a number")
+    val seasons = options["--seasons"]?.let { it.toIntOrNull() ?: fail("seasons '$it' is not a number") } ?: 1
+    val dataset = loadDataset(path)
+    val activeLeagues = parseLeagues(options["--leagues"], dataset)
+    val world = generateWorld(dataset, seed, activeLeagues)
+    var state = openingSeason(world, dataset, activeLeagues, SEASON_ONE_YEAR, seed)
+    repeat(seasons) { index ->
+        if (index > 0) state = nextSeason(state, activeLeagues, RuleSets.CLASSIC)
+        state = playSeason(state, RuleSets.CLASSIC, WeeklyTick.NONE)
+        print(describeSeason(state))
+    }
+}
+
+/** The calendar year of season one, a fixed choice since no career date exists yet to derive it from. */
+@SpecRef("0")
+private const val SEASON_ONE_YEAR = 2026
 
 /**
  * Reads and decodes a dataset file, checking the schema version before the

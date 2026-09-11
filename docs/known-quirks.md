@@ -348,6 +348,15 @@ Ficam registrados aqui para quando o código chegar nessas partes.
   que resta na fila depois das divisões anteriores; o original falha quando a diferença aparece.
   `CLASSIC` deve rejeitar a configuração na carga e `MODERN` cair no formato padrão de 6 times.
   Também vive na temporada (item 69 de `OPEN-QUESTIONS.md`).
+- O "novo formato" da Copa Nacional (seção 1.13) nunca vai a pênaltis na sua primeira rodada de 80
+  times: um código dedicado avança sempre o segundo time listado do confronto numa igualdade, sem
+  sequer agendar a disputa, incondicional e independente da opção `desempate` que liga ou desliga o
+  defeito equivalente do estadual. Esta fase não constrói o novo formato (item 118 de
+  `OPEN-QUESTIONS.md`, apostas declaradas na fase 2 da temporada): o que existe hoje é só o formato
+  padrão de copa, que sempre agenda a disputa de pênaltis numa igualdade. Quando o novo formato for
+  construído, `CLASSIC` deve reproduzir o avanço incondicional do segundo listado nesta rodada
+  específica e `MODERN` deve jogar a disputa de pênaltis normal ali também (item 82 de
+  `OPEN-QUESTIONS.md`).
 
 ## Não são defeitos
 

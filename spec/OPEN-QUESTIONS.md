@@ -2640,3 +2640,193 @@ motor foi encontrado montando essa lista sozinho para times de IA. Como nenhuma 
 concede prêmio, e o roteiro da v0.3 (temporada só de IA) não depende de simular amistosos para fechar
 uma temporada corretamente, a reimplementação pode adiar amistoso de clube de IA por completo sem
 perder nada observável nas competições que pagam prêmio ou reputação.
+
+## Implementação da v0.3 - apostas declaradas na fase 2
+
+Itens abertos pela própria fase 2 do roteiro de v0.3 (motor de temporada, `engine/.../season/`), não
+por uma varredura da spec: cada um registra uma aposta tomada durante a implementação onde a spec
+deixa o calendário ou os formatos em aberto. Todos ficam como INFERIDO porque nenhum foi lido do
+original; a leitura em sala limpa só tem a spec e o próprio código deste projeto para trabalhar.
+
+### 110. Política de calendário: estaduais duas vezes por semana, liga aos domingos a partir da semana 12, copa às quartas quinzenais a partir da mesma semana
+
+A seção 1.10 confirma o mecanismo geral do calendário (uma lista de datas compartilhada, cada
+competição com o próprio contador de rodadas) mas deixa em aberto a ordem exata de intercalação entre
+estaduais, liga nacional e copa nacional (item 74, ainda não resolvido por nenhuma varredura).
+
+**Resolução (INFERIDO):** SeasonSchedule.kt fixa uma política concreta, implementada em datesFor:
+o estadual joga duas vezes por semana (domingo e quarta) a partir do primeiro domingo de janeiro do
+ano da temporada e termina antes da semana 12, quando a liga nacional começa (SeasonSchedule.build
+recusa uma temporada cujo estadual ultrapassa essa fronteira); a liga nacional joga aos domingos a
+partir da semana 12 e a copa nacional joga às quartas-feiras, quinzenal, a partir da mesma semana 12.
+Isto restaura o item 74 do jeito que a 1.10 descreve como o mais provável, sem fechar de fato a
+lacuna: é a política que este motor de calendário adota, não um fato lido do original.
+
+### 111. Liga nacional configurada com grupos: cruzamento pelo método do círculo, descartando os pares do mesmo grupo; estadual dealt pela fila, sem sorteio
+
+A seção 1.3 documenta que, com jogos entre grupos ligados e jogos dentro do grupo desligados, o
+confronto sai de uma tabela de pares fixa que a spec só publica para os presets estaduais 7 e 10, não
+para uma configuração genérica de liga nacional com grupos (item 75); a varredura de competições de
+clube já confirmou que nenhum `.cfg` distribuído usa essa combinação, então a implementação não tem
+um exemplo real para copiar.
+
+**Resolução (INFERIDO):** RoundRobinPhase.grouped, no ramo sem jogos dentro do grupo, cruza os
+grupos pelo método do círculo aplicado aos próprios índices de grupo (um turno de round robin sobre
+os grupos), e cada par de grupos joga uma expansão em quadrado latino que dá um confronto por
+temporada entre cada dupla de lados dos dois grupos, mandos alternados. Isto restaura o item 75: como
+nenhum `.cfg` real usa `nGrupos > 1` com jogos entre grupos, esta é uma aposta sem uso confirmado, só
+exercitada pelos presets estaduais que a `.ces` já cobre por outro caminho.
+
+Ainda no item 111: a `.ces` (FORMAT-SPEC, regra de carga 6) não sorteia a divisão de um preset com
+grupos entre os quatro grupos - ela deala a fila já ordenada por nível, o k-ésimo clube da fila para o
+grupo k módulo o número de grupos, sem nenhum sorteio. stateSetup constrói essa fila ordenada por
+nível (e pelo mesmo desempate por clube da pirâmide) antes de chamar stateCompetition, e
+stateCompetition não embaralha a ordem da divisão quando o preset tem grupos; só um preset de grupo
+único (`RoundRobinPhase.single`) embaralha a ordem antes do círculo, como a 1.3 pede para toda liga.
+Isto é uma leitura direta da regra de carga da FORMAT-SPEC, não uma aposta nova, mas fica registrado
+aqui porque é o mesmo código que decide o item 111 acima.
+
+### 112. Campo de mata-mata fora de 2, 4 ou 8: cabeça de chave forte contra fraco, i contra n-1-i
+
+FORMAT-SPEC só publica a tabela de pareamento da primeira rodada (firstRoundTies) para os três
+tamanhos que os presets estaduais realmente usam: 2, 4 e 8. Uma liga nacional configurada com fase
+final (config.knockoutQualifiers) ou a copa nacional podem produzir um campo de qualquer potência de
+dois até 64 ou 128, sem que a spec publique um pareamento para esses tamanhos.
+
+**Resolução (INFERIDO):** KnockoutPhase.openingTies pareia, fora de 2, 4 e 8, o entrante i (contando
+de zero) contra o entrante `tamanho - 1 - i`, ou seja o melhor colocado contra o pior, o segundo
+melhor contra o segundo pior, e assim por diante - cabeça de chave forte contra fraco pela colocação
+da fase anterior, sem sorteio. É a mesma leitura que a 1.13 já registra para a copa nacional (metade
+forte contra metade fraca, cada metade sorteada só dentro de si), generalizada para todo campo que não
+é um dos três tamanhos publicados.
+
+### 113. A 4a divisão brasileira da primeira temporada fica como a pirâmide semeou; só é reconstruída pela fila estadual a partir da segunda
+
+A seção 1.12 documenta a fila de campeões e vice-campeões estaduais que alimenta a 4a divisão
+brasileira, mas não diz se essa fila também decide a composição da 4a divisão da primeira temporada de
+uma carreira nova, antes de qualquer estadual ter sido jogado, ou só a partir da segunda.
+
+**Resolução (INFERIDO):** nextSeason só chama rebuildBrazilianFourth a partir da segunda temporada,
+porque é a primeira virada que tem um fechamento de estadual (`state.closed`) de onde ler a fila; a
+primeira temporada de uma carreira nova não tem temporada anterior nenhuma para ter fechado um
+estadual, e openingSeason deixa a 4a divisão exatamente como generateWorld e a pirâmide da 1.9 a
+semearam. Isto é uma aposta sobre uma pergunta que a 1.12 não responde, não um fato lido do original.
+
+### 114. Domingos pendentes disparam antes das partidas do dia
+
+A seção 0 descreve o tique semanal de domingo (evolução, seção 4.5) como preso à data, não à rodada de
+nenhuma competição, mas não diz se um domingo pendente dispara antes ou depois das partidas marcadas
+para aquele mesmo dia quando o domingo é também um dia de rodada.
+
+**Resolução (INFERIDO):** playRound chama firePendingSundays antes de ler qualquer partida do dia,
+então todo domingo pendente até a data de hoje, inclusive hoje quando hoje é domingo, dispara primeiro
+e só depois as partidas do dia são montadas e jogadas. Esta é a mesma aposta que o próprio docstring de
+playRound já registra no código; fica repetida aqui para que a lista de apostas da fase 2 esteja
+completa num só lugar.
+
+### 115. A fase final de uma liga nacional agrupada é sempre ida e volta
+
+A seção 1.11 diz que a fase final de uma liga nacional configurada com grupos segue a convenção
+estadual, sem publicar um vetor de pernas por rodada próprio como a `.ces` publica para o estadual.
+
+**Resolução (INFERIDO):** leagueCompetition constrói essa fase final com
+`legsPerRound = List(LeagueConfigEntry.PLAYOFF_ROUNDS) { true }`, ida e volta em toda rodada, a mesma
+leitura de "convenção estadual" que o docstring de leagueCompetition já registra. Nenhum `.cfg`
+distribuído usa essa combinação de campos, então esta aposta também fica sem exemplo real para
+confirmar ou refutar.
+
+### 116. Vira de temporada: registros por jogador voltam ao zero, lesão sobrevive pela data
+
+A seção 1.4 descreve a virada de temporada resetando "vários estados por time" mas não lista campo por
+campo o que sobrevive de um PlayerRecord para o outro.
+
+**Resolução (INFERIDO):** nextSeason reconstrói todo PlayerRecord como `PlayerRecord(injuredUntil =
+it.injuredUntil)` - energia volta a cheia, disciplina volta limpa, presença, nota e gols voltam a
+zero, e só a data de expiração de uma lesão em andamento atravessa a virada, porque uma lesão real é
+uma data no calendário e não um contador de temporada. Nenhuma outra leitura foi encontrada para o que
+sobrevive, então esta é a aposta mais simples consistente com "reset geral, lesão é a exceção".
+
+### 117. Um clube sem partida na rodada de sua competição recupera como se não tivesse jogado
+
+Já registrado no próprio código (postRound, em RoundLoop.kt) e repetido aqui só para constar na lista:
+a seção 3.9 não diz o que a recuperação semanal de energia lê para um clube que a competição ainda
+lista como participante mas que não tem partida marcada no dia (por exemplo um lado eliminado de um
+mata-mata que a competição continua listando).
+
+**Resolução (INFERIDO):** postRound recupera energia de todo jogador do clube com `played = false`
+sempre que o clube não tem partida no dia (appeared nulo), a mesma regra de recuperação de quem
+descansou que qualquer outro jogador não escalado recebe. Nenhuma leitura da 3.9 cobre esse caso
+especificamente.
+
+### 118. Formatos adiados para um plano posterior
+
+A implementação desta fase constrói o formato padrão de liga nacional, o formato padrão de copa
+nacional e o formato do estadual da `.ces`, mas deixa de fora, deliberadamente, todo formato que
+exigiria um motor dedicado sem um exemplo real para validar contra ele nesta fase:
+
+- o formato sentinela da 3a divisão brasileira (Série C), `numeroTimesMataMata = 1020` (item 77);
+- a fase preliminar de 68 clubes que antecede os grupos da 4a divisão brasileira quando a fila de
+  candidatos estaduais ultrapassa o campo configurado em quatro;
+- os playoffs de promoção e rebaixamento entre divisões de um `.cfg` (`rebaixadosDireto < nRebaixados`
+  ou `vagasSobemPeloMataMata > 0`, item 80);
+- o "novo formato" da Copa Nacional (item 82);
+- a opção de grupos reais de São Paulo da regra de carga 6 da FORMAT-SPEC (grupos regionais
+  registrados no lugar do dealt por fila).
+
+**Resolução (INFERIDO):** cada um destes é tratado como fora do escopo desta fase, não como um
+formato construído incorretamente; leagueCompetition e stateSetup recusam, por exceção, uma
+configuração cujo formato não é um dos que esta fase constrói, em vez de tentar aproximar o formato
+verdadeiro com o motor genérico.
+
+### 119. Liga nacional agrupada com jogos dentro do grupo: a 1.3 e a 1.11 discordam, a implementação segue a 1.3
+
+A seção 1.3 diz que uma liga com grupos e jogos dentro do grupo ligados joga só o round robin de cada
+grupo, nenhuma rodada cruzando grupos; a seção 1.11, ao descrever o mesmo campo para liga nacional,
+lê como se o grupo jogasse contra si mesmo e também contra os outros grupos ao mesmo tempo. As duas
+leituras não podem estar certas ao mesmo tempo para a mesma configuração.
+
+**Resolução (INFERIDO):** RoundRobinPhase.grouped, com jogos dentro do grupo ligados, segue a leitura
+da 1.3: só o round robin de cada grupo é jogado, nunca um confronto entre grupos, mesmo quando a 1.11
+lida isoladamente sugeriria o contrário. A 4a divisão brasileira (`nGrupos = 8`, `jogosDentroGrupo =
+true`) é o único `.cfg` distribuído que usa a combinação, e joga exatamente como a 1.3 descreve; o
+conflito de leitura entre as duas seções fica registrado aqui para quem revisar a spec depois.
+
+### 120. Fase final de uma liga agrupada: semeadura por ordem de grupo e depois colocação, forte contra fraco
+
+Quando uma liga nacional configurada tem grupos e uma fase final de mata-mata, a 1.11 não publica
+nenhuma tabela de pareamento para essa fase final, ao contrário do que faz para os presets estaduais
+7 e 10.
+
+**Resolução (INFERIDO):** a função qualifiers de leagueCompetition ordena os classificados por grupo
+e depois por colocação dentro do grupo (do primeiro colocado de cada grupo até o último classificado
+do último grupo) e semeia essa ordem 1, 2, 3... no campo do mata-mata, que por sua vez pareia pela
+mesma regra do item 112: o melhor semeado contra o pior. O efeito final é forte contra fraco pela
+combinação de grupo e colocação, sem nenhuma tabela de pares específica, porque a 1.11 não dá uma.
+
+### 121. O boundary 3a contra 4a divisão brasileira continua promovendo a 4a para a 3a, mesmo sem playoff de acesso
+
+A seção 1.12 proíbe só o playoff de acesso da 4a divisão para a 3a ("nenhum playoff de acesso"); não
+diz explicitamente se a promoção direta continua valendo nesse boundary quando os estaduais estão
+ativos e a 4a divisão é reconstruída pela fila em vez de manter uma tabela própria de uma temporada
+para a outra.
+
+**Resolução (INFERIDO):** rebuildBrazilianFourth continua promovendo os melhores colocados da 4a
+divisão para a 3a, em número igual ao que a 3a rebaixa, pela ordem final da própria 4a divisão dessa
+temporada - exatamente como o boundary faria em qualquer outra fronteira de divisão. O que a 4a perde,
+por não ter um playoff de acesso, é só a chance de subir mais do que o rebaixamento da 3a abre vaga; a
+promoção em si, na leitura desta fase, não é o playoff que a 1.12 proíbe.
+
+### 122. A fila de campeões estaduais pula clube já em divisão um a três e nome já escolhido; fila curta deixa a 4a divisão curta
+
+A seção 1.12 não diz o que acontece quando um nome da fila de campeões e vice-campeões estaduais já
+está fadado a uma divisão de um a três nesta mesma virada (por exemplo o próprio campeão estadual que
+também é um clube promovido à 3a divisão), nem o que acontece quando a fila se esgota antes de
+preencher toda a 4a divisão.
+
+**Resolução (INFERIDO):** rebuiltFourth pula qualquer nome da fila que já esteja marcado para as
+divisões um a três nesta virada (o conjunto excluded de rebuildBrazilianFourth, calculado depois que
+todo outro boundary do país já moveu clubes) e pula qualquer nome já escolhido, como um campeão
+estadual que também é um dos clubes que a 3a acabou de rebaixar. Uma fila curta demais para preencher
+o tamanho da 4a divisão simplesmente deixa a divisão com menos membros do que o preset pede, em vez de
+completar com qualquer outro clube só para fechar o número. A ordem de caminhada da própria fila, por
+nível de prioridade dos estados e depois por colocação, continua sendo a aposta do item 81.

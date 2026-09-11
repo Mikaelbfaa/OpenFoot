@@ -24,5 +24,7 @@ class CliDispatchTest {
         assertEquals(1, dispatch(arrayOf("worldgen")))
         assertEquals(1, dispatch(arrayOf("callup")))
         assertEquals(1, dispatch(arrayOf("callup", "--dataset", "x.json", "--seed", "1")))
+        assertEquals(1, dispatch(arrayOf("season")))
+        assertEquals(1, dispatch(arrayOf("season", "--dataset", "x.json")))
     }
 }
