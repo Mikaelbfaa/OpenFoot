@@ -34,7 +34,7 @@ class CalendarDateTest {
         assertEquals(CalendarDate(2026, 12, 27), CalendarDate.lastSunday(2026))
         assertEquals(CalendarDate(2028, 12, 31), CalendarDate.lastSunday(2028))
         assertTrue(CalendarDate.lastSunday(2027).isSunday)
-        assertTrue(CalendarDate.lastSunday(2027).plusDays(7).year == 2028)
+        assertEquals(2028, CalendarDate.lastSunday(2027).plusDays(7).year)
     }
 
     @Test

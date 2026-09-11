@@ -9,6 +9,7 @@ dependencies {
     implementation(project(":dataset"))
     implementation(project(":importer"))
     implementation(libs.kotlinx.serialization.json)
+    testImplementation(testFixtures(project(":engine")))
 }
 
 application {

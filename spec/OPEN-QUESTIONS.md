@@ -2654,7 +2654,7 @@ A seção 1.10 confirma o mecanismo geral do calendário (uma lista de datas com
 competição com o próprio contador de rodadas) mas deixa em aberto a ordem exata de intercalação entre
 estaduais, liga nacional e copa nacional (item 74, ainda não resolvido por nenhuma varredura).
 
-**Resolução (INFERIDO):** SeasonSchedule.kt fixa uma política concreta: o estadual joga duas vezes
+**Resolução (INFERIDO):** Schedule.kt, na classe SeasonSchedule, fixa uma política concreta: o estadual joga duas vezes
 por semana (domingo e quarta) a partir do primeiro domingo de janeiro do ano da temporada e termina
 antes da semana 12, quando a liga nacional começa; a liga nacional joga aos domingos a partir da
 semana 12 e a copa nacional joga às quartas-feiras, quinzenal, a partir da mesma semana 12, nas
@@ -2786,9 +2786,11 @@ competição da temporada que terminou. nextSeason reconstrói toda competição
 disciplina da temporada seguinte começam vazios e nenhum amarelo nem gancho atravessa a virada. A
 lesão é uma data de expiração no calendário (seção 0), não um contador de temporada, e atravessa a
 virada: nextSeason reconstrói todo PlayerRecord como `PlayerRecord(injuredUntil = it.injuredUntil)`.
-Energia cheia e presenças, notas e gols zerados continuam sendo a aposta mais simples deste item para
-os demais campos, por serem contagens da temporada que terminou; nenhuma leitura da 1.4 os sustenta
-nem os contradiz.
+Os demais campos são dois casos distintos. Zerar presenças, notas e gols é coerente com o parêntese
+da 1.4: as estatísticas de partida vivem no log de eventos da temporada, e leituras futuras
+simplesmente não olham para trás, então a contagem da temporada nova começa do zero sem apagar nada
+da anterior. Recomeçar a energia cheia é aposta pura: nenhuma leitura da 1.4 a sustenta nem a
+contradiz.
 
 ### 117. Um clube sem partida na rodada de sua competição recupera como se não tivesse jogado
 

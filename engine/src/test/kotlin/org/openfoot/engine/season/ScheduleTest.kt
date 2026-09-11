@@ -143,6 +143,56 @@ class ScheduleTest {
         assertTrue(dates.all { it.isSunday })
     }
 
+    /**
+     * With no cup in the world, no Wednesday from week twelve carries a cup
+     * date, so every one of them is free for a league: in 2026 that is forty
+     * Sundays and forty Wednesdays, from 1 April through 30 December, a
+     * capacity of eighty. A league of twenty clubs in four turns, seventy six
+     * rounds, takes the forty Sundays and the first thirty six Wednesdays,
+     * one a week from 1 April; twenty two clubs in four turns, eighty four
+     * rounds, is refused by name against the eighty.
+     */
+    @Test
+    fun `a world with no cup frees every Wednesday from week twelve for the league`() {
+        val schedule = SeasonSchedule.build(2026, listOf(league("l", sides(20), turns = 4)))
+        val dates = schedule.slots.filter { it.competition == "l" }.map { it.date }
+        assertEquals(76, dates.size)
+        assertEquals(sundays2026, dates.count { it.isSunday })
+        val wednesdays = dates.filterNot { it.isSunday }
+        assertEquals((0 until 36).map { CalendarDate(2026, 4, 1).plusDays(7 * it) }, wednesdays)
+        val error = assertFailsWith<IllegalArgumentException> { SeasonSchedule.build(2026, listOf(league("l", sides(22), turns = 4))) }
+        assertRefusedByName(error, "l", 84, 80)
+    }
+
+    /**
+     * 2023 opens on Sunday 1 January, so its week twelve Sunday is 26 March
+     * and its last Sunday 31 December: forty one league Sundays. The
+     * Wednesday of the week that opens on 31 December is 3 January 2024,
+     * past the year, and is dropped, which leaves forty Wednesdays from 29
+     * March through 27 December. A league of forty two clubs in one turn
+     * plays its forty one rounds on Sundays only, the last on 31 December;
+     * with no cup the capacity is eighty one, which twenty eight clubs in
+     * three turns fill exactly, and forty two clubs in two turns, eighty two
+     * rounds, is refused by name against it.
+     */
+    @Test
+    fun `a year of fifty three Sundays ends its league on the thirty first of December and drops the Wednesday past the year`() {
+        val sundaysOnly = SeasonSchedule.build(2023, listOf(league("l", sides(42), turns = 1)))
+        val dates = sundaysOnly.slots.map { it.date }
+        assertEquals(41, dates.size)
+        assertTrue(dates.all { it.isSunday })
+        assertEquals(CalendarDate(2023, 3, 26), dates.first())
+        assertEquals(CalendarDate(2023, 12, 31), dates.last())
+
+        val full = SeasonSchedule.build(2023, listOf(league("l", sides(28), turns = 3))).slots.map { it.date }
+        assertEquals(81, full.size)
+        assertEquals(CalendarDate(2023, 12, 27), full.filterNot { it.isSunday }.last())
+        assertEquals(CalendarDate(2023, 12, 31), full.last())
+        assertTrue(full.all { it.year == 2023 })
+        val error = assertFailsWith<IllegalArgumentException> { SeasonSchedule.build(2023, listOf(league("l", sides(42), turns = 2))) }
+        assertRefusedByName(error, "l", 82, 81)
+    }
+
     @Test
     fun `a state championship that would run past week twelve is refused by name`() {
         val error = assertFailsWith<IllegalArgumentException> { SeasonSchedule.build(2026, listOf(state("s", sides(14)))) }
