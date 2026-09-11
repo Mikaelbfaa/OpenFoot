@@ -207,16 +207,17 @@ data class KnockoutPhase(
     }
 
     /**
-     * The opening round's pairings. A field of two, four or eight is a
-     * state championship bracket and reads FORMAT-SPEC's fixed table through
-     * firstRoundTies. Any other field size is not a state preset; section
-     * 1.13 seeds it by strength instead, the best entrant against the worst,
-     * the second best against the second worst, and so on.
+     * The opening round's pairings, read from openingPairs: FORMAT-SPEC's
+     * fixed bracket for a field of two, four or eight, through
+     * firstRoundTies, which also checks the entrants are listed by seed from
+     * one; any other field is not a state preset, and section 1.13 seeds it
+     * by strength, the best entrant against the worst, the second best
+     * against the second worst, and so on.
      */
     @SpecRef("1.13")
     private fun openingTies(): List<Tie> = when (entrants.size) {
         2, 4, 8 -> firstRoundTies(entrants)
-        else -> (0 until entrants.size / 2).map { Tie(entrants[it], entrants[entrants.size - 1 - it]) }
+        else -> openingPairs(entrants.size).map { (better, worse) -> Tie(entrants[better - 1], entrants[worse - 1]) }
     }
 
     /**

@@ -9,8 +9,9 @@ import org.openfoot.model.SpecRef
  * One competition of the season, per section 1.10: an ordered list of
  * phases, played one after another, with its own round counter so it walks
  * itself to completion without help from the season loop. A league phase
- * hands the next phase its qualifiers through the qualifiers function, the
- * one place a format's qualification rule lives; every other reading of a
+ * hands the next phase its qualifiers through the qualifiers rule, the one
+ * place a format's qualification rule lives, kept as data so that two
+ * competitions built alike compare equal; every other reading of a
  * competition, its participants, its next matches, its final order, is
  * derived from the phase list and the results recorded so far rather than
  * kept alongside them. Competition is a value: recorded returns the next
@@ -24,7 +25,7 @@ data class Competition(
     val country: Int,
     val division: Int?,
     val phases: List<Phase>,
-    val qualifiers: (RoundRobinPhase, List<Result>) -> List<Entrant>,
+    val qualifiers: Qualifiers,
     val results: List<List<Result>>,
     val phaseIndex: Int,
     val roundIndex: Int,
@@ -86,7 +87,7 @@ data class Competition(
      * Records the results of the current round's matches and returns the
      * competition advanced past them: to the next round of the same phase,
      * or, past the phase's last round, to the next phase, seeding a knockout
-     * phase's entrants from the qualifiers function applied to the phase
+     * phase's entrants from the qualifiers rule applied to the phase
      * that just finished. Past the last phase the competition is finished.
      */
     fun recorded(matches: List<Pair<ScheduledMatch, Result>>): Competition {
@@ -104,7 +105,7 @@ data class Competition(
             is Phase.Knockout -> {
                 val league = phases[phaseIndex] as? Phase.League
                     ?: throw IllegalStateException("$key: a knockout phase must follow a league phase")
-                Phase.Knockout(coming.phase.copy(entrants = qualifiers(league.phase, extended[phaseIndex])))
+                Phase.Knockout(coming.phase.copy(entrants = qualifiers.pick(league.phase, extended[phaseIndex])))
             }
             is Phase.League -> coming
         }
@@ -135,5 +136,53 @@ data class Competition(
             league.overallTable(results[leagueIndex]).forEach { if (it.key !in order) order += it.key }
         }
         return order
+    }
+}
+
+/**
+ * The qualification rule a league phase hands the knockout that follows it,
+ * per section 1.11 and FORMAT-SPEC's state presets: who goes through, and
+ * with which seed. It is data rather than a function so that a Competition,
+ * and with it a whole SeasonState, compares equal to another built the same
+ * way; a function value compares by identity, so two seasons built from one
+ * seed would never be equal.
+ */
+@SpecRef("1.11")
+sealed interface Qualifiers {
+    /** The entrants the finished league phase sends on, listed by seed from one. */
+    fun pick(phase: RoundRobinPhase, results: List<Result>): List<Entrant>
+
+    /** Nobody goes on: a league with no final phase, or a competition that opens with its knockout. */
+    data object None : Qualifiers {
+        override fun pick(phase: RoundRobinPhase, results: List<Result>): List<Entrant> = emptyList()
+    }
+
+    /**
+     * The first count clubs of the overall table across every group, seeded
+     * one to count in table order, so the knockout's opening pairs set the
+     * strongest against the weakest: a single table state preset, which
+     * FORMAT-SPEC pairs by position, and a grouped league with the overall
+     * table option of section 1.11, which ignores the groups.
+     */
+    @SpecRef("1.11")
+    data class OverallTable(val count: Int) : Qualifiers {
+        override fun pick(phase: RoundRobinPhase, results: List<Result>): List<Entrant> =
+            phase.overallTable(results).take(count).mapIndexed { index, row -> Entrant(row.key, index + 1) }
+    }
+
+    /**
+     * The first perGroup places of every group's own table, seeded by
+     * groupedSeeds so the knockout pairs inside each group until one club a
+     * group remains: FORMAT-SPEC's grouped presets 7 and 10, and a grouped
+     * national league of section 1.11, which reuses that engine.
+     */
+    @SpecRef("FORMAT-SPEC, ces")
+    data class PerGroup(val perGroup: Int) : Qualifiers {
+        override fun pick(phase: RoundRobinPhase, results: List<Result>): List<Entrant> {
+            val seeds = groupedSeeds(phase.groups.size, perGroup)
+            return phase.groups.indices.flatMap { group ->
+                phase.groupTable(group, results).take(perGroup).mapIndexed { place, row -> Entrant(row.key, seeds[group][place]) }
+            }.sortedBy { it.seed }
+        }
     }
 }

@@ -56,6 +56,11 @@ fun leagueDivisions(country: Int, clubs: List<ClubState>, dataset: WorldDataset)
 /**
  * The competition a division plays this season, per 1.11.
  *
+ * A division of an odd club count is refused up front, with a message that
+ * names the division and its count: the dataset allows an odd team count,
+ * but section 1.3 records the round robin's odd path as unreachable for
+ * every configured league, and this version builds no bye.
+ *
  * The clubs are shuffled once, section 1.3's draw, before any round robin is
  * built from them; a division without groups, or without a matching
  * configuration at all, plays that shuffled order as one flat league phase.
@@ -65,28 +70,32 @@ fun leagueDivisions(country: Int, clubs: List<ClubState>, dataset: WorldDataset)
  * with RoundRobinPhase.grouped, passing config.gamesInsideGroup through.
  * Section 1.11's own prose reads as if the cross group games are played
  * whenever jogosDentroGrupo is on, on top of each group's own round robin,
- * rather than instead of it; this plan keeps to the flat reading the
+ * rather than instead of it; this keeps to the flat reading the
  * RoundRobinPhase.grouped interface already gives (with games inside the
  * group, only the groups' own round robins are played, never a cross group
- * game, matching section 1.3's own single-league engine), and records the
- * apparent conflict between that reading and 1.11's wording as an open
- * question for the spec sweep rather than resolving it silently here.
+ * game, matching section 1.3's own single-league engine), and OPEN-QUESTIONS
+ * item 119 records the conflict between that reading and 1.11's wording.
  *
- * When config.knockoutQualifiers is a plain count from one to sixty four,
- * a knockout phase follows the groups: the qualifiers function takes that
- * many from each group's own table, or from the overall table across every
- * group when config.qualifyByOverallTable is on, and seeds the knockout
- * field in group order then table place, so the strongest of the whole
- * picture meets the weakest. Section 1.11 does not publish a seeding table
- * for this particular final phase the way it does for the state
- * championship presets, so this seeding order is INFERIDO, a declared bet
- * rather than a read fact, kept only because it is the seeding
- * nextRoundTies and the knockout phase already give every other final
- * phase in this codebase. The final phase's legs are two legged throughout:
- * the distributed cfg carries no legs array for this phase the way the
- * state championship one does, section 1.11 says only that it follows the
- * estadual convention, and two legs is this reading's own bet at that
- * convention, likewise INFERIDO.
+ * When config.knockoutQualifiers is a plain count from one to sixty four, a
+ * knockout phase follows the groups, played by the state championship
+ * engine that section 1.11 says the league reuses, and its qualification
+ * rule is data, a Qualifiers value. Without the overall table option the
+ * qualifiers are each group's own top config.knockoutQualifiers,
+ * Qualifiers.PerGroup, seeded by groupedSeeds, the very seeding the grouped
+ * state presets use: the opening rounds stay inside each group, place p
+ * against place q plus one minus p for q qualifiers a group, until one club
+ * a group remains, and the group survivors then meet in bracket order, A
+ * against B, C against D, and so on. FORMAT-SPEC pairs the grouped presets'
+ * quarter finals inside the group, first against second, groups A to D in
+ * order, and 1.11 has the league reuse that; 1.11's own parenthetical,
+ * first of each group against second of the next, contradicts both, and
+ * OPEN-QUESTIONS item 120 records the FORMAT-SPEC reading winning, INFERIDO
+ * for more than two qualifiers a group. With config.qualifyByOverallTable
+ * on, 1.11 ignores the groups: the top of the overall table goes through,
+ * seeded in table order, strong against weak, Qualifiers.OverallTable. In
+ * every tie the better placed side hosts the return leg, FORMAT-SPEC's rule,
+ * which Tie carries. Every round of the final phase is two legged,
+ * FINAL_PHASE_TWO_LEGGED, OPEN-QUESTIONS item 115's bet.
  *
  * config.knockoutQualifiers equal to LeagueConfigEntry.SERIE_C_FORMAT
  * selects the hand written Brazilian Serie C format of 1.11 (a flat first
@@ -104,18 +113,20 @@ fun leagueDivisions(country: Int, clubs: List<ClubState>, dataset: WorldDataset)
  */
 @SpecRef("1.11")
 fun leagueCompetition(division: LeagueDivision, rng: Rng): Competition {
+    val key = "league:${division.country}:${division.division}"
+    require(division.clubs.size % 2 == 0) {
+        "$key holds ${division.clubs.size} clubs, and an odd count plays no round robin of section 1.3; that shape is outside what this version builds"
+    }
     val order = shuffledOrder(division.clubs, rng)
     val config = division.config
     val groups = config?.groups ?: 0
     val phases = ArrayList<Phase>()
-    val qualifiers: (RoundRobinPhase, List<Result>) -> List<Entrant>
+    var qualifiers: Qualifiers = Qualifiers.None
     if (groups == 0 || config == null) {
         phases += Phase.League(RoundRobinPhase.single(order, division.turns))
-        qualifiers = { _, _ -> emptyList() }
     } else {
-        val label = "league:${division.country}:${division.division}"
         require(order.size % groups == 0 && (order.size / groups) % 2 == 0) {
-            "$label deals ${order.size} clubs into $groups groups, which is not an equal, even split; that shape is outside what this version builds"
+            "$key deals ${order.size} clubs into $groups groups, which is not an equal, even split; that shape is outside what this version builds"
         }
         val dealt = (0 until groups).map { g -> order.filterIndexed { index, _ -> index % groups == g } }
         phases += Phase.League(RoundRobinPhase.grouped(dealt, division.turns, config.gamesInsideGroup))
@@ -123,21 +134,14 @@ fun leagueCompetition(division: LeagueDivision, rng: Rng): Competition {
         if (perGroup in 1..MAX_KNOCKOUT_FIELD) {
             val field = perGroup * groups
             require(field >= 2 && field and (field - 1) == 0) {
-                "$label would seed a final phase field of $field, which is not a power of two; that shape is outside what this version builds"
+                "$key would seed a final phase field of $field, which is not a power of two; that shape is outside what this version builds"
             }
-            phases += Phase.Knockout(KnockoutPhase(emptyList(), legsPerRound = List(LeagueConfigEntry.PLAYOFF_ROUNDS) { true }, penalties = true, field = field))
-        }
-        qualifiers = { phase, results ->
-            val picked = if (config.qualifyByOverallTable) {
-                phase.overallTable(results).take(perGroup * groups).map { it.key }
-            } else {
-                phase.groups.indices.flatMap { g -> phase.groupTable(g, results).take(perGroup).map { it.key } }
-            }
-            picked.mapIndexed { i, key -> Entrant(key, i + 1) }
+            phases += Phase.Knockout(KnockoutPhase(emptyList(), legsPerRound = listOf(FINAL_PHASE_TWO_LEGGED), penalties = true, field = field))
+            qualifiers = if (config.qualifyByOverallTable) Qualifiers.OverallTable(field) else Qualifiers.PerGroup(perGroup)
         }
     }
     return Competition(
-        key = "league:${division.country}:${division.division}",
+        key = key,
         kind = CompetitionKind.NATIONAL_LEAGUE,
         country = division.country,
         division = division.division,
@@ -189,3 +193,16 @@ private const val DEFAULT_RELEGATED = 2
 /** The largest final phase a configured league can ask for before the value is a sentinel of 1.11. */
 @SpecRef("1.11")
 private const val MAX_KNOCKOUT_FIELD = 64
+
+/**
+ * Whether each round of a grouped league's final phase is two legged. The
+ * phase lists this one flag, and KnockoutPhase repeats a list's last entry
+ * for every later round, so the whole phase is two legged and its dated
+ * rounds, two a round, are counted by KnockoutPhase.datedRounds like every
+ * other knockout's. Section 1.11 gives this phase the state championship
+ * engine without a legs array of its own; two legs throughout is
+ * OPEN-QUESTIONS item 115's bet, INFERIDO. It is not the playoff legs of
+ * section 1.12, which belong to another mechanism.
+ */
+@SpecRef("1.11")
+private const val FINAL_PHASE_TWO_LEGGED = true

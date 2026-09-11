@@ -18,7 +18,7 @@ class CompetitionTest {
         country = 29,
         division = 1,
         phases = listOf(Phase.League(RoundRobinPhase.single(six, turns = 1))),
-        qualifiers = { _, _ -> emptyList() },
+        qualifiers = Qualifiers.None,
         results = listOf(emptyList()),
         phaseIndex = 0,
         roundIndex = 0,
@@ -54,9 +54,7 @@ class CompetitionTest {
         )
         var competition = leagueOnly().copy(
             phases = phases,
-            qualifiers = { phase, results ->
-                phase.overallTable(results).take(4).mapIndexed { i, row -> Entrant(row.key, i + 1) }
-            },
+            qualifiers = Qualifiers.OverallTable(4),
         )
         val rules = RuleSets.CLASSIC
         val rng = SplitMix64Rng(2)
@@ -99,7 +97,7 @@ class CompetitionTest {
                 Phase.League(RoundRobinPhase.single(six, turns = 1)),
                 Phase.Knockout(KnockoutPhase(emptyList(), listOf(true), penalties = true, field = 2)),
             ),
-            qualifiers = { phase, results -> phase.overallTable(results).take(2).mapIndexed { i, row -> Entrant(row.key, i + 1) } },
+            qualifiers = Qualifiers.OverallTable(2),
             results = listOf(emptyList()),
             phaseIndex = 0,
             roundIndex = 0,

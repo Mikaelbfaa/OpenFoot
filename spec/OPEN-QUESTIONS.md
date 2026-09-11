@@ -2763,11 +2763,14 @@ completa num só lugar.
 A seção 1.11 diz que a fase final de uma liga nacional configurada com grupos segue a convenção
 estadual, sem publicar um vetor de pernas por rodada próprio como a `.ces` publica para o estadual.
 
-**Resolução (INFERIDO):** leagueCompetition constrói essa fase final com
-`legsPerRound = List(LeagueConfigEntry.PLAYOFF_ROUNDS) { true }`, ida e volta em toda rodada, a mesma
-leitura de "convenção estadual" que o docstring de leagueCompetition já registra. Nenhum `.cfg`
-distribuído usa essa combinação de campos, então esta aposta também fica sem exemplo real para
-confirmar ou refutar.
+**Resolução (INFERIDO):** leagueCompetition constrói essa fase final com toda rodada em ida e volta,
+por uma constante própria da fase final (`FINAL_PHASE_TWO_LEGGED`), e não pelo número de rodadas dos
+playoffs de acesso e rebaixamento do `.cfg`, que pertencem a outro mecanismo (seção 1.12). É a mesma
+leitura de "convenção estadual" que o docstring de leagueCompetition registra: o formato padrão do
+estadual joga o mata-mata em ida e volta. A combinação existe nos dados distribuídos: a 4a divisão
+brasileira (8 grupos, `numeroTimesMataMata = 4`) tem fase final, com 32 classificados, cinco rodadas
+e, por esta aposta, dez datas. O que falta é o dado: nenhum campo do `.cfg` dá as pernas dessa fase,
+então nenhum arquivo distribuído confirma ou refuta a aposta.
 
 ### 116. Vira de temporada: a disciplina recomeça limpa porque é por competição, a lesão sobrevive pela data
 
@@ -2852,17 +2855,42 @@ lida isoladamente sugeriria o contrário. A 4a divisão brasileira (`nGrupos = 8
 true`) é o único `.cfg` distribuído que usa a combinação, e joga exatamente como a 1.3 descreve; o
 conflito de leitura entre as duas seções fica registrado aqui para quem revisar a spec depois.
 
-### 120. Fase final de uma liga agrupada: semeadura por ordem de grupo e depois colocação, forte contra fraco
+### 120. Fase final de uma liga agrupada: pareamento dentro do grupo até sobrar um por grupo
 
-Quando uma liga nacional configurada tem grupos e uma fase final de mata-mata, a 1.11 não publica
-nenhuma tabela de pareamento para essa fase final, ao contrário do que faz para os presets estaduais
-7 e 10.
+A seção 1.11 diz que a fase final de uma liga nacional com grupos reaproveita o motor dos estaduais,
+com os classificados "emparelhados dentro do próprio grupo nas rodadas iniciais quando aplicável, do
+mesmo jeito que o preset 7/10 da `.ces`", e acrescenta entre parênteses "1o de cada grupo contra o 2o
+do grupo seguinte etc.". A FORMAT-SPEC, para os presets 7 e 10, pareia as quartas de final dentro do
+próprio grupo, 1o do grupo contra 2o do grupo, nos grupos A, B, C e D nessa ordem, e depois as
+semifinais entre os vencedores de A e B e de C e D. O parêntese contradiz ao mesmo tempo a frase que
+ele comenta e a FORMAT-SPEC. A 1.11 também não diz como parear mais de dois classificados por grupo.
 
-**Resolução (INFERIDO):** a função qualifiers de leagueCompetition ordena os classificados por grupo
-e depois por colocação dentro do grupo (do primeiro colocado de cada grupo até o último classificado
-do último grupo) e semeia essa ordem 1, 2, 3... no campo do mata-mata, que por sua vez pareia pela
-mesma regra do item 112: o melhor semeado contra o pior. O efeito final é forte contra fraco pela
-combinação de grupo e colocação, sem nenhuma tabela de pares específica, porque a 1.11 não dá uma.
+**Resolução:** a regra da FORMAT-SPEC vence o parêntese da 1.11. Com dois classificados por grupo, o
+pareamento é CONFIRMADO pela FORMAT-SPEC (presets 7 e 10) e pela 1.11, que diz que a liga usa o mesmo
+motor; o parêntese é lido como erro de redação. Em cada confronto o melhor colocado recebe a volta,
+como a FORMAT-SPEC diz do estadual ("o melhor colocado recebe a volta"). Uma só função de semeadura
+(`groupedSeeds`) serve aos estaduais e às ligas, e para quatro grupos de dois ela dá exatamente a chave
+dos presets 7 e 10.
+
+Pontos INFERIDO:
+
+- com q classificados por grupo, q acima de 2, as rodadas iniciais ficam dentro de cada grupo, a
+  colocação p contra a colocação q+1-p, até sobrar um clube por grupo. Os confrontos da primeira
+  rodada do campo inteiro, na ordem da chave (a da FORMAT-SPEC para 4 e 8 times, a semeadura por força
+  da 1.13 acima disso), são repartidos entre os grupos em blocos consecutivos de q/2, o grupo A
+  primeiro; dentro do bloco, o confronto com a melhor semente fica com a 1a e a última colocação do
+  grupo, o seguinte com a 2a e a penúltima, e assim por diante. Assim uma colocação melhor sempre tem
+  semente melhor, e o melhor colocado recebe a volta também nas rodadas seguintes dentro do grupo;
+- os sobreviventes de cada grupo se enfrentam depois em ordem de chave: A contra B, C contra D, e
+  assim por diante. Com um só classificado por grupo, os grupos já se cruzam assim na primeira rodada.
+  Entre clubes de grupos diferentes, recebe a volta quem a função de semeadura pôs com a semente menor;
+- com `classificaPeloGeral` ligado, a 1.11 ignora os grupos: os primeiros da tabela geral são semeados
+  na ordem da tabela, forte contra fraco, pela mesma chave do estadual sem grupos.
+
+**MEDIDO:** `KnockoutTest` prende que a função reproduz a chave dos presets 7 e 10 e mantém todo
+confronto dentro do grupo até sobrar um por grupo em vários formatos; `NationalLeaguesTest` prende o
+mesmo numa liga jogada de quatro grupos com quatro classificados cada, o mando da volta com dois
+classificados por grupo e a semeadura pela tabela geral.
 
 ### 121. O boundary 3a contra 4a divisão brasileira: a 3a rebaixa direto para a porta e a 4a ainda promove seus melhores
 
@@ -2898,13 +2926,16 @@ ainda candidatos, a lista fica menor que o configurado (o motor não força um t
 
 **Resolução:** o completamento do passo 3 e a lista curta do passo 4 são CONFIRMADO pela 1.12. A
 divisão toma, nesta ordem, a porta (os rebaixados da 3a na virada anterior, item 121), a fila estadual
-da temporada (a caminhada do item 81) e os clubes brasileiros sem divisão estadual nenhuma nessa
-temporada, na ordem dos clubes na base de dados. Com a base real todo clube brasileiro tem estado, então
-os clubes sem divisão estadual são os que estão na reserva de um estado e os de estados pequenos demais
-para ter campeonato. A lista para no tamanho configurado ou quando os candidatos acabam.
+da temporada (a caminhada do item 81) e, para completar, os clubes brasileiros sem divisão estadual
+nenhuma, na ordem em que aparecem no mundo. A lista para no tamanho configurado ou quando os
+candidatos acabam.
 
-Dois pontos são INFERIDO:
+Quatro pontos são INFERIDO:
 
+- "sem divisão estadual nenhuma" é lido como sem lugar em nenhuma divisão estadual nesta temporada.
+  Com a base real todo clube brasileiro tem estado, então esses clubes são os que estão na reserva de
+  um estado e os de estados pequenos demais para ter campeonato;
+- "na ordem em que aparecem no mundo" é lido como a ordem dos clubes na base de dados;
 - um clube que já está nas divisões um a três, e um nome já escolhido (por exemplo um campeão estadual
   que também está na porta), é pulado. A 1.12 não escreve essa regra; ela é a única leitura
   compatível com um clube numa só divisão, da 1.9;

@@ -75,6 +75,72 @@ fun firstRoundTies(qualified: List<Entrant>): List<Tie> {
 }
 
 /**
+ * The first round's pairs of a knockout of the given field, as seed numbers,
+ * better seed first, in tie order: FORMAT-SPEC's fixed bracket for the two,
+ * four and eight side fields the state presets send, and, for any other
+ * field, section 1.13's strength seeding, the best against the worst, the
+ * second best against the second worst, and so on. KnockoutPhase opens
+ * every knockout with these pairs, and groupedSeeds lays its seeds out
+ * against the same pairs, so the two can never disagree.
+ */
+@SpecRef("1.13")
+internal fun openingPairs(field: Int): List<Pair<Int, Int>> = BRACKETS[field] ?: (1..field / 2).map { it to field + 1 - it }
+
+/**
+ * The seeds of a knockout fed by the top places of several groups, per
+ * FORMAT-SPEC's grouped presets and section 1.11, which has a grouped
+ * national league reuse that engine: for each group, in group order, the
+ * seed its first place takes, then its second, down to its last qualifying
+ * place.
+ *
+ * The seeds are chosen against the knockout's own pairing, openingPairs for
+ * the first round and nextRoundTies after it, so that every tie stays inside
+ * one group until a single club of each group remains, and only then do the
+ * groups cross in bracket order, group A's survivor against group B's, C's
+ * against D's, and so on. The field's opening pairs are read in tie order
+ * and dealt to the groups in consecutive blocks of perGroup halved, group A
+ * first. Within a group's block, the pair holding the best seed goes to the
+ * group's first and last places, the next to its second and second to last,
+ * and so on, so place p meets place perGroup plus one minus p, and a better
+ * place always holds a better seed: the better placed club is the higher
+ * entrant, hosting the return leg, in every round played inside the group,
+ * not only the first. Because nextRoundTies pairs the winners of consecutive
+ * ties, a group's block stays together round by round until its own final
+ * is played. A single qualifier a group has no round inside the group: each
+ * opening pair holds two consecutive groups, A with B, the earlier group
+ * taking the better seed.
+ *
+ * Four groups of two, presets 7 and 10, read FORMAT-SPEC's eight side
+ * bracket, (2,7), (4,5), (1,8), (3,6), one pair a group, and give group A
+ * the seeds 2 and 7, B 4 and 5, C 1 and 8, D 3 and 6: every quarter final
+ * is first against second of one group, groups A to D in order, and the
+ * semi finals cross A with B and C with D, exactly FORMAT-SPEC's text. One
+ * group seeds its places one to perGroup, the single table bracket. For more
+ * than two qualifiers a group, the pairing inside the group and the order
+ * of a group's own ties are OPEN-QUESTIONS item 120's bet, INFERIDO.
+ */
+@SpecRef("FORMAT-SPEC, ces")
+fun groupedSeeds(groups: Int, perGroup: Int): List<List<Int>> {
+    val field = groups * perGroup
+    require(groups >= 1 && perGroup >= 1 && field >= 2 && field and (field - 1) == 0) {
+        "$groups groups of $perGroup qualifiers make a field of $field, and a knockout field is a power of two of at least two"
+    }
+    val pairs = openingPairs(field)
+    if (perGroup == 1) return (0 until groups).map { group -> listOf(pairs[group / 2].let { if (group % 2 == 0) it.first else it.second }) }
+    val tiesPerGroup = perGroup / 2
+    return (0 until groups).map { group ->
+        val block = pairs.subList(group * tiesPerGroup, (group + 1) * tiesPerGroup).sortedBy { it.first }
+        val seeds = IntArray(perGroup)
+        block.forEachIndexed { index, (better, worse) ->
+            seeds[index] = better
+            seeds[perGroup - 1 - index] = worse
+        }
+        check((1 until perGroup).all { seeds[it - 1] < seeds[it] }) { "group $group of $groups groups of $perGroup would hold seeds ${seeds.toList()}, out of place order" }
+        seeds.toList()
+    }
+}
+
+/**
  * The next round: the winners of consecutive ties meet, in the order the
  * ties were played, the better placed of each pair holding the home rights.
  */

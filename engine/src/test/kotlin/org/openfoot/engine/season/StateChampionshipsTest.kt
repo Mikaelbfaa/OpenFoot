@@ -99,7 +99,7 @@ class StateChampionshipsTest {
         val competition = stateCompetition(setup.divisions.single(), SplitMix64Rng(9))
         val league = (competition.phases[0] as Phase.League).phase
 
-        val entrants = competition.qualifiers(league, emptyList())
+        val entrants = competition.qualifiers.pick(league, emptyList())
         val ties = firstRoundTies(entrants)
         assertEquals(4, ties.size)
         ties.forEach { tie ->

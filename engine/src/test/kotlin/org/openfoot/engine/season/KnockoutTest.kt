@@ -3,11 +3,13 @@ package org.openfoot.engine.season
 import org.openfoot.engine.match.ScriptedRng
 import org.openfoot.engine.world.ScriptedInts
 import org.openfoot.model.RuleSets
+import org.openfoot.model.SplitMix64Rng
 import org.openfoot.model.TeamSide
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * The knockout rules of FORMAT-SPEC's state championship section: the
@@ -32,6 +34,62 @@ class KnockoutTest {
         )
         assertFailsWith<IllegalArgumentException> { firstRoundTies(entrants(6)) }
         assertFailsWith<IllegalArgumentException> { firstRoundTies(entrants(4).reversed()) }
+    }
+
+    /**
+     * The grouped state presets' bracket, FORMAT-SPEC's quarter finals of
+     * first against second inside groups A to D: the shared seeding must give
+     * exactly the seeds the presets always had, so no state championship
+     * moves.
+     */
+    @Test
+    fun `four groups of two take the state presets' group seeds`() {
+        assertEquals(listOf(listOf(2, 7), listOf(4, 5), listOf(1, 8), listOf(3, 6)), groupedSeeds(groups = 4, perGroup = 2))
+    }
+
+    @Test
+    fun `one group seeds its places in table order`() {
+        assertEquals(listOf((1..8).toList()), groupedSeeds(groups = 1, perGroup = 8))
+        assertEquals(listOf((1..16).toList()), groupedSeeds(groups = 1, perGroup = 16))
+    }
+
+    /**
+     * Whatever the shape, with the better placed side of every tie going
+     * through: every round before one club a group remains pairs two clubs
+     * of one group, the first round place p against place q plus one minus
+     * p, and the round after pairs the group survivors A with B, C with D,
+     * and so on.
+     */
+    @Test
+    fun `grouped seeds keep every tie inside its group until one club a group remains`() {
+        val shapes = listOf(2 to 2, 4 to 2, 2 to 4, 4 to 4, 8 to 4, 4 to 8, 2 to 16, 8 to 1, 16 to 2)
+        for ((groups, perGroup) in shapes) {
+            val shape = "$groups groups of $perGroup"
+            val seeds = groupedSeeds(groups, perGroup)
+            assertTrue(seeds.all { row -> row.zipWithNext().all { (better, worse) -> better < worse } }, "$shape: a better place holds a better seed")
+            val where = seeds
+                .flatMapIndexed { group, row -> row.mapIndexed { place, seed -> "s$seed" to (group to place + 1) } }
+                .toMap()
+            val entrants = (1..groups * perGroup).map { Entrant("s$it", it) }
+            var ties = KnockoutPhase(entrants, listOf(false), penalties = true).ties(0, emptyList(), RuleSets.CLASSIC, SplitMix64Rng(1))
+            if (perGroup > 1) {
+                ties.forEach { tie ->
+                    assertEquals(perGroup + 1, where.getValue(tie.higher.key).second + where.getValue(tie.lower.key).second, shape)
+                }
+            }
+            repeat(Integer.numberOfTrailingZeros(perGroup)) {
+                ties.forEach { tie ->
+                    assertEquals(where.getValue(tie.higher.key).first, where.getValue(tie.lower.key).first, "$shape: ${tie.higher.key} against ${tie.lower.key}")
+                }
+                ties = nextRoundTies(ties.map { it.higher })
+            }
+            assertEquals(
+                (0 until groups step 2).map { setOf(it, it + 1) },
+                ties.map { setOf(where.getValue(it.higher.key).first, where.getValue(it.lower.key).first) },
+                shape,
+            )
+            assertTrue(ties.all { where.getValue(it.higher.key).second == 1 && where.getValue(it.lower.key).second == 1 }, shape)
+        }
     }
 
     @Test

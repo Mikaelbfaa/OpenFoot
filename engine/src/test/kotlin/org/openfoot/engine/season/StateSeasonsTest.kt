@@ -85,6 +85,22 @@ class StateSeasonsTest {
         assertEquals(state.brazilianWithoutDivision(), queue.toSet())
     }
 
+    /**
+     * A season is a value all the way down: every competition's qualification
+     * rule is data, so two seasons opened and played from one seed compare
+     * equal, competitions and state memberships included.
+     */
+    @Test
+    fun `two seasons from one seed compare equal, competitions and states included`() {
+        val once = opening(fourStates(), 8)
+        val twice = opening(fourStates(), 8)
+        assertTrue(once.competitions.values.any { it.kind == CompetitionKind.STATE })
+        assertEquals(once.states, twice.states)
+        assertEquals(once.competitions, twice.competitions)
+        assertEquals(once, twice)
+        assertEquals(play(once), play(twice))
+    }
+
     @Test
     fun `season two's state memberships are season one's after the swap, kept clubs first and arrivals after`() {
         val end = play(opening(fourStates(), 11))

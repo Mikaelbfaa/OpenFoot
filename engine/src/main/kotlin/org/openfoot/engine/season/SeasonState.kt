@@ -97,6 +97,12 @@ fun interface WeeklyTick {
  * built when the season's last state competition closes. It carries the
  * division's configured size and the door, the clubs the third division
  * relegated at the previous turnover, which head the division's queue.
+ *
+ * Equality holds all the way down for the reason given for seed: every
+ * field is a value, down to each competition's qualification rule, which is
+ * data, a Qualifiers value, rather than a function, since a function
+ * compares by identity. Two seasons opened from one seed and played the
+ * same way compare equal, competitions and state memberships included.
  */
 @SpecRef("1.10")
 data class SeasonState(

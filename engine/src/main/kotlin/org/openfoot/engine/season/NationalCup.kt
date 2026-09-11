@@ -34,7 +34,7 @@ fun nationalCup(country: Int, clubs: List<ClubState>, rng: Rng): Competition? {
         country = country,
         division = null,
         phases = listOf(Phase.Knockout(KnockoutPhase(entrants, legsPerRound = List(MAX_CUP_ROUNDS) { true }, penalties = true))),
-        qualifiers = { _, _ -> emptyList() },
+        qualifiers = Qualifiers.None,
         results = listOf(emptyList()),
         phaseIndex = 0,
         roundIndex = 0,

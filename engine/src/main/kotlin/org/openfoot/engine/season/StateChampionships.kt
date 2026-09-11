@@ -169,8 +169,10 @@ fun stateSetup(clubs: List<ClubState>, dataset: WorldDataset, tiebreak: (String)
  * longer in it when its relegation zone is read, so a club that won a
  * division's knockout from the foot of its table goes up and is not also
  * sent down; the zone is then the last clubs of the table among those still
- * there. The original's own processing order, top boundary first, gives the
- * same reading.
+ * there. Processing a state's boundaries from the top down is itself a bet:
+ * the spec gives that order for the national pyramid of section 1.12, not
+ * for state divisions, and OPEN-QUESTIONS item 123 records carrying it over,
+ * INFERIDO.
  *
  * A division's new membership is its kept clubs in their previous
  * membership order, then the clubs arriving from above in their table
@@ -233,7 +235,7 @@ internal fun stateCompetitionKey(division: StateDivision): String = "state:${div
  * section 1.3 says every round robin shuffles its participants uniformly
  * before the circle is drawn, and a single table state division is no
  * exception. Its qualifiers are the top of the overall table, seeded one
- * through the qualifier count in table order.
+ * through the qualifier count in table order, Qualifiers.OverallTable.
  *
  * Presets 7 and 10 deal the division's clubs into four groups instead, and
  * that deal draws nothing: FORMAT-SPEC's "Carga na criacao do mundo" load
@@ -244,16 +246,15 @@ internal fun stateCompetitionKey(division: StateDivision): String = "state:${div
  * is the queue's own order, is dealt directly, with no shuffle and rng left
  * untouched on this path; the groups then play only across each other,
  * never within, which is RoundRobinPhase.grouped with gamesInsideGroup
- * false. Their qualifiers are each group's top two, and FORMAT-SPEC's
- * bracket keeps a group's own pair together through the quarter final:
- * firstRoundTies' eight side bracket pairs seeds (2,7), (4,5), (1,8) and
- * (3,6), so assigning a group's first place and second place the seeds of
- * one of those four pairs, group by group, makes every quarter final an
- * internal affair of its own group and leaves the semi finals to cross
- * group A with B and group C with D, exactly as FORMAT-SPEC's "1o do grupo
- * x 2o do grupo" quarter finals read. This builds those entrants sorted by
- * seed once a league phase has been played, inside the qualifiers function
- * the competition calls when it advances.
+ * false. Their qualifiers are each group's top two, Qualifiers.PerGroup,
+ * seeded by groupedSeeds, the one seeding a grouped national league's final
+ * phase shares. For four groups of two it reads the eight side bracket of
+ * firstRoundTies, pairs (2,7), (4,5), (1,8) and (3,6), and gives each
+ * group's first and second place the seeds of one pair, group by group, so
+ * every quarter final is an internal affair of its own group and the semi
+ * finals cross group A with B and group C with D, exactly as FORMAT-SPEC's
+ * "1o do grupo x 2o do grupo" quarter finals read. The competition applies
+ * the rule once the league phase has been played.
  *
  * The knockout's field is fixed from the preset before it has any entrants,
  * because a competition must know its round and leg count ahead of the
@@ -272,16 +273,7 @@ fun stateCompetition(division: StateDivision, rng: Rng): Competition {
         val groups = (0 until preset.groups).map { g -> division.clubs.filterIndexed { index, _ -> index % preset.groups == g } }
         RoundRobinPhase.grouped(groups, turns, gamesInsideGroup = false)
     }
-    val qualifiers: (RoundRobinPhase, List<Result>) -> List<Entrant> = { phase, results ->
-        if (phase.groups.size == 1) {
-            phase.overallTable(results).take(preset.qualifiers).mapIndexed { i, row -> Entrant(row.key, i + 1) }
-        } else {
-            val seeds = GROUP_SEEDS
-            phase.groups.indices.flatMap { g ->
-                phase.groupTable(g, results).take(preset.qualifiers).mapIndexed { place, row -> Entrant(row.key, seeds[g][place]) }
-            }.sortedBy { it.seed }
-        }
-    }
+    val qualifiers = if (preset.groups == 0) Qualifiers.OverallTable(preset.qualifiers) else Qualifiers.PerGroup(preset.qualifiers)
     return Competition(
         key = stateCompetitionKey(division),
         kind = CompetitionKind.STATE,
@@ -297,14 +289,6 @@ fun stateCompetition(division: StateDivision, rng: Rng): Competition {
         roundIndex = 0,
     )
 }
-
-/**
- * Seeds by group index and place within the group that put a group's first
- * and second in one of firstRoundTies' eight side pairs, group by group, so
- * every quarter final of the state bracket stays inside its own group.
- */
-@SpecRef("FORMAT-SPEC, ces")
-private val GROUP_SEEDS: List<List<Int>> = listOf(listOf(2, 7), listOf(4, 5), listOf(1, 8), listOf(3, 6))
 
 /** The smallest club count a state fields a championship over, and the size of the smallest preset. */
 @SpecRef("FORMAT-SPEC, ces")
