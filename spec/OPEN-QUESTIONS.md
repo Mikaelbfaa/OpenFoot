@@ -2840,17 +2840,28 @@ cada competição carrega a lista `approximations`, preenchida pela fábrica que
 abaixo do cabeçalho da competição, na ordem fixa da lista acima. As condições são exatamente as da
 lista: a nota da Série C quando `numeroTimesMataMata` é o sentinela; a da preliminar quando o tamanho
 configurado é 64 e a oferta de candidatos, contada pela mesma varredura que monta a divisão, chega a
-68; a dos playoffs quando qualquer um dos dois campos pede playoff; a da copa quando a opção está
-ligada e o país tem 91 clubes ou mais; a de São Paulo quando a opção está ligada, o estado é o 25, a
-divisão é a 1 e o preset é o 7, estejam ou não presentes os 16 clubes da lista; as de
-`melhoresTerceiros` e de `rebaixadoPeloGrupo` só quando a liga tem grupos.
+68; a dos playoffs quando qualquer um dos dois campos pede playoff, salvo o playoff de rebaixamento
+da 3a divisão brasileira enquanto os estaduais alimentam a 4a; a da copa quando a opção está ligada e
+o país tem 91 clubes ou mais; a de São Paulo quando a opção está ligada, o estado é o 25, a divisão é
+a 1 e o preset é o 7, estejam ou não presentes os 16 clubes da lista, e só na primeira temporada; as
+de `melhoresTerceiros` e de `rebaixadoPeloGrupo` só quando a liga tem grupos.
+
+Os dois recortes vêm de texto CONFIRMADO, não de aposta nova. A 1.12 diz que, com a 4a alimentada
+pelos estaduais, o motor força `rebaixadosDireto = nRebaixados` na 3a brasileira: o rebaixamento
+direto ali é a regra, não uma aproximação, e a mesma condição que manda os rebaixados da 3a para a
+porta na virada é a que cala a nota. Os `vagasSobemPeloMataMata` da 3a, que decidem o acesso à 2a,
+não são tocados por essa regra e continuam anunciados. A regra de carga 6 da FORMAT-SPEC roda na
+criação do mundo; as temporadas seguintes jogam as listas que a virada carregou (item 123), e nenhuma
+opção pede nada a elas, então só a primeira temporada anuncia os grupos reais ignorados.
 
 **MEDIDO:** `NationalLeaguesTest` prende a nota da Série C, a dos playoffs, a de `melhoresTerceiros`
 e a de `rebaixadoPeloGrupo`, e a ausência desta última numa divisão sem grupos; `NationalCupTest`
 prende a nota da copa a partir de 91 clubes e sua ausência com 90 ou com a opção desligada;
 `StateChampionshipsTest`, a de São Paulo; `StateSeasonsTest`, a da preliminar com 68 candidatos e sua
-ausência com 67; `SeasonNotesTest`, na CLI, prende que cada nota sai impressa sob o cabeçalho da sua
-competição.
+ausência com 67, a de São Paulo na primeira temporada e sua ausência na segunda, e a ausência da nota
+de playoff de rebaixamento na 3a brasileira que alimenta a porta, nas duas temporadas, com a nota de
+volta quando os estaduais estão desligados ou quando a 3a pede playoff de acesso; `SeasonNotesTest`,
+na CLI, prende que cada nota sai impressa sob o cabeçalho da sua competição.
 
 ### 119. Liga nacional agrupada com jogos dentro do grupo: a 1.3 e a 1.11 discordam, a implementação segue a 1.3
 

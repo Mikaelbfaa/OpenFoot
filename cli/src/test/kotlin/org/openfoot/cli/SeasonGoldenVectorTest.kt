@@ -73,9 +73,16 @@ import kotlin.test.assertEquals
  * it applies the match's cards and section 3.8 keeps the card record per
  * competition, so a ban earned in a league match is served by the club's
  * next league match and never by a cup match. In squads this small a man
- * sitting out a ban is felt at once, which is why the league table here is
- * not the one a season with bans served the day they were earned printed;
- * the cup, played by the same sides over six Wednesdays, came out the same.
+ * sitting out a ban is felt at once, in the table above.
+ *
+ * The division's block ends with the turnover's moves, read from
+ * seasonMovements. Nothing sits above division one, so its up line is empty.
+ * Section 1.9's embedded default relegates two from a division of ten, and
+ * section 1.12's swap with the reserve moves the smaller of that and the
+ * reserve's size; the reserve holds clube-11 alone, so one club goes down,
+ * clube-09, the last of the table, and clube-11 comes up in its place, which
+ * no line names because a reserve club belongs to no competition. The cup is
+ * no division and prints neither line.
  *
  * The pinned string below was produced by running this exact season and
  * copying the printed text verbatim, then checked line by line against
@@ -110,6 +117,8 @@ class SeasonGoldenVectorTest {
                   8  clube-06   43   36  11  10  15  56  61
                   9  clube-03   36   36  10   6  20  48  71
                  10  clube-09   35   36   9   8  19  45  63
+                up:
+                down: clube-09
               top scorers
                 88  clube-01 jogador 1  clube-01
                 77  clube-04 jogador 1  clube-04

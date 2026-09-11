@@ -145,10 +145,35 @@ fun stateSetup(clubs: List<ClubState>, dataset: WorldDataset, tiebreak: (String)
 }
 
 /**
+ * One boundary's worth of movement inside one state at the turnover of
+ * FORMAT-SPEC's "Rebaixados e promovidos", shaped as DivisionSwap is for a
+ * national pyramid: upper is the division number of the shallower division
+ * of the pair, relegated names the clubs that leave it downwards and
+ * promoted the clubs that leave the division below for it, each list in the
+ * order the turnover moved them. The last division's boundary is its swap
+ * with the state reserve, where relegated join the reserve's tail and
+ * promoted are the reserve clubs taken from its head. A boundary whose two
+ * lists were not the same size traded nobody, and says so with two empty
+ * lists.
+ */
+@SpecRef("FORMAT-SPEC, ces")
+data class StateSwap(val state: Int, val upper: Int, val relegated: List<String>, val promoted: List<String>)
+
+/**
+ * What stateTurnover leaves: next, the memberships of the next season, and
+ * swaps, every boundary movement that produced them, state by state
+ * ascending and within a state from division one down. Both come out of the
+ * one walk over the boundaries, so a reader who wants to know who moved
+ * never has to compare two setups to find out.
+ */
+@SpecRef("FORMAT-SPEC, ces")
+data class StateTurnover(val next: StateSetup, val swaps: List<StateSwap>)
+
+/**
  * The state memberships of the next season, per FORMAT-SPEC's "Rebaixados e
- * promovidos": setup is the season just played, tableOf gives a division's
- * first phase overall table and meritOf its merit list, both by the
- * division's competition key.
+ * promovidos", and the swaps that move them there: setup is the season just
+ * played, tableOf gives a division's first phase overall table and meritOf
+ * its merit list, both by the division's competition key.
  *
  * Every state is moved on its own, its boundaries processed from division
  * one down, one at a time, as section 1.12 processes a pyramid. A division
@@ -182,9 +207,10 @@ fun stateSetup(clubs: List<ClubState>, dataset: WorldDataset, tiebreak: (String)
  * INFERIDO.
  */
 @SpecRef("FORMAT-SPEC, ces")
-fun stateTurnover(setup: StateSetup, tableOf: (String) -> List<String>, meritOf: (String) -> List<String>): StateSetup {
+fun stateTurnover(setup: StateSetup, tableOf: (String) -> List<String>, meritOf: (String) -> List<String>): StateTurnover {
     val divisions = ArrayList<StateDivision>()
     val reserves = mutableMapOf<Int, List<String>>()
+    val swaps = ArrayList<StateSwap>()
     val states = (setup.divisions.map { it.state } + setup.reserve.keys).distinct().sorted()
     for (state in states) {
         val own = setup.divisions.filter { it.state == state }.sortedBy { it.division }
@@ -204,13 +230,18 @@ fun stateTurnover(setup: StateSetup, tableOf: (String) -> List<String>, meritOf:
                     fromBelow[index] += up
                     leaving[index + 1] += up
                     fromAbove[index + 1] += zone
+                    swaps += StateSwap(state, division.division, zone, up)
+                } else {
+                    swaps += StateSwap(state, division.division, emptyList(), emptyList())
                 }
             } else {
                 val count = minOf(zone.size, reserve.size)
                 val down = zone.takeLast(count)
+                val promoted = reserve.take(count)
                 leaving[index] += down
-                fromBelow[index] += reserve.take(count)
+                fromBelow[index] += promoted
                 reserve = reserve.drop(count) + down
+                swaps += StateSwap(state, division.division, down, promoted)
             }
         }
         own.forEachIndexed { index, division ->
@@ -219,7 +250,7 @@ fun stateTurnover(setup: StateSetup, tableOf: (String) -> List<String>, meritOf:
         }
         if (reserve.isNotEmpty()) reserves[state] = reserve
     }
-    return StateSetup(divisions, reserves)
+    return StateTurnover(StateSetup(divisions, reserves), swaps)
 }
 
 /** The key of the competition one state division plays, naming the state and the division number. */
@@ -263,13 +294,16 @@ internal fun stateCompetitionKey(division: StateDivision): String = "state:${div
  * two divisions of the same state, or the same division number of two
  * states, never collide.
  *
- * realStateGroups is the dataset option of FORMAT-SPEC load rule six. With
- * it on, Sao Paulo's first division on preset 7 would seat the state's
- * recorded regional groups when every listed club is present; this version
- * always deals the queue, so that division lists
- * Approximation.REAL_STATE_GROUPS_IGNORED in its approximations, whether or
- * not every listed club is there, OPEN-QUESTIONS item 118's announced
- * fallback. No other division reads the option.
+ * realStateGroups is the dataset option of FORMAT-SPEC load rule six, as it
+ * applies to the season being built. With it on, Sao Paulo's first division
+ * on preset 7 would seat the state's recorded regional groups when every
+ * listed club is present; this version always deals the queue, so that
+ * division lists Approximation.REAL_STATE_GROUPS_IGNORED in its
+ * approximations, whether or not every listed club is there, OPEN-QUESTIONS
+ * item 118's announced fallback. No other division reads the option. Load
+ * rule six runs at world creation only, and a later season deals the
+ * memberships stateTurnover carried (item 123), so buildCompetitions hands
+ * the option on for season one and off for every later season.
  */
 @SpecRef("FORMAT-SPEC, ces")
 fun stateCompetition(division: StateDivision, realStateGroups: Boolean, rng: Rng): Competition {

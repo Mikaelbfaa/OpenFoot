@@ -2,6 +2,7 @@ package org.openfoot.engine.season
 
 import org.openfoot.dataset.ClubEntry
 import org.openfoot.dataset.LeagueConfigEntry
+import org.openfoot.dataset.StateChampionshipEntry
 import org.openfoot.dataset.WorldDataset
 import org.openfoot.engine.world.Standing
 import org.openfoot.engine.world.WorldFixtures
@@ -184,6 +185,106 @@ class StateSeasonsTest {
     }
 
     /**
+     * The departures the season printout reads are the moves the next season
+     * makes: every league and state division's up and down lists, from the
+     * one function nextSeason reads too, name exactly the clubs that stand
+     * one division higher, one lower, at the door or in a reserve after the
+     * turnover, in the order they were moved.
+     */
+    @Test
+    fun `the departures of every division are the moves the next season makes`() {
+        val end = play(opening(fourStates(), 11))
+        val movements = seasonMovements(end)
+        val next = turn(end)
+        assertEquals(
+            listOf("league:29:1", "league:29:2", "league:29:3", "league:29:4", "state:10:1", "state:18:1", "state:18:2", "state:22:1", "state:25:1", "state:25:2"),
+            movements.departures.map { it.key },
+        )
+        fun departures(key: String) = assertNotNull(movements.departuresOf(key), key)
+
+        assertEquals(emptyList(), departures("league:29:1").up)
+        for (division in 1..2) {
+            assertEquals(end.order("league:29:$division").takeLast(2), departures("league:29:$division").down)
+            departures("league:29:$division").down.forEach { assertEquals(Standing.InDivision(division + 1), next.standingOf(it)) }
+            assertEquals(end.order("league:29:${division + 1}").take(2), departures("league:29:${division + 1}").up)
+            departures("league:29:${division + 1}").up.forEach { assertEquals(Standing.InDivision(division), next.standingOf(it)) }
+        }
+        val door = departures("league:29:3").down
+        assertEquals(end.order("league:29:3").takeLast(2), door)
+        assertEquals(door, next.fourth?.door)
+        val fourthOrder = end.order(BrazilianFourth.KEY)
+        assertEquals(fourthOrder.take(2), departures(BrazilianFourth.KEY).up)
+        departures(BrazilianFourth.KEY).up.forEach { assertEquals(Standing.InDivision(3), next.standingOf(it)) }
+        assertEquals(fourthOrder.drop(2), departures(BrazilianFourth.KEY).down)
+        (door + fourthOrder.drop(2)).forEach { assertEquals(Standing.WithoutDivision, next.standingOf(it)) }
+        assertEquals(door + fourthOrder.drop(2), movements.fourth?.let { it.door + it.released })
+
+        for (state in listOf(25, 18)) {
+            assertEquals(emptyList(), departures("state:$state:1").up)
+            assertEquals(end.firstPhaseTable("state:$state:1").takeLast(2), departures("state:$state:1").down)
+            assertTrue(next.division(state, 2).containsAll(departures("state:$state:1").down))
+            assertEquals(end.order("state:$state:2").take(2), departures("state:$state:2").up)
+            assertTrue(next.division(state, 1).containsAll(departures("state:$state:2").up))
+            assertEquals(departures("state:$state:2").down, next.states.reserve.getValue(state).takeLast(2))
+        }
+        for (state in listOf(10, 22)) {
+            assertEquals(end.firstPhaseTable("state:$state:1").takeLast(2), departures("state:$state:1").down)
+            assertEquals(departures("state:$state:1").down, next.states.reserve.getValue(state).takeLast(2))
+        }
+        assertEquals(movements.states.next, next.states)
+        assertNull(movements.departuresOf("cup:29"))
+    }
+
+    /**
+     * Sixteen Sao Paulo clubs at the top of fifty Brazilian clubs, the rest of
+     * no state, with Sao Paulo's first division configured on preset 7: the
+     * one division FORMAT-SPEC load rule six can seat by its real groups.
+     */
+    private fun saoPauloOnPresetSeven(): WorldDataset = WorldFixtures.dataset(
+        clubs = (1..50).map { index -> club("p${index.toString().padStart(2, '0')}", level = 20 - (index - 1) / 4, state = if (index <= 16) 25 else null) },
+    ).copy(
+        leagues = leagues(flatFourth),
+        stateChampionships = listOf(StateChampionshipEntry(state = 25, division = 1, preset = 7, penaltiesTiebreak = true, twoLeggedRounds = listOf(false, false, true))),
+    )
+
+    /**
+     * Load rule six runs once, at world creation; a later season plays the
+     * memberships the turnover carried (item 123), so only season one's Sao
+     * Paulo division says the real groups option was not honoured.
+     */
+    @Test
+    fun `the Sao Paulo real groups note belongs to season one alone`() {
+        val first = opening(saoPauloOnPresetSeven(), 20)
+        assertEquals(listOf(Approximation.REAL_STATE_GROUPS_IGNORED.text), first.competitions.getValue("state:25:1").approximations)
+        val second = turn(play(first))
+        assertEquals(STATE_PRESETS[7], second.states.divisions.single().preset)
+        assertEquals(emptyList(), second.competitions.getValue("state:25:1").approximations)
+    }
+
+    private fun withThird(data: WorldDataset, third: LeagueConfigEntry) = data.copy(leagues = data.leagues.map { if (it.division == 3) third else it })
+
+    /**
+     * Section 1.12 forces Brazil's third to relegate directly while the
+     * states feed the fourth, so a relegation playoff configured there is
+     * not an approximation and earns no note, in either season; with the
+     * states off the same configuration is noted, and a promotion playoff of
+     * the third, which the forcing does not touch, is noted either way.
+     */
+    @Test
+    fun `Brazil's third notes no relegation playoff while the states feed the fourth`() {
+        val tier = LeagueConfigEntry(country = Country.BRAZIL, division = 3, teamCount = 10, relegated = 2, turns = 1, penaltiesTiebreak = true)
+        val note = listOf(Approximation.PLAYOFFS_AS_DIRECT_MOVEMENT.text)
+        val relegationPlayoff = withThird(fourStates(), tier.copy(directRelegated = 1))
+        val fed = opening(relegationPlayoff, 21)
+        assertEquals(emptyList(), fed.competitions.getValue("league:29:3").approximations)
+        assertEquals(emptyList(), turn(play(fed)).competitions.getValue("league:29:3").approximations)
+        val unfed = opening(relegationPlayoff.copy(options = relegationPlayoff.options.copy(playStateChampionships = false)), 21)
+        assertEquals(note, unfed.competitions.getValue("league:29:3").approximations)
+        val promotionPlayoff = opening(withThird(fourStates(), tier.copy(promotionPlayoffPlaces = 1)), 21)
+        assertEquals(note, promotionPlayoff.competitions.getValue("league:29:3").approximations)
+    }
+
+    /**
      * Forty six Brazilian clubs: thirty strong clubs of no state in divisions
      * one to three, then sixteen weaker clubs listed weakest first, six of
      * them Minas (10) at every third place, the rest of no state. The state
@@ -260,6 +361,7 @@ class StateSeasonsTest {
         assertEquals(4, swap.upper)
         swap.promoted.forEach { assertEquals(Standing.InDivision(4), next.standingOf(it)) }
         swap.relegated.forEach { assertEquals(Standing.WithoutDivision, next.standingOf(it)) }
+        assertEquals(swap.relegated, seasonMovements(end).departuresOf("league:29:4")?.down)
     }
 
     /**

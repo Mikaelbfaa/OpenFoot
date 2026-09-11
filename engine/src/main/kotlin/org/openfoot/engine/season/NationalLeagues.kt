@@ -107,7 +107,10 @@ fun leagueDivisions(country: Int, clubs: List<ClubState>, dataset: WorldDataset)
  * division's groups is likewise not built; preliminary is true when the
  * caller, the fourth's build at state close, found that the preliminary was
  * due, and the division then seats its configured field directly and says
- * so. Every such fallback is listed in the competition's approximations, by
+ * so. directRelegation is true when section 1.12 forces this division's
+ * relegation direct, Brazil's third while the states feed the fourth, and a
+ * relegation playoff configured for it is then no approximation. Every such
+ * fallback is listed in the competition's approximations, by
  * leagueApproximations, and OPEN-QUESTIONS item 118 records them all. A
  * configured division whose club count does not divide into config.groups
  * equal, even sized groups, or whose final phase field would not be a power
@@ -115,7 +118,7 @@ fun leagueDivisions(country: Int, clubs: List<ClubState>, dataset: WorldDataset)
  * version builds.
  */
 @SpecRef("1.11")
-fun leagueCompetition(division: LeagueDivision, rng: Rng, preliminary: Boolean = false): Competition {
+fun leagueCompetition(division: LeagueDivision, rng: Rng, preliminary: Boolean = false, directRelegation: Boolean = false): Competition {
     val key = "league:${division.country}:${division.division}"
     require(division.clubs.size % 2 == 0) {
         "$key holds ${division.clubs.size} clubs, and an odd count plays no round robin of section 1.3; that shape is outside what this version builds"
@@ -150,7 +153,7 @@ fun leagueCompetition(division: LeagueDivision, rng: Rng, preliminary: Boolean =
         division = division.division,
         phases = phases,
         qualifiers = qualifiers,
-        approximations = leagueApproximations(config, preliminary),
+        approximations = leagueApproximations(config, preliminary, directRelegation),
         results = listOf(emptyList()),
         phaseIndex = 0,
         roundIndex = 0,
@@ -165,8 +168,10 @@ fun leagueCompetition(division: LeagueDivision, rng: Rng, preliminary: Boolean =
  * the Serie C sentinel of 1.11, whenever config.knockoutQualifiers is
  * LeagueConfigEntry.SERIE_C_FORMAT; the sixty eight club preliminary of
  * 1.11, whenever the caller says it was due; the playoffs of 1.12, whenever
- * config.directRelegated is below config.relegated or
- * config.promotionPlayoffPlaces is above nought; and, on a division with
+ * config.directRelegated is below config.relegated, unless directRelegation
+ * says section 1.12 forces that division's relegation direct, or
+ * config.promotionPlayoffPlaces is above nought, which the forcing does not
+ * touch; and, on a division with
  * groups only, config.bestThirds and config.relegatedByGroup. Without groups
  * there are no thirds to rank across groups and one shared table is every
  * group's table, so those two flags change nothing there and earn no note:
@@ -175,13 +180,14 @@ fun leagueCompetition(division: LeagueDivision, rng: Rng, preliminary: Boolean =
  * default of 1.9, which is built exactly, and notes only a due preliminary.
  */
 @SpecRef("1.11")
-internal fun leagueApproximations(config: LeagueConfigEntry?, preliminary: Boolean): List<String> {
+internal fun leagueApproximations(config: LeagueConfigEntry?, preliminary: Boolean, directRelegation: Boolean = false): List<String> {
     val grouped = config != null && config.groups > 0
     return Approximation.entries.filter { note ->
         when (note) {
             Approximation.SERIE_C_AS_FLAT_LEAGUE -> config?.knockoutQualifiers == LeagueConfigEntry.SERIE_C_FORMAT
             Approximation.PRELIMINARY_NOT_PLAYED -> preliminary
-            Approximation.PLAYOFFS_AS_DIRECT_MOVEMENT -> config != null && (config.hasRelegationPlayoff || config.promotionPlayoffPlaces > 0)
+            Approximation.PLAYOFFS_AS_DIRECT_MOVEMENT ->
+                config != null && ((config.hasRelegationPlayoff && !directRelegation) || config.promotionPlayoffPlaces > 0)
             Approximation.BEST_THIRDS_IGNORED -> grouped && config.bestThirds
             Approximation.RELEGATION_BY_GROUP_IGNORED -> grouped && config.relegatedByGroup
             Approximation.NEW_CUP_FORMAT_AS_STANDARD, Approximation.REAL_STATE_GROUPS_IGNORED -> false

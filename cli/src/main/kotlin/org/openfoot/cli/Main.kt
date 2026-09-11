@@ -107,8 +107,9 @@ private val USAGE = """
                dataset, seed and sides always print the same match.
       season   generates a world from a dataset and a seed, plays one or more
                seasons over it and prints each: every competition's champion,
-               runner-up and, where it applies, table or final order, and the
-               season's top scorers. --seasons is at least one and defaults
+               runner-up and, where it applies, table or final order, the
+               clubs each division sends up and down at the turnover, and
+               the season's top scorers. --seasons is at least one and defaults
                to one; the same dataset, seed and active leagues always print
                the same seasons. A competition played over a format this
                version approximates says so in a note line.

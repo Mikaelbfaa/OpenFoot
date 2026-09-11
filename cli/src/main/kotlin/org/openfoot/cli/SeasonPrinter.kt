@@ -2,8 +2,10 @@ package org.openfoot.cli
 
 import org.openfoot.engine.season.CompetitionClose
 import org.openfoot.engine.season.Phase
+import org.openfoot.engine.season.SeasonMovements
 import org.openfoot.engine.season.SeasonState
 import org.openfoot.engine.season.TableRow
+import org.openfoot.engine.season.seasonMovements
 
 /**
  * Describes a played season in a form that is the same on every run, so two
@@ -40,6 +42,17 @@ import org.openfoot.engine.season.TableRow
  * a plain league without a final phase prints only the table and a pure
  * knockout, the national cup, prints only the order.
  *
+ * Every league division and state division then ends its block with an up
+ * line and a down line, the design's "quem subiu e desceu": the clubs the
+ * turnover that follows this season moves out of the division, upwards and
+ * downwards, in the order it moves them, or nothing after the colon when it
+ * moves none. They are read from seasonMovements, the one function
+ * nextSeason applies, so the printout names exactly the moves the next
+ * season is built from. A club coming up out of a reserve belongs to no
+ * competition and appears on no line; the Brazilian fourth fed by the states
+ * lists as down every club that does not go up, since each of them leaves
+ * the division for the reserve.
+ *
  * The top scorers section closes the printout: the five leading scorers of
  * the whole season, across every club and every competition, goals
  * descending and then, per the interface's own total order, player name and
@@ -53,8 +66,9 @@ internal fun describeSeason(state: SeasonState): String {
         "season    ${state.number}  year ${state.year}  rounds ${state.schedule.dates.size}  matches ${state.played.size}",
     )
 
+    val movements = seasonMovements(state)
     for (close in state.closed) {
-        appendCompetition(builder, state, close)
+        appendCompetition(builder, state, close, movements)
     }
 
     appendTopScorers(builder, state)
@@ -62,7 +76,7 @@ internal fun describeSeason(state: SeasonState): String {
     return builder.toString()
 }
 
-private fun appendCompetition(builder: StringBuilder, state: SeasonState, close: CompetitionClose) {
+private fun appendCompetition(builder: StringBuilder, state: SeasonState, close: CompetitionClose, movements: SeasonMovements) {
     val competition = state.competitions.getValue(close.key)
     val champion = close.finalOrder[0]
     val runnerUp = close.finalOrder[1]
@@ -77,7 +91,13 @@ private fun appendCompetition(builder: StringBuilder, state: SeasonState, close:
     if (competition.phases.last() is Phase.Knockout) {
         builder.appendLine("    final order: ${close.finalOrder.joinToString(", ")}")
     }
+    movements.departuresOf(close.key)?.let { departures ->
+        builder.appendLine("    up:" + listed(departures.up))
+        builder.appendLine("    down:" + listed(departures.down))
+    }
 }
+
+private fun listed(keys: List<String>): String = if (keys.isEmpty()) "" else " " + keys.joinToString(", ")
 
 private val TABLE_HEADERS = listOf("pos", "club", "pts", "pld", "w", "d", "l", "gf", "ga")
 

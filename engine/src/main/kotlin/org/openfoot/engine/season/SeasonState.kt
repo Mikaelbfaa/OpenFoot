@@ -163,7 +163,7 @@ data class SeasonState(
 @SpecRef("1.10")
 fun openingSeason(world: World, dataset: WorldDataset, activeLeagues: Set<Int>, year: Int, seed: Long): SeasonState {
     val seated = world.clubs.map { ClubState.fresh(it) }
-    val number = 1
+    val number = WORLD_CREATION_SEASON
     val worldRng = SplitMix64Rng(seed).fork(SeedDomain.WORLDGEN)
     val states = stateSetup(seated, dataset) { ref -> pyramidTiebreak(worldRng, ref) }
     val levelSeatedFourth = if (fedByStates(dataset, activeLeagues)) {
@@ -179,7 +179,7 @@ fun openingSeason(world: World, dataset: WorldDataset, activeLeagues: Set<Int>, 
         val queue = requireNotNull(reserves[Country.BRAZIL]) { "Brazil seated a fourth division and holds no reserve queue" }
         reserves[Country.BRAZIL] = queue + pyramidOrder(levelSeatedFourth, worldRng)
     }
-    val competitions = buildCompetitions(number, clubs, dataset, activeLeagues, seed, states)
+    val competitions = buildCompetitions(number, clubs, dataset, activeLeagues, seed, states, fourth)
 
     return SeasonState(
         number = number,
@@ -267,6 +267,16 @@ private fun pyramidOrder(clubs: List<ClubState>, worldRng: Rng): List<String> =
  * would be shaped by, the novo formato option of 1.13 and the real groups
  * option of FORMAT-SPEC load rule six, only so each can say, in its
  * approximations, when the format the option asks for is not the one built.
+ * Load rule six runs at world creation, so the real groups option reaches
+ * the state competitions of season one alone; a later season deals the
+ * memberships the turnover carried, and no option asks it for anything.
+ *
+ * fourth is the season's Brazilian fourth division fed by the states, or
+ * null. While it is present, section 1.12 forces Brazil's third to relegate
+ * directly, and the third's competition is told so through the very
+ * condition the turnover sends its relegated to the door by,
+ * relegatesToTheDoor, so a relegation playoff configured for it is not
+ * announced as an approximation.
  */
 @SpecRef("1.10")
 internal fun buildCompetitions(
@@ -276,20 +286,35 @@ internal fun buildCompetitions(
     activeLeagues: Set<Int>,
     seed: Long,
     states: StateSetup,
+    fourth: BrazilianFourth?,
 ): List<Competition> {
     val root = seasonFixturesRoot(seed, number)
     val competitions = ArrayList<Competition>()
     for (country in activeLeagues.sorted()) {
         leagueDivisions(country, clubs, dataset).forEach { division ->
-            competitions += leagueCompetition(division, root.fork(clubKey("league:$country:${division.division}")))
+            competitions += leagueCompetition(
+                division,
+                root.fork(clubKey("league:$country:${division.division}")),
+                directRelegation = fourth.relegatesToTheDoor(country, division.division),
+            )
         }
         nationalCup(country, clubs, dataset.options.newCupFormat, root.fork(clubKey("cup:$country")))?.let { competitions += it }
     }
+    val realStateGroups = dataset.options.realStateGroups && number == WORLD_CREATION_SEASON
     states.divisions.forEach { division ->
-        competitions += stateCompetition(division, dataset.options.realStateGroups, root.fork(clubKey(stateCompetitionKey(division))))
+        competitions += stateCompetition(division, realStateGroups, root.fork(clubKey(stateCompetitionKey(division))))
     }
     return competitions
 }
+
+/**
+ * The number of the season a career opens with, the one played over the
+ * world as it was created: FORMAT-SPEC's load rules for the state
+ * championships, the real groups of rule six among them, run at world
+ * creation and so shape this season alone.
+ */
+@SpecRef("FORMAT-SPEC, ces")
+private const val WORLD_CREATION_SEASON = 1
 
 /**
  * The root every competition stream of one season forks from by the
